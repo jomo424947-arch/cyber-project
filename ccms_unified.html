@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Alexandria CCMS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Arabic:wght@400;700&family=Inter:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "primary-fixed-dim": "#b1c5ff",
+          "on-primary-fixed": "#001946",
+          "tertiary": "#dcc661",
+          "surface-container": "#121212",
+          "on-secondary-container": "#e2e2e2",
+          "on-tertiary-container": "#4a3f00",
+          "surface-tint": "#2259bf",
+          "on-secondary-fixed-variant": "#42474b",
+          "secondary-fixed": "#dfe3e8",
+          "outline-variant": "#2c2e35",
+          "error": "#ffb4ab",
+          "on-secondary-fixed": "#171c20",
+          "on-error": "#690005",
+          "tertiary-fixed-dim": "#dcc661",
+          "tertiary-container": "#4a3f00",
+          "outline": "#8e9099",
+          "on-background": "#e3e2e3",
+          "surface-variant": "#434653",
+          "surface-container-low": "#0a0a0a",
+          "surface-container-highest": "#33353a",
+          "surface-container-high": "#1a1a1a",
+          "inverse-surface": "#e3e2e3",
+          "on-secondary": "#ffffff",
+          "on-primary-container": "#e7ebff",
+          "inverse-on-surface": "#1b1c1d",
+          "on-tertiary": "#3a3000",
+          "on-surface-variant": "#c3c6d5",
+          "tertiary-fixed": "#f9e37a",
+          "error-container": "#93000a",
+          "background": "#000000",
+          "on-tertiary-fixed-variant": "#524600",
+          "primary-fixed": "#d9e2ff",
+          "primary": "#4785ff",
+          "on-primary": "#ffffff",
+          "surface-bright": "#1a1a1a",
+          "secondary-container": "#33353a",
+          "on-surface": "#e3e2e3",
+          "surface-dim": "#0a0a0a",
+          "surface-container-lowest": "#000000",
+          "secondary-fixed-dim": "#c2c7cc",
+          "secondary": "#c3c6d5",
+          "on-error-container": "#ffdad6",
+          "on-primary-fixed-variant": "#00419d",
+          "inverse-primary": "#094cb2",
+          "surface": "#000000",
+          "on-tertiary-fixed": "#211b00",
+          "primary-container": "#00419d"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "fontFamily": {
+          "headline": ["Noto Serif Arabic", "serif"],
+          "display": ["Noto Serif Arabic", "serif"],
+          "body": ["Inter", "sans-serif"],
+          "label": ["Public Sans", "sans-serif"]
+        }
+      },
+    },
+  }
+</script>
+<style>
+    body { font-family: 'Inter', sans-serif; background-color: #000000; color: #e3e2e3; }
+    .font-headline { font-family: 'Noto Serif Arabic', serif; }
+    .font-label { font-family: 'Public Sans', sans-serif; }
+    .glass-header { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); background: rgba(0, 0, 0, 0.7); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .gradient-primary { background: linear-gradient(135deg, #094cb2 0%, #1e40af 100%); }
+    .card-dark { background-color: #111111; border: 1px solid rgba(255,255,255,0.05); }
+    .card-dark:hover { border-color: rgba(71, 133, 255, 0.3); }
+    .page { display: none; }
+    .page.active { display: block; }
+    .nav-link.active-nav { background-color: rgba(0,65,157,0.2); color: #4785ff; font-weight: 700; border: 1px solid rgba(71,133,255,0.2); }
+    .bar-rise { transition: height 0.6s cubic-bezier(0.4,0,0.2,1); }
+    @keyframes countDown { 0% { opacity:1; } 50% { opacity:0.6; } 100% { opacity:1; } }
+    .timer-tick { animation: countDown 1s ease-in-out infinite; }
+</style>
+</head>
+<body class="bg-background text-on-surface">
+
+<!-- ============================================================ -->
+<!-- SIDEBAR (shared across all pages) -->
+<!-- ============================================================ -->
+<aside class="h-screen w-64 fixed right-0 top-0 z-50 bg-black border-l border-white/5 flex flex-col py-6 px-4 gap-8">
+  <div class="flex flex-col gap-1 px-2">
+    <h1 class="text-xl font-headline font-bold text-primary">Alexandria CCMS</h1>
+    <p class="text-xs font-label text-on-surface-variant/50 tracking-wider">مدير النظام الطرفي</p>
+  </div>
+
+  <nav class="flex flex-col gap-2 flex-grow">
+    <a data-page="dashboard" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">dashboard</span>
+      <span class="font-label font-medium text-sm">لوحة التحكم</span>
+    </a>
+    <a data-page="devices" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">computer</span>
+      <span class="font-label text-sm">مصفوفة الأجهزة</span>
+    </a>
+    <a data-page="sessions" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">timer</span>
+      <span class="font-label text-sm">الجلسات</span>
+    </a>
+    <a data-page="billing" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">payments</span>
+      <span class="font-label text-sm">الفواتير</span>
+    </a>
+    <a data-page="reservations" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">event</span>
+      <span class="font-label text-sm">الحجوزات</span>
+    </a>
+    <a data-page="insights" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">group</span>
+      <span class="font-label text-sm">رؤى العملاء</span>
+    </a>
+    <a data-page="settings" class="nav-link flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-white/5 transition-all duration-200 rounded-xl cursor-pointer">
+      <span class="material-symbols-outlined">settings</span>
+      <span class="font-label text-sm">إعدادات النظام</span>
+    </a>
+  </nav>
+
+  <button class="gradient-primary text-on-primary py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-transform active:scale-95">
+    <span class="material-symbols-outlined">add</span>
+    <span class="font-label text-sm">جلسة جديدة</span>
+  </button>
+
+  <div class="mt-auto border-t border-white/5 pt-6 flex flex-col gap-2">
+    <a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+      <span class="material-symbols-outlined">help_center</span>
+      <span class="font-label text-sm">الدعم الفني</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-2 text-error transition-colors" href="#">
+      <span class="material-symbols-outlined">logout</span>
+      <span class="font-label text-sm">تسجيل الخروج</span>
+    </a>
+  </div>
+</aside>
+
+<!-- ============================================================ -->
+<!-- MAIN SHELL -->
+<!-- ============================================================ -->
+<main class="mr-64 min-h-screen flex flex-col">
+
+  <!-- Shared TopAppBar -->
+  <header class="fixed top-0 left-0 w-[calc(100%-16rem)] z-40 glass-header border-b border-white/5 flex justify-between items-center h-16 px-8">
+    <div class="flex items-center gap-8">
+      <h2 id="page-title" class="text-lg font-headline font-semibold text-tertiary">لوحة التحكم</h2>
+      <nav class="hidden md:flex items-center gap-6">
+        <a class="text-primary border-b-2 border-primary pb-1 font-label text-sm" href="#">البث المباشر</a>
+        <a class="text-on-surface-variant hover:text-on-surface transition-colors font-label text-sm" href="#">التنبيهات</a>
+        <a class="text-on-surface-variant hover:text-on-surface transition-colors font-label text-sm" href="#">الأرشيف</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-6">
+      <div class="relative group">
+        <input class="bg-white/5 border border-white/10 rounded-full px-10 py-2 text-sm focus:ring-2 focus:ring-primary/40 w-64 transition-all text-on-surface placeholder:text-on-surface-variant/40" id="search-input" placeholder="بحث سريع..." type="text"/>
+        <span class="material-symbols-outlined absolute right-3 top-2.5 text-on-surface-variant text-sm">search</span>
+      </div>
+      <div class="flex items-center gap-4 text-on-surface-variant">
+        <span class="material-symbols-outlined hover:text-primary cursor-pointer">notifications</span>
+        <span class="material-symbols-outlined hover:text-primary cursor-pointer">translate</span>
+        <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center border border-white/10">
+          <span class="text-xs font-label font-bold text-primary-fixed">AC</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 1: DASHBOARD -->
+  <!-- ============================================================ -->
+  <section id="page-dashboard" class="page active mt-16 p-8 flex flex-col gap-8">
+    <div>
+      <h1 class="text-2xl font-headline font-bold text-on-surface">مرحباً بك، المسؤول</h1>
+      <p class="text-on-surface-variant/60 text-sm mt-1">إليك نظرة شاملة على أداء نظامك لليوم.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="card-dark p-6 rounded-2xl flex flex-col gap-4">
+        <div class="flex justify-between items-start">
+          <span class="bg-white/5 text-on-surface-variant text-[10px] font-label px-3 py-1 rounded-full">الأعضاء الجدد</span>
+          <div class="bg-primary/10 w-9 h-9 rounded-lg flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined text-lg">person_add</span>
+          </div>
+        </div>
+        <h3 class="text-3xl font-headline font-bold text-on-surface">18+ <span class="text-sm font-label font-normal text-on-surface-variant/50">مشترك جديد اليوم</span></h3>
+      </div>
+
+      <div class="card-dark p-6 rounded-2xl flex flex-col gap-4">
+        <div class="flex justify-between items-start">
+          <span class="bg-white/5 text-on-surface-variant text-[10px] font-label px-3 py-1 rounded-full">إيرادات اليوم</span>
+          <div class="bg-tertiary/10 w-9 h-9 rounded-lg flex items-center justify-center text-tertiary">
+            <span class="material-symbols-outlined text-lg">payments</span>
+          </div>
+        </div>
+        <h3 class="text-3xl font-headline font-bold text-on-surface">EGP 14,850</h3>
+        <p class="text-xs font-label text-tertiary flex items-center gap-1"><span class="material-symbols-outlined text-sm">trending_up</span> +12% عن الأمس</p>
+      </div>
+
+      <div class="card-dark p-6 rounded-2xl flex flex-col gap-4">
+        <div class="flex justify-between items-start">
+          <span class="bg-white/5 text-on-surface-variant text-[10px] font-label px-3 py-1 rounded-full">النشطة الآن</span>
+          <div class="bg-primary/10 w-9 h-9 rounded-lg flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined text-lg">bolt</span>
+          </div>
+        </div>
+        <h3 class="text-3xl font-headline font-bold text-on-surface">09 <span class="text-on-surface-variant/30 text-lg">/ 12</span></h3>
+        <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div class="h-full bg-primary rounded-full" style="width:75%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 card-dark rounded-2xl p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="font-headline font-bold text-on-surface">آخر المعاملات</h3>
+          <a class="text-xs font-label text-primary hover:underline" href="#">عرض الكل</a>
+        </div>
+        <div class="flex flex-col divide-y divide-white/5">
+          <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary"><span class="material-symbols-outlined text-lg">credit_card</span></div>
+              <div>
+                <p class="text-sm font-label text-on-surface">شحن رصيد - كرت</p>
+                <p class="text-xs text-on-surface-variant/40">أحمد كمال · قبل 5 دقائق</p>
+              </div>
+            </div>
+            <span class="font-label font-bold text-tertiary">250.00+</span>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><span class="material-symbols-outlined text-lg">shopping_cart</span></div>
+              <div>
+                <p class="text-sm font-label text-on-surface">مبيعات كافتيريا</p>
+                <p class="text-xs text-on-surface-variant/40">PC-04 · قبل 12 دقيقة</p>
+              </div>
+            </div>
+            <span class="font-label font-bold text-on-surface">75.00</span>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary"><span class="material-symbols-outlined text-lg">desktop_windows</span></div>
+              <div>
+                <p class="text-sm font-label text-on-surface">إغلاق جلسة</p>
+                <p class="text-xs text-on-surface-variant/40">PC-09 · قبل 24 دقيقة</p>
+              </div>
+            </div>
+            <span class="font-label font-bold text-tertiary">120.00+</span>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary"><span class="material-symbols-outlined text-lg">person_add</span></div>
+              <div>
+                <p class="text-sm font-label text-on-surface">عضوية جديدة</p>
+                <p class="text-xs text-on-surface-variant/40">محمد علي · قبل ساعة</p>
+              </div>
+            </div>
+            <span class="font-label font-bold text-tertiary">500.00+</span>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-error/10 flex items-center justify-center text-error"><span class="material-symbols-outlined text-lg">assignment_return</span></div>
+              <div>
+                <p class="text-sm font-label text-on-surface">استرجاع مبلغ</p>
+                <p class="text-xs text-on-surface-variant/40">PC-02 · قبل ساعتين</p>
+              </div>
+            </div>
+            <span class="font-label font-bold text-error">40.00-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6 flex flex-col gap-5">
+        <div class="flex items-center justify-between">
+          <h3 class="font-headline font-bold text-on-surface">حالة النظام</h3>
+          <span class="text-[10px] font-label font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">OPTIMAL</span>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-1">MEMORY LOAD</p>
+            <p class="text-2xl font-headline font-bold text-on-surface">32%</p>
+          </div>
+          <div>
+            <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-1">SERVER PING</p>
+            <p class="text-2xl font-headline font-bold text-on-surface">14ms</p>
+          </div>
+        </div>
+        <button class="mt-auto gradient-primary text-on-primary py-2.5 rounded-xl font-label text-sm font-bold flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-lg">query_stats</span>
+          تشخيص متقدم
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 2: MACHINE MATRIX (DEVICES) -->
+  <!-- ============================================================ -->
+  <section id="page-devices" class="page mt-16 p-8 flex flex-col gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="col-span-2 card-dark p-6 rounded-2xl flex items-center justify-between">
+        <div>
+          <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest mb-1">إجمالي النشاط</p>
+          <h3 class="text-4xl font-headline font-bold text-primary">09 <span class="text-on-surface-variant/30 text-2xl">/ 12</span></h3>
+          <p class="text-on-surface-variant/50 text-sm mt-2">الأجهزة النشطة حالياً في المصفوفة</p>
+        </div>
+        <div class="w-24 h-24 relative flex items-center justify-center">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle class="text-white/5" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-width="8"></circle>
+            <circle class="text-primary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-dasharray="251.2" stroke-dashoffset="62.8" stroke-linecap="round" stroke-width="8"></circle>
+          </svg>
+          <span class="absolute font-label font-bold text-primary">75%</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl flex flex-col justify-between border-r-4 border-tertiary">
+        <p class="text-on-surface-variant font-label text-xs tracking-widest">متاح</p>
+        <div class="flex items-end justify-between">
+          <h4 class="text-3xl font-headline font-bold text-on-surface">03</h4>
+          <span class="material-symbols-outlined text-tertiary">check_circle</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl flex flex-col justify-between border-r-4 border-error">
+        <p class="text-on-surface-variant font-label text-xs tracking-widest">صيانة</p>
+        <div class="flex items-end justify-between">
+          <h4 class="text-3xl font-headline font-bold text-on-surface">01</h4>
+          <span class="material-symbols-outlined text-error/50">build</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+      <!-- Machine Card 1: In Use -->
+      <div class="group card-dark rounded-2xl p-5 transition-all duration-300 relative overflow-hidden">
+        <div class="flex justify-between items-start mb-6">
+          <div class="bg-white/5 w-12 h-12 rounded-xl flex items-center justify-center text-primary border border-white/5">
+            <span class="material-symbols-outlined text-3xl">desktop_windows</span>
+          </div>
+          <div class="flex flex-col items-end">
+            <span class="text-[10px] font-label font-bold text-on-surface-variant/30 mb-1">STATION-01</span>
+            <div class="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+              <span class="w-2 h-2 rounded-full bg-primary status-pulse"></span>
+              <span class="text-xs font-label font-bold text-primary">قيد الاستخدام</span>
+            </div>
+          </div>
+        </div>
+        <h3 class="text-lg font-headline font-bold mb-4 text-on-surface">محطة العمل الفائقة - Alpha</h3>
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">memory</span>
+            <span class="text-xs font-label">AMD Ryzen 9 7950X</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">developer_board</span>
+            <span class="text-xs font-label">NVIDIA RTX 4090 24GB</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">ramp_left</span>
+            <span class="text-xs font-label">128GB DDR5 RAM</span>
+          </div>
+        </div>
+        <div class="pt-4 border-t border-white/5 flex justify-between items-center">
+          <div class="flex -space-x-2 space-x-reverse">
+            <div class="w-6 h-6 rounded-full border-2 border-black bg-tertiary-container flex items-center justify-center text-[10px] text-white">JD</div>
+          </div>
+          <button class="text-xs font-label text-primary hover:underline font-medium">التفاصيل الكاملة</button>
+        </div>
+      </div>
+
+      <!-- Machine Card 2: Available -->
+      <div class="group card-dark rounded-2xl p-5 transition-all duration-300 relative overflow-hidden">
+        <div class="flex justify-between items-start mb-6">
+          <div class="bg-white/5 w-12 h-12 rounded-xl flex items-center justify-center text-on-surface-variant border border-white/5">
+            <span class="material-symbols-outlined text-3xl">desktop_windows</span>
+          </div>
+          <div class="flex flex-col items-end">
+            <span class="text-[10px] font-label font-bold text-on-surface-variant/30 mb-1">STATION-02</span>
+            <div class="flex items-center gap-2 bg-tertiary/10 px-3 py-1 rounded-full border border-tertiary/20">
+              <span class="w-2 h-2 rounded-full bg-tertiary"></span>
+              <span class="text-xs font-label font-bold text-tertiary">متاح</span>
+            </div>
+          </div>
+        </div>
+        <h3 class="text-lg font-headline font-bold mb-4 text-on-surface">وحدة المعالجة المركزية - Beta</h3>
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">memory</span>
+            <span class="text-xs font-label">AMD Ryzen 9 7950X</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">developer_board</span>
+            <span class="text-xs font-label">NVIDIA RTX 4090 24GB</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">ramp_left</span>
+            <span class="text-xs font-label">64GB DDR5 RAM</span>
+          </div>
+        </div>
+        <div class="pt-4 border-t border-white/5 flex justify-between items-center">
+          <span class="text-[10px] text-on-surface-variant/40">آخر نشاط: منذ ساعتين</span>
+          <button class="text-xs font-label text-primary hover:underline font-medium">تخصيص</button>
+        </div>
+      </div>
+
+      <!-- Machine Card 3: In Use -->
+      <div class="group card-dark rounded-2xl p-5 transition-all duration-300 relative overflow-hidden">
+        <div class="flex justify-between items-start mb-6">
+          <div class="bg-white/5 w-12 h-12 rounded-xl flex items-center justify-center text-primary border border-white/5">
+            <span class="material-symbols-outlined text-3xl">desktop_windows</span>
+          </div>
+          <div class="flex flex-col items-end">
+            <span class="text-[10px] font-label font-bold text-on-surface-variant/30 mb-1">STATION-03</span>
+            <div class="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+              <span class="w-2 h-2 rounded-full bg-primary status-pulse"></span>
+              <span class="text-xs font-label font-bold text-primary">قيد الاستخدام</span>
+            </div>
+          </div>
+        </div>
+        <h3 class="text-lg font-headline font-bold mb-4 text-on-surface">محطة التصميم - Gamma</h3>
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">memory</span>
+            <span class="text-xs font-label">AMD Ryzen 9 7950X</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">developer_board</span>
+            <span class="text-xs font-label">NVIDIA RTX 4090 24GB</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">ramp_left</span>
+            <span class="text-xs font-label">128GB DDR5 RAM</span>
+          </div>
+        </div>
+        <div class="pt-4 border-t border-white/5 flex justify-between items-center">
+          <div class="flex -space-x-2 space-x-reverse">
+            <div class="w-6 h-6 rounded-full border-2 border-black bg-secondary-container flex items-center justify-center text-[10px] text-on-surface">AS</div>
+          </div>
+          <button class="text-xs font-label text-primary hover:underline font-medium">المراقبة</button>
+        </div>
+      </div>
+
+      <!-- Machine Card 4: Maintenance -->
+      <div class="group card-dark rounded-2xl p-5 transition-all duration-300 relative overflow-hidden">
+        <div class="flex justify-between items-start mb-6">
+          <div class="bg-error/10 w-12 h-12 rounded-xl flex items-center justify-center text-error border border-error/20">
+            <span class="material-symbols-outlined text-3xl">build</span>
+          </div>
+          <div class="flex flex-col items-end">
+            <span class="text-[10px] font-label font-bold text-on-surface-variant/30 mb-1">STATION-04</span>
+            <div class="flex items-center gap-2 bg-error/10 px-3 py-1 rounded-full border border-error/20">
+              <span class="w-2 h-2 rounded-full bg-error"></span>
+              <span class="text-xs font-label font-bold text-error">صيانة</span>
+            </div>
+          </div>
+        </div>
+        <h3 class="text-lg font-headline font-bold mb-4 text-on-surface">وحدة الاختبار - Delta</h3>
+        <div class="space-y-3 mb-6 opacity-60">
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">memory</span>
+            <span class="text-xs font-label">AMD Ryzen 9 7950X</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">developer_board</span>
+            <span class="text-xs font-label">NVIDIA RTX 4090 24GB</span>
+          </div>
+          <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">settings_suggest</span>
+            <span class="text-xs font-label">تحديث النظام قيد التنفيذ...</span>
+          </div>
+        </div>
+        <div class="pt-4 border-t border-white/5 flex justify-between items-center">
+          <span class="text-[10px] text-error font-medium">الوقت المتبقي: 14 دقيقة</span>
+          <button class="text-xs font-label text-on-surface-variant hover:text-on-surface underline">السجل</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 3: SESSIONS -->
+  <!-- ============================================================ -->
+  <section id="page-sessions" class="page mt-16 p-8 flex flex-col gap-8">
+
+    <!-- Summary strip -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-primary flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">نشطة الآن</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-primary">07</h4>
+          <span class="material-symbols-outlined text-primary">stream</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-tertiary flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">مكتملة اليوم</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-tertiary">24</h4>
+          <span class="material-symbols-outlined text-tertiary">task_alt</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-error flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">وقت إضافي</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-error">02</h4>
+          <span class="material-symbols-outlined text-error">warning</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">إيرادات الجلسات اليوم</p>
+        <h4 class="text-3xl font-headline font-bold text-on-surface mt-4">EGP 8,420</h4>
+        <p class="text-xs font-label text-tertiary flex items-center gap-1 mt-1"><span class="material-symbols-outlined text-sm">trending_up</span> +18% عن الأمس</p>
+      </div>
+    </div>
+
+    <!-- Active Sessions (live cards) -->
+    <div>
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-headline font-bold text-on-surface text-lg">الجلسات النشطة</h3>
+        <div class="flex gap-2">
+          <button class="text-xs font-label px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">الكل</button>
+          <button class="text-xs font-label px-3 py-1 rounded-full text-on-surface-variant/50 hover:bg-white/5">مفتوحة</button>
+          <button class="text-xs font-label px-3 py-1 rounded-full text-on-surface-variant/50 hover:bg-white/5">محددة الوقت</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+
+        <!-- Active: Open session (counting up) -->
+        <div class="group card-dark rounded-2xl p-5 transition-all duration-300 border-r-4 border-primary">
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex items-center gap-3">
+              <div class="bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center text-primary border border-primary/20">
+                <span class="material-symbols-outlined">desktop_windows</span>
+              </div>
+              <div>
+                <h4 class="font-headline font-bold text-on-surface text-sm">STATION-01</h4>
+                <p class="text-[10px] font-label text-on-surface-variant/40">محطة العمل الفائقة - Alpha</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+              <span class="w-2 h-2 rounded-full bg-primary status-pulse"></span>
+              <span class="text-[10px] font-label font-bold text-primary">مفتوحة</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-[10px] text-white border border-white/10">أك</div>
+            <div>
+              <p class="text-sm font-label font-bold text-on-surface">أحمد كمال</p>
+              <p class="text-[10px] font-label text-on-surface-variant/40">@ahmed_kamal</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3 mb-4">
+            <div>
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">الوقت المنقضي</p>
+              <p class="text-2xl font-headline font-bold text-primary timer-tick" id="open-timer-1">02:34:18</p>
+            </div>
+            <div class="text-left">
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">التكلفة الحالية</p>
+              <p class="text-lg font-headline font-bold text-tertiary">EGP 127.50</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-label text-on-surface-variant/40">السعر: 50 ج.م / ساعة</span>
+            <div class="flex gap-2">
+              <button class="text-xs font-label text-on-surface-variant border border-white/10 px-3 py-1.5 rounded-xl hover:bg-white/5 flex items-center gap-1"><span class="material-symbols-outlined text-sm">edit</span>تعديل</button>
+              <button class="text-xs font-label text-error bg-error/10 border border-error/20 px-3 py-1.5 rounded-xl hover:bg-error/20 flex items-center gap-1"><span class="material-symbols-outlined text-sm">stop_circle</span>إنهاء</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active: Fixed-time session (counting down, normal) -->
+        <div class="group card-dark rounded-2xl p-5 transition-all duration-300 border-r-4 border-primary">
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex items-center gap-3">
+              <div class="bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center text-primary border border-primary/20">
+                <span class="material-symbols-outlined">desktop_windows</span>
+              </div>
+              <div>
+                <h4 class="font-headline font-bold text-on-surface text-sm">STATION-03</h4>
+                <p class="text-[10px] font-label text-on-surface-variant/40">محطة التصميم - Gamma</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+              <span class="w-2 h-2 rounded-full bg-primary status-pulse"></span>
+              <span class="text-[10px] font-label font-bold text-primary">محددة الوقت</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-[10px] text-primary-fixed border border-white/10">مع</div>
+            <div>
+              <p class="text-sm font-label font-bold text-on-surface">محمد عادل</p>
+              <p class="text-[10px] font-label text-on-surface-variant/40">@mo_adel</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3 mb-4">
+            <div>
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">الوقت المتبقي</p>
+              <p class="text-2xl font-headline font-bold text-primary" id="fixed-timer-1">00:42:15</p>
+            </div>
+            <div class="text-left">
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">المدة الكاملة</p>
+              <p class="text-lg font-headline font-bold text-on-surface-variant/60">2 ساعة</p>
+            </div>
+          </div>
+          <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
+            <div class="h-full bg-primary rounded-full transition-all" style="width:65%"></div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-label text-on-surface-variant/40">التكلفة الثابتة: EGP 100</span>
+            <div class="flex gap-2">
+              <button class="text-xs font-label text-primary border border-primary/20 px-3 py-1.5 rounded-xl hover:bg-primary/10 flex items-center gap-1"><span class="material-symbols-outlined text-sm">more_time</span>تمديد</button>
+              <button class="text-xs font-label text-error bg-error/10 border border-error/20 px-3 py-1.5 rounded-xl hover:bg-error/20 flex items-center gap-1"><span class="material-symbols-outlined text-sm">stop_circle</span>إنهاء</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active: Fixed-time OVERTIME (exceeded limit) -->
+        <div class="group card-dark rounded-2xl p-5 transition-all duration-300 border-r-4 border-error">
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex items-center gap-3">
+              <div class="bg-error/10 w-10 h-10 rounded-xl flex items-center justify-center text-error border border-error/20">
+                <span class="material-symbols-outlined">desktop_windows</span>
+              </div>
+              <div>
+                <h4 class="font-headline font-bold text-on-surface text-sm">STATION-05</h4>
+                <p class="text-[10px] font-label text-on-surface-variant/40">وحدة المعالجة - Epsilon</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 bg-error/10 px-3 py-1 rounded-full border border-error/20">
+              <span class="w-2 h-2 rounded-full bg-error status-pulse"></span>
+              <span class="text-[10px] font-label font-bold text-error">وقت إضافي!</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-[10px] text-on-surface border border-white/10">سأ</div>
+            <div>
+              <p class="text-sm font-label font-bold text-on-surface">سارة أحمد</p>
+              <p class="text-[10px] font-label text-on-surface-variant/40">@sara_a</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between bg-error/5 rounded-xl px-4 py-3 mb-4 border border-error/10">
+            <div>
+              <p class="text-[10px] font-label text-error/60 uppercase tracking-wider">تجاوز بـ</p>
+              <p class="text-2xl font-headline font-bold text-error timer-tick">+00:18:33</p>
+            </div>
+            <div class="text-left">
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">رسوم إضافية</p>
+              <p class="text-lg font-headline font-bold text-error">EGP 15.50</p>
+            </div>
+          </div>
+          <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
+            <div class="h-full bg-error rounded-full" style="width:100%"></div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-label text-error/60">المدة المحددة: ساعة — انتهت 18 دقيقة مضت</span>
+            <button class="text-xs font-label text-on-primary bg-error px-4 py-1.5 rounded-xl font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">stop_circle</span>إنهاء فوري</button>
+          </div>
+        </div>
+
+        <!-- Active: Open session 2 -->
+        <div class="group card-dark rounded-2xl p-5 transition-all duration-300 border-r-4 border-primary">
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex items-center gap-3">
+              <div class="bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center text-primary border border-primary/20">
+                <span class="material-symbols-outlined">sports_esports</span>
+              </div>
+              <div>
+                <h4 class="font-headline font-bold text-on-surface text-sm">PS5-01</h4>
+                <p class="text-[10px] font-label text-on-surface-variant/40">بلايستيشن 5 — جناح VIP</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+              <span class="w-2 h-2 rounded-full bg-primary status-pulse"></span>
+              <span class="text-[10px] font-label font-bold text-primary">مفتوحة</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-[10px] text-white border border-white/10">يخ</div>
+            <div>
+              <p class="text-sm font-label font-bold text-on-surface">يوسف خالد</p>
+              <p class="text-[10px] font-label text-on-surface-variant/40">@youssef_k</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3 mb-4">
+            <div>
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">الوقت المنقضي</p>
+              <p class="text-2xl font-headline font-bold text-primary timer-tick">01:12:44</p>
+            </div>
+            <div class="text-left">
+              <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider">التكلفة الحالية</p>
+              <p class="text-lg font-headline font-bold text-tertiary">EGP 91.00</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-label text-on-surface-variant/40">السعر: 75 ج.م / ساعة (VIP)</span>
+            <div class="flex gap-2">
+              <button class="text-xs font-label text-on-surface-variant border border-white/10 px-3 py-1.5 rounded-xl hover:bg-white/5 flex items-center gap-1"><span class="material-symbols-outlined text-sm">edit</span>تعديل</button>
+              <button class="text-xs font-label text-error bg-error/10 border border-error/20 px-3 py-1.5 rounded-xl hover:bg-error/20 flex items-center gap-1"><span class="material-symbols-outlined text-sm">stop_circle</span>إنهاء</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Past Sessions table -->
+    <div class="card-dark rounded-2xl overflow-hidden">
+      <div class="flex items-center justify-between p-6 border-b border-white/5">
+        <h3 class="font-headline font-bold text-on-surface">سجل الجلسات السابقة</h3>
+        <div class="flex items-center gap-3">
+          <button class="flex items-center gap-2 text-xs font-label text-on-surface-variant border border-white/10 px-3 py-2 rounded-xl hover:bg-white/5"><span class="material-symbols-outlined text-sm">filter_list</span>تصفية</button>
+          <button class="flex items-center gap-2 text-xs font-label text-on-primary bg-primary px-3 py-2 rounded-xl hover:opacity-90"><span class="material-symbols-outlined text-sm">download</span>تصدير</button>
+        </div>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-on-surface-variant/40 font-label text-xs uppercase tracking-wider">
+            <th class="text-right font-medium px-6 py-3">الجهاز</th>
+            <th class="text-right font-medium px-6 py-3">العميل</th>
+            <th class="text-right font-medium px-6 py-3">النوع</th>
+            <th class="text-right font-medium px-6 py-3">البداية</th>
+            <th class="text-right font-medium px-6 py-3">المدة</th>
+            <th class="text-right font-medium px-6 py-3">التكلفة</th>
+            <th class="text-right font-medium px-6 py-3">الحالة</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">STATION-02</td>
+            <td class="px-6 py-4 font-label text-primary">@omar_99</td>
+            <td class="px-6 py-4"><span class="bg-primary/10 text-primary text-[10px] font-label font-bold px-2 py-0.5 rounded-full">محددة</span></td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم 10:30 ص</td>
+            <td class="px-6 py-4 font-label text-on-surface">2 ساعة</td>
+            <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 100</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مكتملة</span></td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">PS5-02</td>
+            <td class="px-6 py-4 font-label text-primary">@nour_m</td>
+            <td class="px-6 py-4"><span class="bg-white/5 text-on-surface-variant text-[10px] font-label font-bold px-2 py-0.5 rounded-full">مفتوحة</span></td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم 09:15 ص</td>
+            <td class="px-6 py-4 font-label text-on-surface">3 س 22 د</td>
+            <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 253.50</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مكتملة</span></td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">STATION-05</td>
+            <td class="px-6 py-4 font-label text-primary">@ali_dev</td>
+            <td class="px-6 py-4"><span class="bg-primary/10 text-primary text-[10px] font-label font-bold px-2 py-0.5 rounded-full">محددة</span></td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">أمس 06:00 م</td>
+            <td class="px-6 py-4 font-label text-on-surface">1 ساعة <span class="text-error text-[10px] font-bold">(+12 د إضافي)</span></td>
+            <td class="px-6 py-4 font-label font-bold text-error">EGP 60.00</td>
+            <td class="px-6 py-4"><span class="bg-error/10 text-error text-xs font-label font-bold px-3 py-1 rounded-full">وقت إضافي</span></td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">STATION-01</td>
+            <td class="px-6 py-4 font-label text-primary">@layla_h</td>
+            <td class="px-6 py-4"><span class="bg-white/5 text-on-surface-variant text-[10px] font-label font-bold px-2 py-0.5 rounded-full">مفتوحة</span></td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">أمس 02:45 م</td>
+            <td class="px-6 py-4 font-label text-on-surface">1 س 18 د</td>
+            <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 65.00</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مكتملة</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="flex items-center justify-between p-6 border-t border-white/5">
+        <span class="text-xs font-label text-on-surface-variant/40">عرض 4 من أصل 86 جلسة</span>
+        <div class="flex items-center gap-2">
+          <button class="w-8 h-8 rounded-lg bg-primary text-on-primary font-label text-sm font-bold">1</button>
+          <button class="w-8 h-8 rounded-lg text-on-surface-variant hover:bg-white/5 font-label text-sm">2</button>
+          <button class="w-8 h-8 rounded-lg text-on-surface-variant hover:bg-white/5 font-label text-sm">3</button>
+          <button class="w-8 h-8 rounded-lg text-on-surface-variant hover:bg-white/5 flex items-center justify-center"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 4: BILLING -->
+  <!-- ============================================================ -->
+  <section id="page-billing" class="page mt-16 p-8 flex flex-col gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="card-dark rounded-2xl p-6 flex flex-col justify-between border-r-4 border-error">
+        <div class="flex justify-between items-start">
+          <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">فواتير متأخرة</p>
+          <span class="material-symbols-outlined text-error">warning</span>
+        </div>
+        <h3 class="text-4xl font-headline font-bold text-error mt-4">18</h3>
+        <p class="text-on-surface-variant/50 text-sm mt-2 mb-4">مطالبة معلقة</p>
+        <button class="bg-error/10 text-error border border-error/20 py-2 rounded-xl font-label text-sm font-bold hover:bg-error/20 transition-colors">مراجعة المتأخرات</button>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6 flex flex-col justify-between border-r-4 border-tertiary">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">معدل النمو</p>
+        <h3 class="text-4xl font-headline font-bold text-tertiary mt-4">+12.4%</h3>
+        <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mt-4">
+          <div class="h-full bg-tertiary rounded-full" style="width:62%"></div>
+        </div>
+        <p class="text-on-surface-variant/40 text-xs mt-2">أداء استثنائي في الربع الحالي مقارنة بالسنوات السابقة.</p>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6 flex flex-col justify-between border-r-4 border-primary">
+        <div class="flex justify-between items-start">
+          <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">إجمالي المحصل</p>
+          <span class="material-symbols-outlined text-primary">credit_card</span>
+        </div>
+        <h3 class="text-4xl font-headline font-bold text-primary mt-4">142,500 <span class="text-lg text-on-surface-variant/50">ر.س</span></h3>
+        <p class="text-tertiary text-sm mt-2 flex items-center gap-1"><span class="material-symbols-outlined text-sm">trending_up</span> زيادة بمعدل 8% عن الشهر الماضي</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="card-dark rounded-2xl p-6">
+        <h3 class="font-headline font-bold text-on-surface mb-6">توزيع الإيرادات</h3>
+        <div class="flex items-center gap-8">
+          <div class="relative w-40 h-40 flex-shrink-0">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" fill="transparent" r="40" stroke="#1a1a1a" stroke-width="14"></circle>
+              <circle cx="50" cy="50" fill="transparent" r="40" stroke="#4785ff" stroke-dasharray="251.2" stroke-dashoffset="95.5" stroke-width="14"></circle>
+              <circle cx="50" cy="50" fill="transparent" r="40" stroke="#dcc661" stroke-dasharray="251.2" stroke-dashoffset="196" stroke-width="14"></circle>
+              <circle cx="50" cy="50" fill="transparent" r="40" stroke="#434653" stroke-dasharray="251.2" stroke-dashoffset="235" stroke-width="14"></circle>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-2xl font-headline font-bold text-on-surface">84%</span>
+              <span class="text-[10px] font-label text-on-surface-variant/40">معدل التحصيل</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-primary"></span><span class="text-sm font-label text-on-surface">عقود الشركات</span><span class="text-sm font-label font-bold text-on-surface-variant ms-auto">62%</span></div>
+            <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span><span class="text-sm font-label text-on-surface">خدمات الصيانة</span><span class="text-sm font-label font-bold text-on-surface-variant ms-auto">22%</span></div>
+            <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-[#434653]"></span><span class="text-sm font-label text-on-surface">مبيعات أخرى</span><span class="text-sm font-label font-bold text-on-surface-variant ms-auto">16%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-headline font-bold text-on-surface">توقعات التدفق النقدي</h3>
+          <div class="flex gap-2">
+            <button class="text-xs font-label px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">شهري</button>
+            <button class="text-xs font-label px-3 py-1 rounded-full text-on-surface-variant/50">ربع سنوي</button>
+          </div>
+        </div>
+        <div class="flex items-end justify-between h-40 gap-3">
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-primary/60 rounded-t-md bar-rise" style="height:55%"></div><span class="text-[10px] text-on-surface-variant/40">يناير</span></div>
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-primary/60 rounded-t-md bar-rise" style="height:70%"></div><span class="text-[10px] text-on-surface-variant/40">فبراير</span></div>
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-white/10 rounded-t-md bar-rise" style="height:35%"></div><span class="text-[10px] text-on-surface-variant/40">مارس</span></div>
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-primary/60 rounded-t-md bar-rise" style="height:85%"></div><span class="text-[10px] text-on-surface-variant/40">أبريل</span></div>
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-primary/60 rounded-t-md bar-rise" style="height:48%"></div><span class="text-[10px] text-on-surface-variant/40">مايو</span></div>
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-primary/60 rounded-t-md bar-rise" style="height:63%"></div><span class="text-[10px] text-on-surface-variant/40">يونيو</span></div>
+          <div class="flex flex-col items-center gap-2 flex-1"><div class="w-full bg-tertiary rounded-t-md bar-rise" style="height:95%"></div><span class="text-[10px] text-on-surface-variant/40">يوليو</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-dark rounded-2xl overflow-hidden">
+      <div class="flex items-center justify-between p-6 border-b border-white/5">
+        <h3 class="font-headline font-bold text-on-surface">جميع المعاملات</h3>
+        <div class="flex items-center gap-3">
+          <button class="flex items-center gap-2 text-xs font-label text-on-surface-variant border border-white/10 px-3 py-2 rounded-xl hover:bg-white/5"><span class="material-symbols-outlined text-sm">filter_list</span>تصفية النتائج</button>
+          <button class="flex items-center gap-2 text-xs font-label text-on-primary bg-primary px-3 py-2 rounded-xl hover:opacity-90"><span class="material-symbols-outlined text-sm">download</span>تصدير التقرير</button>
+        </div>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-on-surface-variant/40 font-label text-xs uppercase tracking-wider">
+            <th class="text-right font-medium px-6 py-3">رقم الفاتورة</th>
+            <th class="text-right font-medium px-6 py-3">اسم العميل</th>
+            <th class="text-right font-medium px-6 py-3">التاريخ</th>
+            <th class="text-right font-medium px-6 py-3">المبلغ</th>
+            <th class="text-right font-medium px-6 py-3">الحالة</th>
+            <th class="text-right font-medium px-6 py-3">الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">INV-8842#</td>
+            <td class="px-6 py-4 font-label text-on-surface">شركة الحلول المتقدمة</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">12 أكتوبر 2023</td>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">14,200 ر.س</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">تم الدفع</span></td>
+            <td class="px-6 py-4 text-on-surface-variant/40">•••</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">INV-8843#</td>
+            <td class="px-6 py-4 font-label text-on-surface">مؤسسة الأفق التقني</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">14 أكتوبر 2023</td>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">8,500 ر.س</td>
+            <td class="px-6 py-4"><span class="bg-primary/10 text-primary text-xs font-label font-bold px-3 py-1 rounded-full">قيد المعالجة</span></td>
+            <td class="px-6 py-4 text-on-surface-variant/40">•••</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">INV-8845#</td>
+            <td class="px-6 py-4 font-label text-on-surface">مركز التدريب الدولي</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">05 أكتوبر 2023</td>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">32,100 ر.س</td>
+            <td class="px-6 py-4"><span class="bg-error/10 text-error text-xs font-label font-bold px-3 py-1 rounded-full">متأخرة</span></td>
+            <td class="px-6 py-4 text-on-surface-variant/40">•••</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">INV-8849#</td>
+            <td class="px-6 py-4 font-label text-on-surface">شركة الخدمات المتكاملة</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">18 أكتوبر 2023</td>
+            <td class="px-6 py-4 font-label font-bold text-on-surface">5,400 ر.س</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">تم الدفع</span></td>
+            <td class="px-6 py-4 text-on-surface-variant/40">•••</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="flex items-center justify-between p-6 border-t border-white/5">
+        <span class="text-xs font-label text-on-surface-variant/40">عرض 4 من أصل 125 معاملة</span>
+        <div class="flex items-center gap-2">
+          <button class="w-8 h-8 rounded-lg bg-primary text-on-primary font-label text-sm font-bold">1</button>
+          <button class="w-8 h-8 rounded-lg text-on-surface-variant hover:bg-white/5 font-label text-sm">2</button>
+          <button class="w-8 h-8 rounded-lg text-on-surface-variant hover:bg-white/5 flex items-center justify-center"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 5: RESERVATIONS -->
+  <!-- ============================================================ -->
+  <section id="page-reservations" class="page mt-16 p-8 flex flex-col gap-8">
+
+    <!-- Summary strip -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-primary flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">حجوزات اليوم</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-primary">08</h4>
+          <span class="material-symbols-outlined text-primary">event_available</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-tertiary flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">مؤكدة</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-tertiary">06</h4>
+          <span class="material-symbols-outlined text-tertiary">verified</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-error flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">تعارضات</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-error">01</h4>
+          <span class="material-symbols-outlined text-error">error</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">ملغاة هذا الأسبوع</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-on-surface-variant/50">03</h4>
+          <span class="material-symbols-outlined text-on-surface-variant/30">event_busy</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Today's Timeline -->
+    <div class="card-dark rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-headline font-bold text-on-surface text-lg">الجدول الزمني — اليوم</h3>
+        <div class="flex gap-2">
+          <button class="gradient-primary text-on-primary text-xs font-label px-4 py-2 rounded-xl font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">add</span>حجز جديد</button>
+        </div>
+      </div>
+
+      <!-- Timeline grid (hours as columns) -->
+      <div class="overflow-x-auto">
+        <div class="min-w-[800px]">
+          <!-- Hour labels -->
+          <div class="flex gap-0 mb-2">
+            <div class="w-28 flex-shrink-0"></div>
+            <div class="flex-1 grid grid-cols-12 gap-0">
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">10ص</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">11ص</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">12م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">1م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">2م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">3م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">4م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">5م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">6م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">7م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">8م</span>
+              <span class="text-[10px] font-label text-on-surface-variant/30 text-center">9م</span>
+            </div>
+          </div>
+
+          <!-- Station rows -->
+          <div class="flex flex-col gap-2">
+            <!-- STATION-01 -->
+            <div class="flex items-center gap-0">
+              <div class="w-28 flex-shrink-0 text-xs font-label text-on-surface-variant/60 pe-3 text-left">STATION-01</div>
+              <div class="flex-1 h-10 bg-white/[0.02] rounded-lg relative border border-white/5">
+                <div class="absolute top-1 bottom-1 bg-primary/20 border border-primary/30 rounded-md flex items-center px-2" style="right:0%; width:25%">
+                  <span class="text-[10px] font-label text-primary font-bold truncate">أحمد كمال — 10:00-1:00</span>
+                </div>
+                <div class="absolute top-1 bottom-1 bg-primary/20 border border-primary/30 rounded-md flex items-center px-2" style="right:50%; width:16.6%">
+                  <span class="text-[10px] font-label text-primary font-bold truncate">نورا سعيد — 4:00-6:00</span>
+                </div>
+              </div>
+            </div>
+            <!-- STATION-02 -->
+            <div class="flex items-center gap-0">
+              <div class="w-28 flex-shrink-0 text-xs font-label text-on-surface-variant/60 pe-3 text-left">STATION-02</div>
+              <div class="flex-1 h-10 bg-white/[0.02] rounded-lg relative border border-white/5">
+                <div class="absolute top-1 bottom-1 bg-tertiary/20 border border-tertiary/30 rounded-md flex items-center px-2" style="right:16.6%; width:16.6%">
+                  <span class="text-[10px] font-label text-tertiary font-bold truncate">عمر خالد — 12:00-2:00</span>
+                </div>
+              </div>
+            </div>
+            <!-- STATION-03 -->
+            <div class="flex items-center gap-0">
+              <div class="w-28 flex-shrink-0 text-xs font-label text-on-surface-variant/60 pe-3 text-left">STATION-03</div>
+              <div class="flex-1 h-10 bg-white/[0.02] rounded-lg relative border border-white/5">
+                <div class="absolute top-1 bottom-1 bg-primary/20 border border-primary/30 rounded-md flex items-center px-2" style="right:8.3%; width:25%">
+                  <span class="text-[10px] font-label text-primary font-bold truncate">محمد عادل — 11:00-2:00</span>
+                </div>
+                <!-- Conflict block -->
+                <div class="absolute top-1 bottom-1 bg-error/20 border-2 border-error/50 rounded-md flex items-center px-2" style="right:25%; width:16.6%">
+                  <span class="text-[10px] font-label text-error font-bold truncate">⚠ تعارض — سارة 1:00-3:00</span>
+                </div>
+              </div>
+            </div>
+            <!-- PS5-01 -->
+            <div class="flex items-center gap-0">
+              <div class="w-28 flex-shrink-0 text-xs font-label text-on-surface-variant/60 pe-3 text-left">PS5-01</div>
+              <div class="flex-1 h-10 bg-white/[0.02] rounded-lg relative border border-white/5">
+                <div class="absolute top-1 bottom-1 bg-primary/20 border border-primary/30 rounded-md flex items-center px-2" style="right:58.3%; width:25%">
+                  <span class="text-[10px] font-label text-primary font-bold truncate">يوسف خالد — 5:00-8:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming reservations list -->
+    <div class="card-dark rounded-2xl overflow-hidden">
+      <div class="flex items-center justify-between p-6 border-b border-white/5">
+        <h3 class="font-headline font-bold text-on-surface">الحجوزات القادمة</h3>
+        <div class="flex items-center gap-3">
+          <button class="flex items-center gap-2 text-xs font-label text-on-surface-variant border border-white/10 px-3 py-2 rounded-xl hover:bg-white/5"><span class="material-symbols-outlined text-sm">filter_list</span>تصفية</button>
+        </div>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-on-surface-variant/40 font-label text-xs uppercase tracking-wider">
+            <th class="text-right font-medium px-6 py-3">العميل</th>
+            <th class="text-right font-medium px-6 py-3">الجهاز</th>
+            <th class="text-right font-medium px-6 py-3">التاريخ</th>
+            <th class="text-right font-medium px-6 py-3">من</th>
+            <th class="text-right font-medium px-6 py-3">إلى</th>
+            <th class="text-right font-medium px-6 py-3">الحالة</th>
+            <th class="text-right font-medium px-6 py-3">الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">@ahmed_kamal</td>
+            <td class="px-6 py-4 font-label text-on-surface">STATION-01</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم</td>
+            <td class="px-6 py-4 font-label text-on-surface">10:00 ص</td>
+            <td class="px-6 py-4 font-label text-on-surface">01:00 م</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مؤكدة</span></td>
+            <td class="px-6 py-4"><button class="text-xs font-label text-error hover:underline">إلغاء</button></td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">@mo_adel</td>
+            <td class="px-6 py-4 font-label text-on-surface">STATION-03</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم</td>
+            <td class="px-6 py-4 font-label text-on-surface">11:00 ص</td>
+            <td class="px-6 py-4 font-label text-on-surface">02:00 م</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مؤكدة</span></td>
+            <td class="px-6 py-4"><button class="text-xs font-label text-error hover:underline">إلغاء</button></td>
+          </tr>
+          <tr class="bg-error/[0.03]">
+            <td class="px-6 py-4 font-label font-bold text-error">@sara_a</td>
+            <td class="px-6 py-4 font-label text-on-surface">STATION-03</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم</td>
+            <td class="px-6 py-4 font-label text-error">01:00 م</td>
+            <td class="px-6 py-4 font-label text-error">03:00 م</td>
+            <td class="px-6 py-4"><span class="bg-error/10 text-error text-xs font-label font-bold px-3 py-1 rounded-full flex items-center gap-1 w-fit"><span class="material-symbols-outlined text-sm">warning</span>تعارض</span></td>
+            <td class="px-6 py-4"><button class="text-xs font-label text-primary hover:underline">نقل</button></td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">@nour_saeed</td>
+            <td class="px-6 py-4 font-label text-on-surface">STATION-01</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم</td>
+            <td class="px-6 py-4 font-label text-on-surface">04:00 م</td>
+            <td class="px-6 py-4 font-label text-on-surface">06:00 م</td>
+            <td class="px-6 py-4"><span class="bg-primary/10 text-primary text-xs font-label font-bold px-3 py-1 rounded-full">قيد الانتظار</span></td>
+            <td class="px-6 py-4"><button class="text-xs font-label text-error hover:underline">إلغاء</button></td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 font-label font-bold text-primary">@youssef_k</td>
+            <td class="px-6 py-4 font-label text-on-surface">PS5-01</td>
+            <td class="px-6 py-4 font-label text-on-surface-variant/60">اليوم</td>
+            <td class="px-6 py-4 font-label text-on-surface">05:00 م</td>
+            <td class="px-6 py-4 font-label text-on-surface">08:00 م</td>
+            <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مؤكدة</span></td>
+            <td class="px-6 py-4"><button class="text-xs font-label text-error hover:underline">إلغاء</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 6: CUSTOMER INSIGHTS -->
+  <!-- ============================================================ -->
+  <section id="page-insights" class="page mt-16 p-8 flex flex-col gap-8">
+
+    <!-- Summary strip -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-primary flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">إجمالي العملاء</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-primary">247</h4>
+          <span class="material-symbols-outlined text-primary">group</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl border-r-4 border-tertiary flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">نشطون هذا الشهر</p>
+        <div class="flex items-end justify-between mt-4">
+          <h4 class="text-3xl font-headline font-bold text-tertiary">89</h4>
+          <span class="material-symbols-outlined text-tertiary">person</span>
+        </div>
+      </div>
+      <div class="card-dark p-6 rounded-2xl flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">إجمالي الإنفاق الشهري</p>
+        <h4 class="text-3xl font-headline font-bold text-on-surface mt-4">EGP 42,800</h4>
+      </div>
+      <div class="card-dark p-6 rounded-2xl flex flex-col justify-between">
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest">متوسط الجلسة / عميل</p>
+        <h4 class="text-3xl font-headline font-bold text-on-surface mt-4">1.8 <span class="text-lg text-on-surface-variant/50">ساعة</span></h4>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Leaderboard -->
+      <div class="lg:col-span-2 card-dark rounded-2xl overflow-hidden">
+        <div class="flex items-center justify-between p-6 border-b border-white/5">
+          <h3 class="font-headline font-bold text-on-surface">المتصدرون — يوليو 2026</h3>
+          <div class="flex gap-2">
+            <button class="text-xs font-label px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">هذا الشهر</button>
+            <button class="text-xs font-label px-3 py-1 rounded-full text-on-surface-variant/50 hover:bg-white/5">الشهر الماضي</button>
+          </div>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-on-surface-variant/40 font-label text-xs uppercase tracking-wider">
+              <th class="text-right font-medium px-6 py-3">المركز</th>
+              <th class="text-right font-medium px-6 py-3">العميل</th>
+              <th class="text-right font-medium px-6 py-3">الجلسات</th>
+              <th class="text-right font-medium px-6 py-3">إجمالي الساعات</th>
+              <th class="text-right font-medium px-6 py-3">الإنفاق</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            <tr class="bg-tertiary/[0.03]">
+              <td class="px-6 py-4"><span class="text-lg">🥇</span></td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-[10px] text-white border border-tertiary/30">أك</div>
+                  <div>
+                    <p class="font-label font-bold text-on-surface">أحمد كمال</p>
+                    <p class="text-[10px] font-label text-on-surface-variant/40">@ahmed_kamal</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label font-bold text-on-surface">34</td>
+              <td class="px-6 py-4 font-label text-on-surface">72 ساعة</td>
+              <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 3,600</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4"><span class="text-lg">🥈</span></td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-[10px] text-primary-fixed border border-white/10">مع</div>
+                  <div>
+                    <p class="font-label font-bold text-on-surface">محمد عادل</p>
+                    <p class="text-[10px] font-label text-on-surface-variant/40">@mo_adel</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label font-bold text-on-surface">28</td>
+              <td class="px-6 py-4 font-label text-on-surface">58 ساعة</td>
+              <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 2,900</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4"><span class="text-lg">🥉</span></td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-[10px] text-on-surface border border-white/10">نس</div>
+                  <div>
+                    <p class="font-label font-bold text-on-surface">نورا سعيد</p>
+                    <p class="text-[10px] font-label text-on-surface-variant/40">@nour_saeed</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label font-bold text-on-surface">22</td>
+              <td class="px-6 py-4 font-label text-on-surface">41 ساعة</td>
+              <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 2,050</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-label text-on-surface-variant/40">#4</td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-[10px] text-on-surface border border-white/10">يخ</div>
+                  <div>
+                    <p class="font-label font-bold text-on-surface">يوسف خالد</p>
+                    <p class="text-[10px] font-label text-on-surface-variant/40">@youssef_k</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label font-bold text-on-surface">19</td>
+              <td class="px-6 py-4 font-label text-on-surface">35 ساعة</td>
+              <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 1,750</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-label text-on-surface-variant/40">#5</td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-[10px] text-on-surface border border-white/10">سأ</div>
+                  <div>
+                    <p class="font-label font-bold text-on-surface">سارة أحمد</p>
+                    <p class="text-[10px] font-label text-on-surface-variant/40">@sara_a</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label font-bold text-on-surface">15</td>
+              <td class="px-6 py-4 font-label text-on-surface">28 ساعة</td>
+              <td class="px-6 py-4 font-label font-bold text-tertiary">EGP 1,400</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Customer profile card -->
+      <div class="card-dark rounded-2xl p-6 flex flex-col gap-6">
+        <div class="flex items-center justify-between">
+          <h3 class="font-headline font-bold text-on-surface">بطاقة العميل</h3>
+          <span class="text-[10px] font-label font-bold bg-tertiary/10 text-tertiary px-2 py-1 rounded-full">VIP</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 rounded-2xl bg-tertiary-container flex items-center justify-center text-xl text-white font-headline font-bold border border-tertiary/30">أك</div>
+          <div>
+            <p class="font-headline font-bold text-on-surface text-lg">أحمد كمال</p>
+            <p class="text-sm font-label text-primary">@ahmed_kamal</p>
+            <p class="text-xs font-label text-on-surface-variant/40 mt-1">عضو منذ يناير 2024</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-white/5 rounded-xl p-3">
+            <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-1">إجمالي الإنفاق</p>
+            <p class="text-xl font-headline font-bold text-tertiary">EGP 18,400</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3">
+            <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-1">عدد الجلسات</p>
+            <p class="text-xl font-headline font-bold text-on-surface">142</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3">
+            <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-1">ساعات اللعب</p>
+            <p class="text-xl font-headline font-bold text-on-surface">284</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3">
+            <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-1">المفضلة</p>
+            <p class="text-xl font-headline font-bold text-primary">PC</p>
+          </div>
+        </div>
+        <div>
+          <p class="text-[10px] font-label text-on-surface-variant/40 uppercase tracking-wider mb-3">سجل الإنفاق (آخر 6 أشهر)</p>
+          <div class="flex items-end justify-between h-24 gap-2">
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full bg-primary/40 rounded-t-md" style="height:40%"></div><span class="text-[9px] text-on-surface-variant/30">فبر</span></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full bg-primary/40 rounded-t-md" style="height:55%"></div><span class="text-[9px] text-on-surface-variant/30">مار</span></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full bg-primary/40 rounded-t-md" style="height:70%"></div><span class="text-[9px] text-on-surface-variant/30">أبر</span></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full bg-primary/40 rounded-t-md" style="height:50%"></div><span class="text-[9px] text-on-surface-variant/30">ماي</span></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full bg-primary/40 rounded-t-md" style="height:85%"></div><span class="text-[9px] text-on-surface-variant/30">يون</span></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full bg-tertiary rounded-t-md" style="height:95%"></div><span class="text-[9px] text-on-surface-variant/30">يول</span></div>
+          </div>
+        </div>
+        <button class="gradient-primary text-on-primary py-2.5 rounded-xl font-label text-sm font-bold flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-lg">open_in_new</span>
+          عرض الملف الكامل
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PAGE 7: SYSTEM SETTINGS -->
+  <!-- ============================================================ -->
+  <section id="page-settings" class="page mt-16 p-8 flex flex-col gap-8">
+
+    <div>
+      <h1 class="text-2xl font-headline font-bold text-on-surface">إعدادات النظام</h1>
+      <p class="text-on-surface-variant/60 text-sm mt-1">إدارة التسعير والموظفين والإعدادات العامة — متاح للمسؤولين فقط.</p>
+    </div>
+
+    <!-- Settings tabs -->
+    <div class="flex gap-2 mb-2">
+      <button class="text-xs font-label px-4 py-2 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold" onclick="showSettingsTab('pricing')">التسعير</button>
+      <button class="text-xs font-label px-4 py-2 rounded-full text-on-surface-variant/50 hover:bg-white/5" onclick="showSettingsTab('staff')">الموظفون</button>
+      <button class="text-xs font-label px-4 py-2 rounded-full text-on-surface-variant/50 hover:bg-white/5" onclick="showSettingsTab('general')">عام</button>
+    </div>
+
+    <!-- TAB: Pricing -->
+    <div id="settings-pricing" class="flex flex-col gap-6">
+      <div class="card-dark rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-headline font-bold text-on-surface">أسعار الأجهزة بالساعة</h3>
+          <button class="gradient-primary text-on-primary text-xs font-label px-4 py-2 rounded-xl font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">save</span>حفظ التغييرات</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <!-- Pricing card: PC Standard -->
+          <div class="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">desktop_windows</span>
+                <span class="font-label font-bold text-on-surface text-sm">PC — عادي</span>
+              </div>
+              <span class="text-[10px] font-label text-on-surface-variant/40">4 أجهزة</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-on-surface w-24 font-label font-bold focus:ring-2 focus:ring-primary/40" type="number" value="50" />
+              <span class="text-xs font-label text-on-surface-variant/40">ج.م / ساعة</span>
+            </div>
+          </div>
+          <!-- Pricing card: PC VIP -->
+          <div class="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-tertiary">desktop_windows</span>
+                <span class="font-label font-bold text-on-surface text-sm">PC — VIP</span>
+              </div>
+              <span class="text-[10px] font-label text-on-surface-variant/40">2 أجهزة</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-on-surface w-24 font-label font-bold focus:ring-2 focus:ring-primary/40" type="number" value="75" />
+              <span class="text-xs font-label text-on-surface-variant/40">ج.م / ساعة</span>
+            </div>
+          </div>
+          <!-- Pricing card: PS5 -->
+          <div class="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">sports_esports</span>
+                <span class="font-label font-bold text-on-surface text-sm">PlayStation 5</span>
+              </div>
+              <span class="text-[10px] font-label text-on-surface-variant/40">3 أجهزة</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-on-surface w-24 font-label font-bold focus:ring-2 focus:ring-primary/40" type="number" value="60" />
+              <span class="text-xs font-label text-on-surface-variant/40">ج.م / ساعة</span>
+            </div>
+          </div>
+          <!-- Pricing card: VR -->
+          <div class="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">vrpano</span>
+                <span class="font-label font-bold text-on-surface text-sm">VR — واقع افتراضي</span>
+              </div>
+              <span class="text-[10px] font-label text-on-surface-variant/40">2 أجهزة</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-on-surface w-24 font-label font-bold focus:ring-2 focus:ring-primary/40" type="number" value="100" />
+              <span class="text-xs font-label text-on-surface-variant/40">ج.م / ساعة</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6">
+        <h3 class="font-headline font-bold text-on-surface mb-6">إعدادات الفوترة</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">الحد الأدنى للفوترة (دقيقة)</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="number" value="30" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">فترة السماح الافتراضية (دقيقة)</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="number" value="5" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">مُعامِل الوقت الإضافي</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="text" value="1.0x" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">العملة الافتراضية</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="text" value="EGP — جنيه مصري" disabled />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Staff -->
+    <div id="settings-staff" class="flex flex-col gap-6 hidden">
+      <div class="card-dark rounded-2xl overflow-hidden">
+        <div class="flex items-center justify-between p-6 border-b border-white/5">
+          <h3 class="font-headline font-bold text-on-surface">فريق العمل</h3>
+          <button class="gradient-primary text-on-primary text-xs font-label px-4 py-2 rounded-xl font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">person_add</span>إضافة موظف</button>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-on-surface-variant/40 font-label text-xs uppercase tracking-wider">
+              <th class="text-right font-medium px-6 py-3">الموظف</th>
+              <th class="text-right font-medium px-6 py-3">البريد الإلكتروني</th>
+              <th class="text-right font-medium px-6 py-3">الصلاحية</th>
+              <th class="text-right font-medium px-6 py-3">الحالة</th>
+              <th class="text-right font-medium px-6 py-3">الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            <tr>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-[10px] text-primary-fixed border border-white/10">AC</div>
+                  <span class="font-label font-bold text-on-surface">Admin Controller</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label text-on-surface-variant/60">admin@alexandria.cc</td>
+              <td class="px-6 py-4"><span class="bg-tertiary/10 text-tertiary text-xs font-label font-bold px-3 py-1 rounded-full">مسؤول</span></td>
+              <td class="px-6 py-4"><span class="flex items-center gap-1 text-xs font-label text-tertiary"><span class="w-2 h-2 rounded-full bg-tertiary"></span>متصل</span></td>
+              <td class="px-6 py-4 text-on-surface-variant/40">—</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-[10px] text-on-surface border border-white/10">حس</div>
+                  <span class="font-label font-bold text-on-surface">حسن إبراهيم</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label text-on-surface-variant/60">hassan@alexandria.cc</td>
+              <td class="px-6 py-4"><span class="bg-primary/10 text-primary text-xs font-label font-bold px-3 py-1 rounded-full">كاشير</span></td>
+              <td class="px-6 py-4"><span class="flex items-center gap-1 text-xs font-label text-tertiary"><span class="w-2 h-2 rounded-full bg-tertiary"></span>متصل</span></td>
+              <td class="px-6 py-4"><button class="text-xs font-label text-primary hover:underline">تعديل</button></td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-[10px] text-on-surface border border-white/10">مر</div>
+                  <span class="font-label font-bold text-on-surface">مريم يوسف</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-label text-on-surface-variant/60">mariam@alexandria.cc</td>
+              <td class="px-6 py-4"><span class="bg-primary/10 text-primary text-xs font-label font-bold px-3 py-1 rounded-full">كاشير</span></td>
+              <td class="px-6 py-4"><span class="flex items-center gap-1 text-xs font-label text-on-surface-variant/40"><span class="w-2 h-2 rounded-full bg-on-surface-variant/30"></span>غير متصل</span></td>
+              <td class="px-6 py-4"><button class="text-xs font-label text-primary hover:underline">تعديل</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: General -->
+    <div id="settings-general" class="flex flex-col gap-6 hidden">
+      <div class="card-dark rounded-2xl p-6">
+        <h3 class="font-headline font-bold text-on-surface mb-6">الإعدادات العامة</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">اسم المركز</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="text" value="Alexandria Cyber Center" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">المنطقة الزمنية</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="text" value="Africa/Cairo (UTC+02:00)" disabled />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">ساعات العمل — الافتتاح</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="time" value="10:00" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-label text-on-surface-variant/60 uppercase tracking-wider">ساعات العمل — الإغلاق</label>
+            <input class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-on-surface font-label focus:ring-2 focus:ring-primary/40" type="time" value="02:00" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6">
+        <h3 class="font-headline font-bold text-on-surface mb-4">التنبيهات والإشعارات</h3>
+        <div class="flex flex-col gap-4">
+          <div class="flex items-center justify-between py-3 border-b border-white/5">
+            <div>
+              <p class="font-label text-sm text-on-surface">تنبيه انتهاء الجلسة</p>
+              <p class="text-xs text-on-surface-variant/40">إرسال تنبيه صوتي قبل 5 دقائق من نهاية الجلسة المحددة</p>
+            </div>
+            <div class="w-12 h-6 bg-primary rounded-full relative cursor-pointer"><div class="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5 shadow"></div></div>
+          </div>
+          <div class="flex items-center justify-between py-3 border-b border-white/5">
+            <div>
+              <p class="font-label text-sm text-on-surface">تنبيه الوقت الإضافي</p>
+              <p class="text-xs text-on-surface-variant/40">إشعار فوري عند تجاوز الوقت المحدد + فترة السماح</p>
+            </div>
+            <div class="w-12 h-6 bg-primary rounded-full relative cursor-pointer"><div class="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5 shadow"></div></div>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <div>
+              <p class="font-label text-sm text-on-surface">تنبيه تعارض الحجوزات</p>
+              <p class="text-xs text-on-surface-variant/40">إظهار تحذير عند محاولة حجز جهاز في فترة مشغولة</p>
+            </div>
+            <div class="w-12 h-6 bg-primary rounded-full relative cursor-pointer"><div class="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5 shadow"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-dark rounded-2xl p-6 border border-error/20">
+        <h3 class="font-headline font-bold text-error mb-2">منطقة الخطر</h3>
+        <p class="text-xs text-on-surface-variant/40 mb-4">هذه الإجراءات لا يمكن التراجع عنها. تأكد قبل التنفيذ.</p>
+        <div class="flex gap-3">
+          <button class="text-xs font-label text-error bg-error/10 border border-error/20 px-4 py-2 rounded-xl hover:bg-error/20 font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">delete_forever</span>حذف جميع الجلسات المنتهية</button>
+          <button class="text-xs font-label text-error bg-error/10 border border-error/20 px-4 py-2 rounded-xl hover:bg-error/20 font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">restart_alt</span>إعادة تعيين النظام</button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+  const titles = {
+    dashboard: "لوحة التحكم",
+    devices: "مصفوفة الأجهزة",
+    sessions: "الجلسات",
+    billing: "الفواتير",
+    reservations: "الحجوزات",
+    insights: "رؤى العملاء",
+    settings: "إعدادات النظام"
+  };
+
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+      const target = link.getAttribute('data-page');
+
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active-nav'));
+      link.classList.add('active-nav');
+
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('page-' + target).classList.add('active');
+
+      document.getElementById('page-title').textContent = titles[target];
+    });
+  });
+
+  // Set initial active nav state
+  document.querySelector('[data-page="dashboard"]').classList.add('active-nav');
+
+  // Card hover lift (shared interaction across all pages)
+  document.querySelectorAll('.group').forEach(card => {
+    card.addEventListener('mouseenter', () => { card.style.transform = 'translateY(-4px)'; card.style.transition = 'transform 0.3s'; });
+    card.addEventListener('mouseleave', () => { card.style.transform = 'translateY(0)'; });
+  });
+
+  // Settings tab switcher
+  function showSettingsTab(tab) {
+    document.getElementById('settings-pricing').classList.add('hidden');
+    document.getElementById('settings-staff').classList.add('hidden');
+    document.getElementById('settings-general').classList.add('hidden');
+    document.getElementById('settings-' + tab).classList.remove('hidden');
+  }
+
+  // Live open-session timers (demo: count up from current value)
+  function startOpenTimers() {
+    const el = document.getElementById('open-timer-1');
+    if (!el) return;
+    let [h, m, s] = el.textContent.split(':').map(Number);
+    let total = h * 3600 + m * 60 + s;
+    setInterval(() => {
+      total++;
+      const hh = Math.floor(total / 3600);
+      const mm = Math.floor((total % 3600) / 60);
+      const ss = total % 60;
+      el.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    }, 1000);
+  }
+
+  // Fixed-session countdown (demo: count down)
+  function startFixedTimers() {
+    const el = document.getElementById('fixed-timer-1');
+    if (!el) return;
+    let [h, m, s] = el.textContent.split(':').map(Number);
+    let total = h * 3600 + m * 60 + s;
+    setInterval(() => {
+      if (total > 0) total--;
+      const hh = Math.floor(total / 3600);
+      const mm = Math.floor((total % 3600) / 60);
+      const ss = total % 60;
+      el.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    }, 1000);
+  }
+
+  startOpenTimers();
+  startFixedTimers();
+</script>
+</body></html>

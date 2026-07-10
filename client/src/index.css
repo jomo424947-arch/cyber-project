@@ -1,0 +1,268 @@
+@import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   CCMS Design Tokens — every value defined in the spec, used everywhere.
+   ============================================================================ */
+:root {
+  --bg-base: #0a0e1a; /* Deepest background — page canvas */
+  --bg-surface: #111827; /* Cards, panels, sidebars */
+  --bg-elevated: #1a2235; /* Hover states, modals, dropdowns */
+  --bg-input: #0d1321; /* Form fields */
+
+  --accent-cyan: #00d4ff; /* Primary accent — active states, CTAs */
+  --accent-cyan-dim: #00d4ff22; /* Subtle cyan glow backgrounds */
+  --accent-green: #00ff88; /* Success, available status */
+  --accent-yellow: #ffaa00; /* Warning, reserved status */
+  --accent-red: #ff4466; /* Danger, in-use / error states */
+  --accent-purple: #a855f7; /* Secondary accent — graphs, tags */
+
+  --text-primary: #e2e8f0; /* Main readable text */
+  --text-secondary: #64748b; /* Subtitles, labels, timestamps */
+  --text-muted: #374151; /* Disabled, placeholder */
+  --text-accent: #00d4ff; /* Highlighted text, links */
+
+  --border-default: #1e2d40; /* Subtle borders */
+  --border-glow: #00d4ff44; /* Glowing borders on focus/active */
+
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.15);
+  --shadow-glow-strong: 0 0 40px rgba(0, 212, 255, 0.3);
+
+  --sidebar-width: 240px;
+}
+
+/* ============================================================================
+   Base reset
+   ============================================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+::placeholder {
+  color: var(--text-muted);
+}
+
+/* ============================================================================
+   Scrollbar styling — matches the dark cyberpunk aesthetic
+   ============================================================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3d56;
+}
+
+/* ============================================================================
+   Keyframes — CSS-only animations (no JS animation libraries)
+   ============================================================================ */
+
+/* Pulsing dot for "In Use" status badges */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 68, 102, 0.5);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+    box-shadow: 0 0 0 6px rgba(255, 68, 102, 0);
+  }
+}
+
+/* Staggered card entry: fade in + slide up */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Modal backdrop fade */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   Component utility classes (reused across the app)
+   ============================================================================ */
+@layer components {
+  /* Card surface */
+  .ccms-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    transition: all 0.2s ease;
+  }
+  .ccms-card-hover:hover {
+    border-color: var(--border-glow);
+    box-shadow: var(--shadow-glow);
+    transform: translateY(-2px);
+  }
+
+  /* Buttons */
+  .ccms-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 8px;
+    padding: 10px 20px;
+    transition: all 0.2s ease;
+  }
+  .ccms-btn:active {
+    transform: scale(0.97);
+  }
+  .ccms-btn-primary {
+    background-color: var(--accent-cyan);
+    color: #0a0e1a;
+  }
+  .ccms-btn-primary:hover {
+    filter: brightness(1.1);
+    box-shadow: var(--shadow-glow);
+  }
+  .ccms-btn-danger {
+    background-color: var(--accent-red);
+    color: #fff;
+  }
+  .ccms-btn-danger:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 20px rgba(255, 68, 102, 0.2);
+  }
+  .ccms-btn-ghost {
+    background-color: transparent;
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+  }
+  .ccms-btn-ghost:hover {
+    background-color: var(--bg-elevated);
+  }
+  .ccms-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    filter: none;
+    box-shadow: none;
+  }
+
+  /* Form inputs */
+  .ccms-input {
+    width: 100%;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: all 0.2s ease;
+  }
+  .ccms-input::placeholder {
+    color: var(--text-muted);
+  }
+  .ccms-input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px var(--accent-cyan-dim);
+  }
+
+  /* Page heading (Audiowide) */
+  .ccms-page-title {
+    font-family: 'Audiowide', sans-serif;
+    font-size: 1.75rem;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+  }
+
+  /* Subtle uppercase label */
+  .ccms-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Active sidebar link */
+  .ccms-nav-active {
+    border-left: 3px solid var(--accent-cyan);
+    background: var(--accent-cyan-dim);
+    color: var(--accent-cyan);
+  }
+
+  /* Staggered fade-in helper */
+  .ccms-stagger {
+    animation: fade-in-up 0.4s ease-out both;
+  }
+}
