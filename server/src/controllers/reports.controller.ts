@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
+import { toZonedTime, format } from 'date-fns-tz';
+import { startOfDay, startOfWeek, startOfMonth, subDays, addDays, getHours } from 'date-fns';
 
 /**
  * GET /api/reports/revenue — revenue summary.
@@ -7,55 +9,55 @@ import { supabase } from '../lib/supabase';
  */
 export async function revenueReport(_req: Request, res: Response) {
   const now = new Date();
+  const tz = process.env.REPORT_TIMEZONE || 'Africa/Cairo';
 
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const startOfWeek = new Date(now);
-  const day = (startOfWeek.getDay() + 6) % 7; // Monday-start
-  startOfWeek.setDate(startOfWeek.getDate() - day);
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nowZoned = toZonedTime(now, tz);
+  const startOfDayZoned = startOfDay(nowZoned);
+  const startOfWeekZoned = startOfWeek(nowZoned, { weekStartsOn: 1 }); // Monday-start
+  const startOfMonthZoned = startOfMonth(nowZoned);
 
   // Load all ended sessions with cost in the last 30 days for breakdown.
-  const since = new Date(now);
-  since.setDate(since.getDate() - 30);
+  const sinceUtc = subDays(now, 30);
 
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select('id, started_at, ended_at, total_cost, duration_minutes')
     .eq('status', 'ended')
-    .gte('ended_at', since.toISOString())
+    .gte('ended_at', sinceUtc.toISOString())
     .order('ended_at', { ascending: true });
 
   if (error) throw error;
 
-  const sum = (rows: typeof sessions, from: Date) =>
-    rows
-      .filter((r) => r.ended_at && new Date(r.ended_at) >= from)
+  const sum = (rows: typeof sessions, boundaryZoned: Date) =>
+    (rows ?? [])
+      .filter((r) => {
+        if (!r.ended_at) return false;
+        const endedZoned = toZonedTime(new Date(r.ended_at), tz);
+        return endedZoned.getTime() >= boundaryZoned.getTime();
+      })
       .reduce((acc, r) => acc + Number(r.total_cost ?? 0), 0);
 
-  const today = sum(sessions, startOfDay);
-  const week = sum(sessions, startOfWeek);
-  const month = sum(sessions, startOfMonth);
+  const today = sum(sessions, startOfDayZoned);
+  const week = sum(sessions, startOfWeekZoned);
+  const month = sum(sessions, startOfMonthZoned);
 
   // Daily breakdown for the chart (last 14 days).
   const daily: { date: string; total: number }[] = [];
   for (let i = 13; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    const next = new Date(d);
-    next.setDate(next.getDate() + 1);
-    const total = sessions
+    const d = subDays(nowZoned, i);
+    const dayStartBoundary = startOfDay(d);
+    const dayEndBoundary = addDays(dayStartBoundary, 1);
+    
+    const total = (sessions ?? [])
       .filter((r) => {
         if (!r.ended_at) return false;
-        const t = new Date(r.ended_at);
-        return t >= d && t < next;
+        const endedZoned = toZonedTime(new Date(r.ended_at), tz);
+        return endedZoned.getTime() >= dayStartBoundary.getTime() && endedZoned.getTime() < dayEndBoundary.getTime();
       })
       .reduce((acc, r) => acc + Number(r.total_cost ?? 0), 0);
-    daily.push({ date: d.toISOString().slice(0, 10), total: Number(total.toFixed(2)) });
+      
+    const dateStr = format(dayStartBoundary, 'yyyy-MM-dd', { timeZone: tz });
+    daily.push({ date: dateStr, total: Number(total.toFixed(2)) });
   }
 
   res.json({
@@ -74,13 +76,14 @@ export async function revenueReport(_req: Request, res: Response) {
  * GET /api/reports/usage — device usage stats + peak hours.
  */
 export async function usageReport(_req: Request, res: Response) {
-  const since = new Date();
-  since.setDate(since.getDate() - 30);
+  const now = new Date();
+  const tz = process.env.REPORT_TIMEZONE || 'Africa/Cairo';
+  const sinceUtc = subDays(now, 30);
 
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select('id, device_id, started_at, ended_at, duration_minutes')
-    .gte('started_at', since.toISOString())
+    .gte('started_at', sinceUtc.toISOString())
     .order('started_at', { ascending: true });
 
   if (error) throw error;
@@ -97,7 +100,8 @@ export async function usageReport(_req: Request, res: Response) {
 
   for (const s of sessions ?? []) {
     byDevice.set(s.device_id, (byDevice.get(s.device_id) ?? 0) + Number(s.duration_minutes ?? 0));
-    const h = new Date(s.started_at).getHours();
+    const startedZoned = toZonedTime(new Date(s.started_at), tz);
+    const h = getHours(startedZoned);
     hourBuckets[h] += 1;
   }
 

@@ -282,13 +282,11 @@ export async function verifyEmail(req: Request, res: Response) {
  *  backend callback endpoint after consent.
  */
 export async function googleLogin(_req: Request, res: Response) {
+  const callbackUrl = `${process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/auth/callback/google`;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${process.env.SUPABASE_URL}/auth/v1/callback`,
-      queryParams: {
-        redirect_to: `${process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/auth/callback/google`,
-      },
+      redirectTo: callbackUrl,
     },
   });
 

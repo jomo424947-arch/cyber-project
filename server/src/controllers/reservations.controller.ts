@@ -75,7 +75,16 @@ export async function createReservation(req: Request, res: Response) {
     })
     .select('*, device:devices(id,name,type), customer:customers(id,name,phone)')
     .single();
-  if (insErr) throw insErr;
+
+  if (insErr) {
+    if ((insErr as any).code === 'P0001' || (insErr as any).message?.includes('RESERVATION_OVERLAP')) {
+      throw conflict(
+        'This device is already reserved for part of the requested time window',
+        'RESERVATION_CONFLICT'
+      );
+    }
+    throw insErr;
+  }
 
   // 4. Device status flow: if the reservation starts within 15 minutes, mark reserved.
   const minutesUntilStart = (fromTs - Date.now()) / 60000;
@@ -118,7 +127,16 @@ export async function updateReservation(req: Request, res: Response) {
     .eq('id', id)
     .select('*, device:devices(id,name,type), customer:customers(id,name,phone)')
     .single();
-  if (updErr) throw updErr;
+
+  if (updErr) {
+    if ((updErr as any).code === 'P0001' || (updErr as any).message?.includes('RESERVATION_OVERLAP')) {
+      throw conflict(
+        'This device is already reserved for part of the requested time window',
+        'RESERVATION_CONFLICT'
+      );
+    }
+    throw updErr;
+  }
 
   // Device status flow: cancelling a reservation reverts the device to available.
   if (status === 'cancelled') {

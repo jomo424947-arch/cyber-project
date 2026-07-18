@@ -16,6 +16,7 @@ import reportRoutes from './routes/reports.routes';
 import customerRoutes from './routes/customers.routes';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import { supabase } from './lib/supabase';
+import { csrfProtection } from './middleware/csrf';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -38,6 +39,7 @@ const apiLimiter = rateLimit({
 app.use(helmet());
 app.use(cors({ origin, credentials: true }));
 app.use(cookieParser());
+app.use(csrfProtection);
 app.use(express.json());
 app.use(apiLimiter);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));

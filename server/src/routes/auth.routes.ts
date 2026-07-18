@@ -22,7 +22,6 @@ import {
 } from '../controllers/schemas';
 import { validate } from '../middleware/validate';
 import { verifyJWT } from '../middleware/auth';
-import { csrfProtection } from '../middleware/csrf';
 
 const router = Router();
 
@@ -43,10 +42,6 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-// Apply CSRF protection to all auth mutation routes.
-// Safe GET methods are exempted inside the middleware itself.
-router.use(csrfProtection);
 
 // ─── Public routes (no authentication required) ────────────────────────────
 

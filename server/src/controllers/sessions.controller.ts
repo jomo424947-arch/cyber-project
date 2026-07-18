@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
-import { badRequest, conflict, notFound } from '../lib/errors';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import type { DbSession } from '../lib/types';
+import { calculateSessionCost } from '../lib/billing';
+
 
 /**
  * Business rule: minimum billed duration is 30 minutes, and time is rounded
@@ -127,6 +129,15 @@ export async function startSession(req: Request, res: Response) {
   if (device.status === 'in_use') throw conflict('Device is already in use', 'DEVICE_BUSY');
   if (device.status === 'offline') throw conflict('Device is offline', 'DEVICE_OFFLINE');
 
+  // Authorization check on hourly rate override.
+  if (hourly_rate_override !== undefined && hourly_rate_override !== null) {
+    if (Number(hourly_rate_override) !== Number(device.hourly_rate)) {
+      if (req.user?.role !== 'admin') {
+        throw forbidden('Only admins can override the hourly rate');
+      }
+    }
+  }
+
   // 3. Guard against an already-active session for this device.
   const { data: existing } = await supabase
     .from('sessions')
@@ -175,7 +186,13 @@ export async function startSession(req: Request, res: Response) {
       '*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,username)'
     )
     .single();
-  if (sErr) throw sErr;
+
+  if (sErr) {
+    if ((sErr as any).code === '23505') {
+      throw conflict('Device already has an active session', 'SESSION_ACTIVE');
+    }
+    throw sErr;
+  }
 
   // 6. Audit start backdating if applicable
   if (isBackdated) {
@@ -210,7 +227,7 @@ export async function editSession(req: Request, res: Response) {
 
   const { data: session, error: sErr } = await supabase
     .from('sessions')
-    .select('*')
+    .select('*, device:devices(id,name,type,hourly_rate)')
     .eq('id', id)
     .maybeSingle();
 
@@ -262,8 +279,17 @@ export async function editSession(req: Request, res: Response) {
   }
 
   if (hourly_rate_override !== undefined) {
+    const deviceRate = session.device ? Number(session.device.hourly_rate) : 0;
+    const newVal = hourly_rate_override !== null && hourly_rate_override !== undefined ? Number(hourly_rate_override) : null;
+    const targetRate = newVal !== null ? newVal : deviceRate;
+
+    if (targetRate !== deviceRate) {
+      if (req.user?.role !== 'admin') {
+        throw forbidden('Only admins can override the hourly rate');
+      }
+    }
+
     const oldVal = session.hourly_rate_override !== null ? Number(session.hourly_rate_override) : null;
-    const newVal = hourly_rate_override !== null ? Number(hourly_rate_override) : null;
     if (oldVal !== newVal) {
       updates.hourly_rate_override = newVal;
       auditEntries.push({
@@ -397,36 +423,31 @@ export async function endSession(req: Request, res: Response) {
     throw badRequest('Session end time cannot be in the future');
   }
 
-  const rawMinutes = Math.max(0, Math.ceil((sessionEnd.getTime() - startedAt) / 60000));
-  const durationMinutes = Math.max(MIN_BILLING_MINUTES, rawMinutes);
-
-  const effectiveRate = Number(session.hourly_rate_override !== null && session.hourly_rate_override !== undefined ? session.hourly_rate_override : session.device.hourly_rate);
-  const baseCost = (durationMinutes / 60) * effectiveRate;
-
-  let overtimeMinutes = 0;
-  let isOvertime = false;
-  let overtimeCost = 0;
-
-  if (session.session_type === 'fixed' && session.scheduled_end) {
-    const scheduledMinutes = Math.max(0, Math.ceil((new Date(session.scheduled_end).getTime() - startedAt) / 60000));
-    const graceMinutes = Number(session.grace_period_minutes || 0);
-
-    overtimeMinutes = Math.max(0, durationMinutes - scheduledMinutes - graceMinutes);
-    if (overtimeMinutes > 0) {
-      isOvertime = true;
-      const multiplier = Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0);
-      overtimeCost = (overtimeMinutes / 60) * effectiveRate * multiplier;
-    }
-  }
-
-  const totalCost = Number((baseCost + overtimeCost).toFixed(2));
+  const {
+    rawMinutes,
+    billedMinutes,
+    baseCost,
+    overtimeMinutes,
+    isOvertime,
+    overtimeCost,
+    totalCost,
+  } = calculateSessionCost({
+    startedAt: session.started_at,
+    endedAt: sessionEnd,
+    deviceHourlyRate: Number(session.device?.hourly_rate ?? 0),
+    hourlyRateOverride: session.hourly_rate_override,
+    sessionType: session.session_type,
+    scheduledEnd: session.scheduled_end,
+    gracePeriodMinutes: session.grace_period_minutes,
+    overtimeRateMultiplier: Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0),
+  });
 
   // 3. End the session.
   const { data: ended, error: endErr } = await supabase
     .from('sessions')
     .update({
       ended_at: sessionEnd.toISOString(),
-      duration_minutes: durationMinutes,
+      duration_minutes: billedMinutes,
       total_cost: totalCost,
       status: 'ended',
       is_overtime: isOvertime,
@@ -480,7 +501,7 @@ export async function endSession(req: Request, res: Response) {
   res.json({
     data: ended as unknown as DbSession,
     invoice,
-    billing: { raw_minutes: rawMinutes, billed_minutes: durationMinutes, total_cost: totalCost, overtime_minutes: overtimeMinutes, overtime_cost: Number(overtimeCost.toFixed(2)) },
+    billing: { raw_minutes: rawMinutes, billed_minutes: billedMinutes, total_cost: totalCost, overtime_minutes: overtimeMinutes, overtime_cost: overtimeCost },
   });
 }
 

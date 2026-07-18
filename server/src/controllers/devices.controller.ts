@@ -4,14 +4,45 @@ import { badRequest, notFound } from '../lib/errors';
 import type { DbDevice } from '../lib/types';
 
 /** GET /api/devices — list all devices with current status. */
-export async function listDevices(_req: Request, res: Response) {
-  const { data, error } = await supabase
+export async function listDevices(req: Request, res: Response) {
+  const includeArchived = req.query.include_archived === 'true';
+
+  let query = supabase
     .from('devices')
     .select('*')
     .order('name', { ascending: true });
 
+  if (!includeArchived) {
+    query = query.eq('archived', false);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  res.json({ data: (data ?? []) as DbDevice[] });
+
+  const devices = data ?? [];
+  if (devices.length > 0) {
+    const deviceIds = devices.map((d: any) => d.id);
+    const { data: sessionData, error: scError } = await supabase
+      .from('sessions')
+      .select('device_id')
+      .in('device_id', deviceIds);
+
+    const historyMap = new Set<string>();
+    if (!scError && sessionData) {
+      sessionData.forEach((s: any) => {
+        historyMap.add(s.device_id);
+      });
+    }
+
+    const result = devices.map((d: any) => ({
+      ...d,
+      has_session_history: historyMap.has(d.id),
+    }));
+    res.json({ data: result });
+    return;
+  }
+
+  res.json({ data: [] });
 }
 
 /** POST /api/devices — create a new device (admin only). */
@@ -65,12 +96,32 @@ export async function updateDevice(req: Request, res: Response) {
 export async function deleteDevice(req: Request, res: Response) {
   const { id } = req.params;
 
-  const { error, count } = await supabase
-    .from('devices')
-    .delete({ count: 'exact' })
-    .eq('id', id);
+  // Check if device has any session history
+  const { data: sessions, error: sErr } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('device_id', id)
+    .limit(1);
 
-  if (error) throw error;
-  if (!count) throw notFound('Device not found');
-  res.json({ message: 'Device removed' });
+  if (sErr) throw sErr;
+
+  if (sessions && sessions.length > 0) {
+    // Has history, archive instead of deleting
+    const { error: updErr } = await supabase
+      .from('devices')
+      .update({ archived: true, status: 'offline' })
+      .eq('id', id);
+    if (updErr) throw updErr;
+    res.json({ message: 'Device archived', action: 'archived' });
+  } else {
+    // Zero history, permanent delete
+    const { error, count } = await supabase
+      .from('devices')
+      .delete({ count: 'exact' })
+      .eq('id', id);
+
+    if (error) throw error;
+    if (!count) throw notFound('Device not found');
+    res.json({ message: 'Device removed', action: 'deleted' });
+  }
 }
