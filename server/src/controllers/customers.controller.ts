@@ -3,6 +3,17 @@ import { supabase } from '../lib/supabase';
 import { badRequest, notFound } from '../lib/errors';
 import type { DbCustomer } from '../lib/types';
 
+/** GET /api/customers — list all customers. */
+export async function listCustomers(_req: Request, res: Response) {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  res.json({ data: (data ?? []) as DbCustomer[] });
+}
+
 /** GET /api/customers/leaderboard — ranking stats. */
 export async function getLeaderboard(req: Request, res: Response) {
   const { month } = req.query as { month?: string };
@@ -11,12 +22,16 @@ export async function getLeaderboard(req: Request, res: Response) {
   let endOfMonth: Date;
 
   if (month) {
-    const parts = month.split('-');
-    if (parts.length !== 2) {
-      throw badRequest('Invalid month format, expected YYYY-MM');
+    // Validate format: YYYY-MM with valid month range 01–12.
+    if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month)) {
+      throw badRequest('Invalid month format, expected YYYY-MM (e.g. 2026-07)');
     }
+    const parts = month.split('-');
     const year = parseInt(parts[0], 10);
     const m = parseInt(parts[1], 10) - 1; // 0-indexed
+    if (Number.isNaN(year) || Number.isNaN(m)) {
+      throw badRequest('Invalid month value');
+    }
     startOfMonth = new Date(Date.UTC(year, m, 1));
     endOfMonth = new Date(Date.UTC(year, m + 1, 1));
   } else {

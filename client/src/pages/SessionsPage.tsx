@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatDuration, formatCurrency, formatDateTime } from '../utils/format';
@@ -25,6 +26,7 @@ export default function SessionsPage() {
   const [tab, setTab] = useState<Tab>('active');
   const now = useNow(1000);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
@@ -53,12 +55,21 @@ export default function SessionsPage() {
 
   return (
     <Layout
-      title="Sessions"
+      title="Active Sessions"
       subtitle="Track active sessions and review history"
-      actions={<button className="ccms-btn ccms-btn-ghost" onClick={refetch}>↻ Refresh</button>}
+      actions={
+        <button 
+          className="ccms-btn ccms-btn-ghost" 
+          onClick={refetch}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+          Refresh
+        </button>
+      }
     >
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--border-default)' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')}>
           Active ({activeSessions.length})
         </TabButton>
@@ -127,7 +138,7 @@ export default function SessionsPage() {
                             const mins = Math.floor(remainingGrace / 60);
                             const secs = remainingGrace % 60;
                             return (
-                              <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold' }}>
+                              <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
                                 Grace {mins}:{secs.toString().padStart(2, '0')}
                               </span>
                             );
@@ -139,7 +150,7 @@ export default function SessionsPage() {
                             const mins = Math.floor((overtimeElapsed % 3600) / 60);
                             const secs = overtimeElapsed % 60;
                             return (
-                              <span style={{ color: 'var(--accent-red)', fontWeight: 'bold' }}>
+                              <span style={{ color: 'var(--accent-red)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
                                 Overtime +{hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
                               </span>
                             );
@@ -150,7 +161,7 @@ export default function SessionsPage() {
                           const mins = Math.floor((remainingSeconds % 3600) / 60);
                           const secs = remainingSeconds % 60;
                           return (
-                            <span style={{ color: 'var(--accent-cyan)', fontFamily: 'Audiowide, sans-serif' }}>
+                            <span style={{ color: 'var(--accent-cyan)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
                               {hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
                             </span>
                           );
@@ -158,7 +169,7 @@ export default function SessionsPage() {
 
                         // Open (Pay-As-You-Go) Timer
                         return (
-                          <span style={{ color: 'var(--accent-green)', fontFamily: 'Audiowide, sans-serif' }}>
+                          <span style={{ color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
                             {formatElapsed(s.started_at, now)}
                           </span>
                         );
@@ -171,9 +182,9 @@ export default function SessionsPage() {
                       render: (s: Session) => {
                         const rate = Number(s.hourly_rate_override !== null ? s.hourly_rate_override : s.device?.hourly_rate ?? 0);
                         return (
-                          <span>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                             {s.hourly_rate_override !== null && (
-                              <span style={{ fontSize: '11px', color: 'var(--accent-green)', marginRight: '4px' }}>[override]</span>
+                              <span style={{ fontSize: '10px', color: 'var(--accent-green)', marginRight: '4px', fontWeight: 'bold' }}>[override]</span>
                             )}
                             {formatCurrency(rate)}/hr
                           </span>
@@ -191,34 +202,50 @@ export default function SessionsPage() {
                               type="button"
                               title="Audit Trail Logs"
                               className="ccms-btn ccms-btn-ghost"
-                              style={{ padding: '6px 10px', fontSize: '12px' }}
+                              style={{ 
+                                padding: '6px 12px', 
+                                fontSize: '11px',
+                                minHeight: '32px',
+                              }}
                               onClick={() => setAuditTarget(s)}
                             >
-                              📜 Logs
+                              Logs
                             </button>
                           )}
                           <button
                             type="button"
                             className="ccms-btn ccms-btn-ghost"
-                            style={{ padding: '6px 10px', fontSize: '12px' }}
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '11px',
+                              minHeight: '32px',
+                            }}
                             onClick={() => setEditTarget(s)}
                           >
-                            ✏️ Edit
+                            Edit
                           </button>
                           {s.session_type === 'fixed' && (
                             <button
                               type="button"
                               className="ccms-btn ccms-btn-ghost"
-                              style={{ padding: '6px 10px', fontSize: '12px' }}
+                              style={{ 
+                                padding: '6px 12px', 
+                                fontSize: '11px',
+                                minHeight: '32px',
+                              }}
                               onClick={() => handleExtend(s)}
                             >
-                              ➕ Extend 30m
+                              Extend 30m
                             </button>
                           )}
                           <Button 
                             variant="danger" 
                             onClick={() => setEndTarget(s)} 
-                            style={{ padding: '6px 14px', fontSize: '13px' }}
+                            style={{ 
+                              padding: '6px 14px', 
+                              fontSize: '11px',
+                              minHeight: '32px',
+                            }}
                           >
                             End
                           </Button>
@@ -262,7 +289,7 @@ export default function SessionsPage() {
                       align: 'right' as const,
                       render: (s: Session) => (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                          <span style={{ fontFamily: 'Audiowide, sans-serif', color: 'var(--accent-green)' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-green)', fontWeight: 600 }}>
                             {formatCurrency(s.total_cost)}
                           </span>
                           {s.is_overtime && s.overtime_minutes && (
@@ -277,7 +304,7 @@ export default function SessionsPage() {
                       key: 'status',
                       header: 'Status',
                       align: 'right' as const,
-                      render: () => <Badge label="Ended" color="var(--text-secondary)" bg="rgba(100,116,139,0.1)" />,
+                      render: () => <Badge label="Ended" color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />,
                     },
                   ]
             }
@@ -337,13 +364,17 @@ function TabButton({
     <button
       onClick={onClick}
       style={{
-        padding: '10px 16px',
-        fontSize: '13px',
+        padding: '12px 24px',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: '12px',
         fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
         color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
         borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-        transition: 'all 0.2s ease',
+        transition: 'all 0.15s ease',
         marginBottom: '-1px',
+        minHeight: '44px',
       }}
     >
       {children}

@@ -61,17 +61,26 @@ export default function DevicesPage() {
 
   if (loading || !data) {
     return (
-      <Layout title="Devices" subtitle="Real-time status of all stations">
-        <LoadingSpinner label="Loading devices…" />
+      <Layout title="Device Fleet" subtitle="Real-time status of all stations">
+        <LoadingSpinner label="Loading device fleet…" />
       </Layout>
     );
   }
 
   return (
     <Layout
-      title="Devices"
+      title="Device Fleet"
       subtitle={`${data.devices.length} stations · ${data.devices.filter((d) => d.status === 'available').length} available`}
-      actions={<button className="ccms-btn ccms-btn-ghost" onClick={refetch}>↻ Refresh</button>}
+      actions={
+        <button 
+          className="ccms-btn ccms-btn-ghost" 
+          onClick={refetch}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+          Refresh
+        </button>
+      }
     >
       {data.devices.length === 0 ? (
         <div className="ccms-card">
@@ -85,8 +94,8 @@ export default function DevicesPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '16px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '24px',
           }}
         >
           {data.devices.map((device, i) => (

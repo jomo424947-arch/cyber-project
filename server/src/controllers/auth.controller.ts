@@ -287,7 +287,7 @@ export async function googleLogin(_req: Request, res: Response) {
     options: {
       redirectTo: `${process.env.SUPABASE_URL}/auth/v1/callback`,
       queryParams: {
-        redirect_to: `http://localhost:${process.env.PORT || 5000}/api/auth/callback/google`,
+        redirect_to: `${process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/auth/callback/google`,
       },
     },
   });

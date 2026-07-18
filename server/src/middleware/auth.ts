@@ -37,11 +37,13 @@ export async function verifyJWT(req: Request, _res: Response, next: NextFunction
       .eq('id', data.user.id)
       .maybeSingle();
 
+    // Fail closed on a genuine query error — do NOT default to 'staff'.
     if (userErr) {
       console.error('[auth] users lookup failed:', userErr.message);
+      throw unauthorized('Authentication failed — please try again');
     }
 
-    // Fall back to 'staff' if the row doesn't exist yet (e.g. signup race).
+    // Fall back to 'staff' only if the row doesn't exist yet (e.g. signup race).
     req.user = {
       id: data.user.id,
       email: data.user.email ?? userRow?.email ?? '',

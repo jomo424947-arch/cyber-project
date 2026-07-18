@@ -179,18 +179,8 @@ export const realService: DataService = {
   // ─── Customers ───────────────────────────────────────────────────────────
 
   async listCustomers() {
-    try {
-      const { data } = await http.get<ListWrap<Session>>('/api/sessions');
-      const seen = new Map<string, Customer>();
-      for (const s of data.data) {
-        if (s.customer && !seen.has(s.customer.id)) {
-          seen.set(s.customer.id, s.customer as unknown as Customer);
-        }
-      }
-      return Array.from(seen.values());
-    } catch {
-      return [];
-    }
+    const { data } = await http.get<ListWrap<Customer>>('/api/customers');
+    return data.data;
   },
   async getLeaderboard(month) {
     const monthParam = month ? `?month=${month}` : '';

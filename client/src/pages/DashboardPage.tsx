@@ -68,7 +68,7 @@ export default function DashboardPage() {
           }}
         >
           <span style={{ fontSize: '48px' }}>⚠️</span>
-          <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, fontFamily: 'Space Grotesk, sans-serif' }}>
             Failed to load dashboard
           </h2>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '480px', margin: 0 }}>
@@ -91,15 +91,24 @@ export default function DashboardPage() {
     <Layout
       title="Dashboard"
       subtitle="Live overview of café operations"
-      actions={<button className="ccms-btn ccms-btn-ghost" onClick={refetch}>↻ Refresh</button>}
+      actions={
+        <button 
+          className="ccms-btn ccms-btn-ghost" 
+          onClick={refetch}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+          Refresh
+        </button>
+      }
     >
       {/* Stat cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: '16px',
-          marginBottom: '32px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '24px',
+          marginBottom: '48px',
         }}
       >
         <StatCard index={0} icon="⏱" label="Active Sessions" value={stats.active} accent="var(--accent-red)" />
@@ -120,16 +129,16 @@ export default function DashboardPage() {
           }}
         >
           <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
               Active Sessions
             </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
               {activeSessions.length} session{activeSessions.length === 1 ? '' : 's'} running now
             </p>
           </div>
           <button
             className="ccms-btn ccms-btn-ghost"
-            style={{ fontSize: '13px', padding: '8px 14px' }}
+            style={{ fontSize: '12px', padding: '8px 16px', minHeight: '36px' }}
             onClick={() => navigate('/sessions')}
           >
             View all →
@@ -168,8 +177,9 @@ export default function DashboardPage() {
                 render: (s) => (
                   <span
                     style={{
-                      fontFamily: 'Audiowide, sans-serif',
+                      fontFamily: 'JetBrains Mono, monospace',
                       color: 'var(--accent-cyan)',
+                      fontWeight: 600,
                     }}
                   >
                     {formatElapsed(s.started_at, now)}
@@ -180,7 +190,11 @@ export default function DashboardPage() {
                 key: 'rate',
                 header: 'Rate',
                 align: 'right',
-                render: (s) => formatCurrency(s.device?.hourly_rate ?? 0) + '/hr',
+                render: (s) => (
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>
+                    {formatCurrency(s.device?.hourly_rate ?? 0)}/hr
+                  </span>
+                ),
               },
               {
                 key: 'status',

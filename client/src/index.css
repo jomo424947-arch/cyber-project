@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,31 +8,37 @@
    CCMS Design Tokens — every value defined in the spec, used everywhere.
    ============================================================================ */
 :root {
-  --bg-base: #0a0e1a; /* Deepest background — page canvas */
-  --bg-surface: #111827; /* Cards, panels, sidebars */
-  --bg-elevated: #1a2235; /* Hover states, modals, dropdowns */
-  --bg-input: #0d1321; /* Form fields */
+  --bg-base: #0A0A0A; /* Deepest background — page canvas */
+  --bg-surface: #111111; /* Cards, panels, sidebars */
+  --bg-elevated: #181818; /* Hover states, modals, dropdowns */
+  --bg-input: #0A0A0A; /* Form fields */
 
-  --accent-cyan: #00d4ff; /* Primary accent — active states, CTAs */
-  --accent-cyan-dim: #00d4ff22; /* Subtle cyan glow backgrounds */
-  --accent-green: #00ff88; /* Success, available status */
-  --accent-yellow: #ffaa00; /* Warning, reserved status */
-  --accent-red: #ff4466; /* Danger, in-use / error states */
-  --accent-purple: #a855f7; /* Secondary accent — graphs, tags */
+  --accent-cyan: #00C2FF; /* Primary accent — active states, CTAs */
+  --accent-cyan-dim: rgba(0, 194, 255, 0.1); /* Subtle cyan glow backgrounds */
+  --accent-green: #22C55E; /* Success, available status */
+  --accent-yellow: #F59E0B; /* Warning, reserved status */
+  --accent-red: #EF4444; /* Danger, in-use / error states */
+  --accent-purple: #3626ce; /* Secondary accent — graphs, tags (Secondary Indigo) */
 
-  --text-primary: #e2e8f0; /* Main readable text */
-  --text-secondary: #64748b; /* Subtitles, labels, timestamps */
-  --text-muted: #374151; /* Disabled, placeholder */
-  --text-accent: #00d4ff; /* Highlighted text, links */
+  --text-primary: #FFFFFF; /* Main readable text (text-high) */
+  --text-secondary: #A1A1AA; /* Subtitles, labels, timestamps (text-medium) */
+  --text-muted: #71717A; /* Disabled, placeholder (text-disabled) */
+  --text-accent: #92d9ff; /* Highlighted text, links (primary) */
 
-  --border-default: #1e2d40; /* Subtle borders */
-  --border-glow: #00d4ff44; /* Glowing borders on focus/active */
+  --border-default: rgba(255, 255, 255, 0.1); /* Subtle borders */
+  --border-glow: rgba(0, 194, 255, 0.3); /* Glowing borders on focus/active */
 
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.15);
-  --shadow-glow-strong: 0 0 40px rgba(0, 212, 255, 0.3);
+  --shadow-glow: 0 0 15px rgba(0, 194, 255, 0.2);
+  --shadow-glow-strong: 0 0 25px rgba(0, 194, 255, 0.4);
 
   --sidebar-width: 240px;
+
+  /* Safe Area variables for mobile devices wrapped in Capacitor */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 /* ============================================================================
@@ -90,18 +96,18 @@ textarea {
    Scrollbar styling — matches the dark cyberpunk aesthetic
    ============================================================================ */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: var(--bg-base);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 6px;
+  background: #353534;
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3d56;
+  background: #4a4a49;
 }
 
 /* ============================================================================
@@ -114,12 +120,12 @@ textarea {
   100% {
     opacity: 1;
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(255, 68, 102, 0.5);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
   }
   50% {
     opacity: 0.5;
     transform: scale(0.85);
-    box-shadow: 0 0 0 6px rgba(255, 68, 102, 0);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
   }
 }
 
@@ -131,6 +137,16 @@ textarea {
   }
   to {
     opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide up animation for bottom sheets */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
     transform: translateY(0);
   }
 }
@@ -156,18 +172,116 @@ textarea {
    Component utility classes (reused across the app)
    ============================================================================ */
 @layer components {
-  /* Card surface */
+  /* Typographic scale classes */
+  .ccms-title-main {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+  }
+  
+  .ccms-title-section {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-primary);
+  }
+
+  .ccms-text-body {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  .ccms-text-muted {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  /* Card variations */
   .ccms-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-default);
+    background: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
-    box-shadow: var(--shadow-card);
-    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .ccms-card-hover:hover {
-    border-color: var(--border-glow);
-    box-shadow: var(--shadow-glow);
-    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.3);
+    background: #181818;
+  }
+  
+  .ccms-card-primary {
+    background: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  .ccms-card-secondary {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .ccms-card-stat {
+    background: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+    padding: 24px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .ccms-card-stat-hover:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: #181818;
+  }
+
+  /* Layout and alignment helper classes to reduce inline styles noise */
+  .ccms-flex-row {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .ccms-flex-col {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ccms-flex-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .ccms-flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ccms-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .ccms-grid-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
   }
 
   /* Buttons */
@@ -176,38 +290,45 @@ textarea {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
     border-radius: 8px;
     padding: 10px 20px;
     transition: all 0.2s ease;
+    min-height: 40px;
   }
   .ccms-btn:active {
     transform: scale(0.97);
   }
   .ccms-btn-primary {
-    background-color: var(--accent-cyan);
-    color: #0a0e1a;
+    background: linear-gradient(135deg, #00c2ff 0%, #3626ce 100%);
+    color: #FFFFFF;
+    box-shadow: 0 0 15px rgba(0, 194, 255, 0.2);
   }
   .ccms-btn-primary:hover {
-    filter: brightness(1.1);
-    box-shadow: var(--shadow-glow);
+    box-shadow: 0 0 25px rgba(0, 194, 255, 0.4);
+    transform: translateY(-1px);
   }
   .ccms-btn-danger {
     background-color: var(--accent-red);
-    color: #fff;
+    color: #FFFFFF;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
   }
   .ccms-btn-danger:hover {
-    filter: brightness(1.1);
-    box-shadow: 0 0 20px rgba(255, 68, 102, 0.2);
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
   }
   .ccms-btn-ghost {
     background-color: transparent;
-    border: 1px solid var(--border-default);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
   }
   .ccms-btn-ghost:hover {
-    background-color: var(--bg-elevated);
+    border-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.05);
   }
   .ccms-btn:disabled {
     opacity: 0.5;
@@ -221,12 +342,13 @@ textarea {
   .ccms-input {
     width: 100%;
     background-color: var(--bg-input);
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--text-muted);
     border-radius: 8px;
     padding: 10px 14px;
     color: var(--text-primary);
     font-size: 14px;
     transition: all 0.2s ease;
+    min-height: 42px;
   }
   .ccms-input::placeholder {
     color: var(--text-muted);
@@ -234,35 +356,91 @@ textarea {
   .ccms-input:focus {
     outline: none;
     border-color: var(--accent-cyan);
-    box-shadow: 0 0 0 3px var(--accent-cyan-dim);
+    box-shadow: 0 0 8px rgba(0, 194, 255, 0.3);
   }
 
-  /* Page heading (Audiowide) */
+  /* Page heading */
   .ccms-page-title {
-    font-family: 'Audiowide', sans-serif;
-    font-size: 1.75rem;
-    letter-spacing: 0.02em;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
     color: var(--text-primary);
   }
 
   /* Subtle uppercase label */
   .ccms-eyebrow {
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--text-secondary);
-    font-weight: 500;
   }
 
   /* Active sidebar link */
   .ccms-nav-active {
-    border-left: 3px solid var(--accent-cyan);
-    background: var(--accent-cyan-dim);
+    border-left: 2px solid var(--accent-cyan);
+    background: linear-gradient(to right, rgba(0, 194, 255, 0.1), transparent);
     color: var(--accent-cyan);
   }
 
   /* Staggered fade-in helper */
   .ccms-stagger {
     animation: fade-in-up 0.4s ease-out both;
+  }
+
+  /* Inner Glow modifiers */
+  .inner-glow-cyan { border-top: 1px solid rgba(146, 217, 255, 0.2); }
+  .inner-glow-success { border-top: 1px solid rgba(34, 197, 94, 0.2); }
+  .inner-glow-warning { border-top: 1px solid rgba(245, 158, 11, 0.2); }
+
+  /* Redesign Typography Helpers */
+  .font-headline-lg {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .font-headline-md {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .font-headline-sm {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .font-body-lg {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+  .font-body-md {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  .font-label-caps {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .font-data-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1;
   }
 }

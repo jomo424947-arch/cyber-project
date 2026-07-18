@@ -11,7 +11,7 @@ export function HeatStrip({ counts }: HeatStripProps) {
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(24, 1fr)',
-          gap: '3px',
+          gap: '4px',
         }}
       >
         {counts.map((c, h) => {
@@ -25,9 +25,9 @@ export function HeatStrip({ counts }: HeatStripProps) {
                 borderRadius: '4px',
                 background:
                   intensity === 0
-                    ? 'var(--bg-input)'
-                    : `rgba(0, 212, 255, ${0.15 + intensity * 0.85})`,
-                boxShadow: intensity > 0.6 ? `0 0 10px rgba(0,212,255,${intensity * 0.4})` : undefined,
+                    ? 'rgba(255, 255, 255, 0.05)'
+                    : `rgba(0, 194, 255, ${0.15 + intensity * 0.85})`,
+                boxShadow: intensity > 0.6 ? `0 0 10px rgba(0, 194, 255, ${intensity * 0.4})` : undefined,
                 transition: 'all 0.3s ease',
               }}
             />
@@ -38,8 +38,8 @@ export function HeatStrip({ counts }: HeatStripProps) {
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(24, 1fr)',
-          gap: '3px',
-          marginTop: '6px',
+          gap: '4px',
+          marginTop: '8px',
         }}
       >
         {counts.map((_, h) => (
@@ -47,8 +47,9 @@ export function HeatStrip({ counts }: HeatStripProps) {
             key={h}
             style={{
               textAlign: 'center',
-              fontSize: '9px',
-              color: 'var(--text-secondary)',
+              fontSize: '10px',
+              fontFamily: 'JetBrains Mono, monospace',
+              color: 'var(--text-muted)',
             }}
           >
             {h % 3 === 0 ? `${h}` : ''}

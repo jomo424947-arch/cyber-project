@@ -25,9 +25,21 @@ export function LoadingSpinner({ size = 32, label = 'Loading…' }: LoadingSpinn
           borderRadius: '50%',
           display: 'inline-block',
           animation: 'spin 0.7s linear infinite',
+          filter: 'drop-shadow(0 0 8px var(--accent-cyan-dim))',
         }}
       />
-      {label && <span style={{ fontSize: '13px' }}>{label}</span>}
+      {label && (
+        <span
+          style={{
+            fontSize: '13px',
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {label}
+        </span>
+      )}
     </div>
   );
 }

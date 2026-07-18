@@ -252,7 +252,7 @@ export function StartSessionModal({
 
         {sessionType === 'fixed' && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="ccms-grid-form" style={{ gap: '12px' }}>
               <Input
                 type="number"
                 label="Duration (minutes)*"

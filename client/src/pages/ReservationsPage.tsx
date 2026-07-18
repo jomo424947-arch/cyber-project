@@ -59,21 +59,39 @@ export default function ReservationsPage() {
   return (
     <Layout
       title="Reservations"
-      subtitle="Manage device bookings"
+      subtitle="Manage device bookings and reservations conflict detection"
       actions={
-        <Button onClick={() => setShowCreate(true)}>+ New Reservation</Button>
+        <Button 
+          onClick={() => setShowCreate(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          New Reservation
+        </Button>
       }
     >
       {/* Filter row */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
         {(['upcoming', 'all'] as Filter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={filter === f ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ padding: '8px 14px', fontSize: '13px', textTransform: 'capitalize' }}
+            style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '12px',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: filter === f ? '1px solid var(--accent-cyan)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: filter === f ? 'rgba(0, 194, 255, 0.15)' : 'transparent',
+              color: filter === f ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              boxShadow: filter === f ? '0 0 10px rgba(0, 194, 255, 0.2)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
           >
-            {f}
+            {f} Bookings
           </button>
         ))}
       </div>
@@ -97,8 +115,10 @@ export default function ReservationsPage() {
                 key: 'device',
                 header: 'Device',
                 render: (r: Reservation) => (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <span>{DEVICE_TYPE_META[r.device?.type ?? 'pc'].icon}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                      {r.device?.type === 'pc' ? 'desktop_windows' : r.device?.type === 'console' ? 'sports_esports' : 'smart_display'}
+                    </span>
                     <strong>{r.device?.name ?? '—'}</strong>
                   </span>
                 ),
@@ -136,7 +156,7 @@ export default function ReservationsPage() {
                       variant="ghost"
                       loading={cancellingId === r.id}
                       onClick={() => handleCancel(r.id)}
-                      style={{ padding: '6px 12px', fontSize: '13px', color: 'var(--accent-red)' }}
+                      style={{ padding: '6px 12px', fontSize: '11px', color: 'var(--accent-red)', minHeight: '32px' }}
                     >
                       Cancel
                     </Button>
@@ -163,7 +183,6 @@ export default function ReservationsPage() {
   );
 }
 
-// ─── Create Reservation modal (with conflict handling) ──────────────────
 function CreateReservationModal({
   devices,
   onClose,
@@ -239,22 +258,24 @@ function CreateReservationModal({
           <option value="">Choose a device…</option>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
-              {DEVICE_TYPE_META[d.type].icon} {d.name} — {d.hourly_rate.toFixed(2)}/hr
+              {d.name} — {formatCurrency(d.hourly_rate)}/hr
             </option>
           ))}
         </Select>
 
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
+            type="button"
             className={mode === 'new' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ flex: 1, fontSize: '13px' }}
+            style={{ flex: 1, fontSize: '11px', minHeight: '36px' }}
             onClick={() => setMode('new')}
           >
             New Customer
           </button>
           <button
+            type="button"
             className={mode === 'existing' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ flex: 1, fontSize: '13px' }}
+            style={{ flex: 1, fontSize: '11px', minHeight: '36px' }}
             onClick={() => setMode('existing')}
           >
             Existing
@@ -285,7 +306,7 @@ function CreateReservationModal({
           </Select>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="ccms-grid-form" style={{ gap: '12px' }}>
           <Input
             label="From"
             type="datetime-local"

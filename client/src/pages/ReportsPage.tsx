@@ -24,7 +24,7 @@ export default function ReportsPage() {
 
   if (loading || !data) {
     return (
-      <Layout title="Reports" subtitle="Revenue and usage analytics">
+      <Layout title="Intelligence Reports" subtitle="Revenue and usage analytics">
         <LoadingSpinner label="Loading reports…" />
       </Layout>
     );
@@ -53,14 +53,14 @@ export default function ReportsPage() {
   const peakHour = usage.peak_hours.reduce((a, b) => (b.count > a.count ? b : a), usage.peak_hours[0]);
 
   return (
-    <Layout title="Reports" subtitle="Revenue and usage analytics">
+    <Layout title="Intelligence Reports" subtitle="Comprehensive device fleet metrics, peak monitoring, and billing analytics">
       {/* Revenue totals */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '24px',
+          marginBottom: '32px',
         }}
       >
         <RevenueTile label="Today" value={formatCurrency(revenue.totals.today)} accent="var(--accent-cyan)" />
@@ -74,23 +74,23 @@ export default function ReportsPage() {
       </div>
 
       {/* Revenue chart */}
-      <div className="ccms-card ccms-stagger" style={{ padding: '24px', marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+      <div className="ccms-card ccms-stagger" style={{ padding: '24px', marginBottom: '32px' }}>
+        <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
           Revenue — Last 14 Days
         </h2>
-        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', margin: 0 }}>
           Daily collected revenue across all devices
         </p>
         <BarChart data={revenueBars} height={240} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }} className="report-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }} className="report-grid">
         {/* Device usage */}
         <div className="ccms-card ccms-stagger" style={{ padding: '24px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Device Usage — 30 Days
+          <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
+            Device Fleet Usage — 30 Days
           </h2>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', margin: 0 }}>
             Total active time per device
           </p>
           {usageRows.every((r) => r.minutes === 0) ? (
@@ -104,16 +104,22 @@ export default function ReportsPage() {
 
         {/* Peak hours */}
         <div className="ccms-card ccms-stagger" style={{ padding: '24px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Peak Hours
+          <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
+            Peak Operating Hours
           </h2>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', margin: 0 }}>
             Session starts by hour of day (0–23)
           </p>
           <HeatStrip counts={peakHourCounts} />
-          <div style={{ marginTop: '16px', display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-            <span>● Quiet</span>
-            <span style={{ color: 'var(--accent-cyan)' }}>● Busy</span>
+          <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.1)' }} />
+              Quiet
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-cyan)' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cyan)' }} />
+              Busy Peak
+            </span>
           </div>
         </div>
       </div>
@@ -140,12 +146,19 @@ function RevenueTile({
   accent: string;
 }) {
   return (
-    <div className="ccms-card" style={{ padding: '18px', borderTop: `2px solid ${accent}` }}>
-      <div className="ccms-eyebrow" style={{ marginBottom: '8px' }}>{label}</div>
+    <div 
+      className="ccms-card" 
+      style={{ 
+        padding: '24px', 
+        borderTop: `1px solid ${accent}` // Redesign spec inner glow
+      }}
+    >
+      <div className="ccms-eyebrow" style={{ marginBottom: '12px' }}>{label}</div>
       <div
         style={{
-          fontFamily: 'Audiowide, sans-serif',
-          fontSize: '1.6rem',
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: '32px',
+          fontWeight: 700,
           color: 'var(--text-primary)',
         }}
       >
@@ -176,13 +189,13 @@ function LeaderboardWidget() {
   );
 
   return (
-    <div className="ccms-card ccms-stagger" style={{ padding: '24px', marginTop: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+    <div className="ccms-card ccms-stagger" style={{ padding: '24px', marginTop: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+          <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
             Top Customers Leaderboard
           </h2>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
             Ranked by session count and total hours played
           </p>
         </div>
@@ -250,20 +263,20 @@ function LeaderboardWidget() {
               key: 'sessions',
               header: 'Sessions Played',
               align: 'right' as const,
-              render: (row) => <strong>{row.session_count}</strong>
+              render: (row) => <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{row.session_count}</strong>
             },
             {
               key: 'hours',
               header: 'Total Playtime',
               align: 'right' as const,
-              render: (row) => `${row.total_hours} hrs`
+              render: (row) => <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{row.total_hours} hrs</span>
             },
             {
               key: 'spend',
               header: 'Total Spend',
               align: 'right' as const,
               render: (row) => (
-                <span style={{ fontFamily: 'Audiowide, sans-serif', color: 'var(--accent-green)', fontWeight: 600 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-green)', fontWeight: 600 }}>
                   {formatCurrency(row.total_spend)}
                 </span>
               )

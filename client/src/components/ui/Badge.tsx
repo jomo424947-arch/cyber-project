@@ -15,26 +15,33 @@ export function Badge({ label, color, bg, pulse }: BadgeProps) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '6px',
         padding: '4px 10px',
         borderRadius: '999px',
         background: bg,
         color,
-        fontSize: '12px',
-        fontWeight: 600,
+        border: `1px solid ${color}4d`, // 30% opacity border
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: '10px',
+        fontWeight: 700,
+        lineHeight: 1.1,
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
         whiteSpace: 'nowrap',
       }}
     >
-      <span
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: color,
-          boxShadow: `0 0 6px ${color}`,
-          animation: pulse ? 'pulse-dot 1.4s ease-in-out infinite' : undefined,
-        }}
-      />
+      {pulse && (
+        <span
+          style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: color,
+            marginRight: '6px',
+            boxShadow: `0 0 6px ${color}`,
+            animation: 'pulse-dot 1.4s ease-in-out infinite',
+          }}
+        />
+      )}
       {label}
     </span>
   );

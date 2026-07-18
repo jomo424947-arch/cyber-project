@@ -28,12 +28,20 @@ export default function SettingsPage() {
 
   return (
     <Layout
-      title="Settings"
-      subtitle="Admin — manage devices and pricing"
-      actions={<Button onClick={() => setCreating(true)}>+ Add Device</Button>}
+      title="Security Settings"
+      subtitle="Admin control console — manage terminal nodes, rates, and fleet permissions"
+      actions={
+        <Button 
+          onClick={() => setCreating(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          Add Device
+        </Button>
+      }
     >
       {loading ? (
-        <LoadingSpinner label="Loading settings…" />
+        <LoadingSpinner label="Loading node configurations…" />
       ) : allDevices.length === 0 ? (
         <div className="ccms-card">
           <EmptyState
@@ -47,40 +55,43 @@ export default function SettingsPage() {
         <>
           <Card style={{ overflow: 'hidden', marginBottom: '24px' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-default)' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                Device Registry
+              <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Node Registry
               </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                {allDevices.length} device{allDevices.length === 1 ? '' : 's'} registered
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+                {allDevices.length} node{allDevices.length === 1 ? '' : 's'} registered in the active fleet
               </p>
             </div>
             <Table
               columns={[
                 {
                   key: 'name',
-                  header: 'Name',
+                  header: 'Node Identifier',
                   render: (d: Device) => (
-                    <strong>
-                      {DEVICE_TYPE_META[d.type].icon} {d.name}
+                    <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                        {d.type === 'pc' ? 'desktop_windows' : d.type === 'console' ? 'sports_esports' : 'smart_display'}
+                      </span>
+                      {d.name}
                     </strong>
                   ),
                 },
                 {
                   key: 'type',
-                  header: 'Type',
+                  header: 'Category',
                   render: (d: Device) => DEVICE_TYPE_META[d.type].label,
                 },
                 {
                   key: 'status',
-                  header: 'Status',
+                  header: 'Encryption Link',
                   render: (d: Device) => <StatusBadge status={d.status} />,
                 },
                 {
                   key: 'rate',
-                  header: 'Hourly Rate',
+                  header: 'Base Rate ($/hr)',
                   align: 'right',
                   render: (d: Device) => (
-                    <span style={{ fontFamily: 'Audiowide, sans-serif' }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                       {formatCurrency(d.hourly_rate)}
                     </span>
                   ),
@@ -94,7 +105,7 @@ export default function SettingsPage() {
                       <Button
                         variant="ghost"
                         onClick={() => setEditing(d)}
-                        style={{ padding: '6px 14px', fontSize: '13px' }}
+                        style={{ padding: '6px 14px', fontSize: '11px', minHeight: '32px' }}
                       >
                         Edit
                       </Button>
@@ -102,7 +113,7 @@ export default function SettingsPage() {
                         <Button
                           variant="danger"
                           onClick={() => setDeleting(d)}
-                          style={{ padding: '6px 14px', fontSize: '13px' }}
+                          style={{ padding: '6px 14px', fontSize: '11px', minHeight: '32px' }}
                         >
                           Delete
                         </Button>
@@ -121,7 +132,7 @@ export default function SettingsPage() {
       {/* Edit modal */}
       {editing && (
         <DeviceFormModal
-          title={`Edit · ${editing.name}`}
+          title={`Edit Node · ${editing.name}`}
           initial={editing}
           onClose={() => setEditing(null)}
           onDone={async (patch) => {
@@ -140,7 +151,7 @@ export default function SettingsPage() {
       {/* Create modal */}
       {creating && (
         <DeviceFormModal
-          title="Add New Device"
+          title="Register Node"
           initial={null}
           onClose={() => setCreating(false)}
           onDone={async (patch) => {
@@ -160,7 +171,7 @@ export default function SettingsPage() {
       {deleting && (
         <Modal
           open
-          title="Remove Device"
+          title="Remove Node"
           onClose={() => setDeleting(null)}
           footer={
             <>
@@ -183,8 +194,8 @@ export default function SettingsPage() {
             </>
           }
         >
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Remove <strong>{deleting.name}</strong>? This device will be permanently deleted.
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+            Are you sure you want to remove node <strong>{deleting.name}</strong>? This device will be permanently deleted from the database.
             Any active sessions will need to be ended first.
           </p>
         </Modal>
@@ -193,7 +204,6 @@ export default function SettingsPage() {
   );
 }
 
-// ─── Device form modal (shared for create & edit) ──────────────────────
 function DeviceFormModal({
   title,
   initial,
@@ -250,20 +260,20 @@ function DeviceFormModal({
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button loading={loading} disabled={!isValid} onClick={handleSubmit}>
-            {initial ? 'Save' : 'Add Device'}
+            {initial ? 'Save' : 'Add Node'}
           </Button>
         </>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Input label="Name" placeholder="e.g. PC-05" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <Select label="Type" value={type} onChange={(e) => setType(e.target.value as DeviceType)}>
+        <Input label="Node Identifier" placeholder="e.g. PC-05" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <Select label="Category" value={type} onChange={(e) => setType(e.target.value as DeviceType)}>
           <option value="pc">PC</option>
           <option value="console">Console</option>
           <option value="vr">VR</option>
         </Select>
         <Input
-          label="Hourly Rate ($)"
+          label="Base Hourly Rate ($)"
           type="number"
           step="0.5"
           min="0"
@@ -271,7 +281,7 @@ function DeviceFormModal({
           onChange={(e) => setHourlyRate(e.target.value)}
         />
         <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '14px' }}>
-          <span className="ccms-eyebrow">Hardware Specs (optional)</span>
+          <span className="ccms-eyebrow">Hardware Specifications (optional)</span>
         </div>
         <Input label="CPU" placeholder="e.g. i5-12400F" value={specsCpu} onChange={(e) => setSpecsCpu(e.target.value)} />
         <Input label="GPU" placeholder="e.g. RTX 3060" value={specsGpu} onChange={(e) => setSpecsGpu(e.target.value)} />

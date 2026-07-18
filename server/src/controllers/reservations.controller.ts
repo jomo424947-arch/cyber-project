@@ -47,9 +47,11 @@ export async function createReservation(req: Request, res: Response) {
     .select('id, reserved_from, reserved_until')
     .eq('device_id', device_id)
     .neq('status', 'cancelled')
-    .or(
-      `reserved_from.lt.${reserved_until},reserved_until.gt.${reserved_from}`
-    );
+    // Interval overlap: two ranges [A, B) and [C, D) overlap iff A < D AND B > C.
+    // Here: existing.reserved_from < new.reserved_until AND existing.reserved_until > new.reserved_from.
+    // Chained Supabase filters are joined with AND (unlike .or() which joins with OR).
+    .lt('reserved_from', reserved_until)
+    .gt('reserved_until', reserved_from);
 
   if (confErr) throw confErr;
   if (conflicts && conflicts.length > 0) {

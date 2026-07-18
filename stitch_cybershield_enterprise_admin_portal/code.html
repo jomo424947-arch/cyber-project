@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CCMS Admin Terminal - Financial Ledger</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..900&family=Space+Grotesk:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#0e0e0e",
+                        "inverse-primary": "#006688",
+                        "on-tertiary": "#4a2800",
+                        "primary-fixed": "#c2e8ff",
+                        "background": "#131313",
+                        "inverse-on-surface": "#313030",
+                        "on-primary": "#003548",
+                        "on-secondary-container": "#b3b1ff",
+                        "on-secondary": "#1d00a5",
+                        "surface-container-low": "#1c1b1b",
+                        "primary": "#92d9ff",
+                        "error": "#ffb4ab",
+                        "primary-container": "#00c2ff",
+                        "on-primary-container": "#004c66",
+                        "bg-elevated": "#181818",
+                        "surface-container": "#201f1f",
+                        "text-disabled": "#71717A",
+                        "bg-main": "#0A0A0A",
+                        "surface-dim": "#131313",
+                        "on-error": "#690005",
+                        "text-high": "#FFFFFF",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-fixed": "#0f0069",
+                        "secondary-fixed-dim": "#c3c0ff",
+                        "secondary-container": "#3626ce",
+                        "on-tertiary-fixed-variant": "#6a3c00",
+                        "secondary": "#c3c0ff",
+                        "on-primary-fixed-variant": "#004d67",
+                        "surface": "#131313",
+                        "on-secondary-fixed-variant": "#3323cc",
+                        "surface-variant": "#353534",
+                        "surface-container-high": "#2a2a2a",
+                        "surface-bright": "#3a3939",
+                        "surface-container-highest": "#353534",
+                        "on-surface-variant": "#bcc8d1",
+                        "success": "#22C55E",
+                        "text-medium": "#A1A1AA",
+                        "danger": "#EF4444",
+                        "primary-fixed-dim": "#75d1ff",
+                        "tertiary-fixed-dim": "#ffb871",
+                        "outline-variant": "#3d484f",
+                        "surface-tint": "#75d1ff",
+                        "secondary-fixed": "#e2dfff",
+                        "warning": "#F59E0B",
+                        "on-tertiary-fixed": "#2d1600",
+                        "error-container": "#93000a",
+                        "tertiary": "#ffc58d",
+                        "on-primary-fixed": "#001e2b",
+                        "tertiary-container": "#ff9e2a",
+                        "tertiary-fixed": "#ffdcbe",
+                        "on-surface": "#e5e2e1",
+                        "on-background": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "on-tertiary-container": "#693b00",
+                        "outline": "#86929a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "card-padding": "24px",
+                        "margin-page": "32px",
+                        "base": "8px",
+                        "stack-md": "16px",
+                        "gutter": "24px",
+                        "stack-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Space Grotesk"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Space Grotesk"],
+                        "label-caps": ["JetBrains Mono"],
+                        "headline-sm": ["Space Grotesk"],
+                        "body-lg": ["Inter"],
+                        "data-mono": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                        "headline-sm": ["18px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "1", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #0A0A0A; color: #e5e2e1; }
+        .glass-card {
+            background: #111111;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            background: #181818;
+        }
+        .inner-glow-cyan { border-top: 1px solid rgba(146, 217, 255, 0.2); }
+        .inner-glow-success { border-top: 1px solid rgba(34, 197, 94, 0.2); }
+        .inner-glow-warning { border-top: 1px solid rgba(245, 158, 11, 0.2); }
+        .primary-gradient-btn {
+            background: linear-gradient(135deg, #00c2ff 0%, #3626ce 100%);
+            box-shadow: 0 0 15px rgba(0, 194, 255, 0.2);
+            transition: transform 0.15s, box-shadow 0.2s;
+        }
+        .primary-gradient-btn:hover {
+            box-shadow: 0 0 25px rgba(0, 194, 255, 0.4);
+            transform: translateY(-1px);
+        }
+        .primary-gradient-btn:active { transform: scale(0.95); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .table-row-hover:hover { background-color: #181818; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0A0A0A; }
+        ::-webkit-scrollbar-thumb { background: #353534; border-radius: 10px; }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- Sidebar Shell -->
+<aside class="w-[240px] h-screen fixed left-0 top-0 flex flex-col border-r border-white/10 backdrop-blur-md bg-bg-main z-[60]">
+<div class="px-margin-page py-10">
+<span class="font-headline-lg text-headline-lg font-bold text-primary-container tracking-tighter">CCMS</span>
+<p class="font-label-caps text-label-caps text-text-medium mt-1 uppercase opacity-50 tracking-widest">Admin Terminal</p>
+</div>
+<nav class="flex flex-col h-full py-base gap-stack-md">
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-colors hover:bg-surface-container" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-caps text-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-colors hover:bg-surface-container" href="#">
+<span class="material-symbols-outlined">devices</span>
+<span class="font-label-caps text-label-caps">Device Fleet</span>
+</a>
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-colors hover:bg-surface-container" href="#">
+<span class="material-symbols-outlined">p2p</span>
+<span class="font-label-caps text-label-caps">Active Sessions</span>
+</a>
+<!-- Active Tab: Financials (Billing) -->
+<a class="flex items-center gap-4 px-margin-page py-3 border-l-2 border-primary bg-gradient-to-r from-primary/10 to-transparent text-primary scale-95 duration-150 transition-transform" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-caps text-label-caps">Financials</span>
+</a>
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-colors hover:bg-surface-container" href="#">
+<span class="material-symbols-outlined">event_upcoming</span>
+<span class="font-label-caps text-label-caps">Reservations</span>
+</a>
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-colors hover:bg-surface-container" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+<span class="font-label-caps text-label-caps">Intelligence Reports</span>
+</a>
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-colors hover:bg-surface-container" href="#">
+<span class="material-symbols-outlined">security</span>
+<span class="font-label-caps text-label-caps">Security Settings</span>
+</a>
+<div class="mt-auto pb-10 border-t border-white/5 pt-6">
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-text-high transition-all" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+<a class="flex items-center gap-4 px-margin-page py-3 text-text-medium hover:text-danger transition-all" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-caps text-label-caps">Logout</span>
+</a>
+</div>
+</nav>
+</aside>
+<!-- Top AppBar -->
+<header class="h-16 fixed top-0 right-0 w-[calc(100%-240px)] z-50 flex items-center justify-between px-margin-page border-b border-white/10 backdrop-blur-xl bg-surface/80 shadow-sm">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+<span class="text-primary font-bold font-body-md text-body-md uppercase tracking-widest text-[10px]">Network: Latency 24ms</span>
+</div>
+<div class="h-4 w-[1px] bg-white/10"></div>
+<div class="flex items-center gap-2 text-text-medium">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="font-body-md text-body-md">Encrypted Session</span>
+</div>
+</div>
+<div class="flex items-center gap-gutter">
+<div class="flex items-center gap-base">
+<button class="p-2 text-text-medium hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-text-medium hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="font-label-caps text-label-caps text-text-high leading-none">Admin_X01</p>
+<p class="text-[10px] text-primary uppercase tracking-tighter">System Secured</p>
+</div>
+<div class="w-10 h-10 rounded-lg bg-surface-container-high border border-white/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A portrait-style profile icon of a high-tech cybersecurity administrator, featuring subtle blue holographic interfaces reflecting off a dark visor. The style is futuristic and cinematic, set against an ultra-dark background with sharp, clean lines and a premium corporate modern aesthetic. Low lighting with high contrast accents of neon cyan." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBp_v8qgfulFoXebIOzh8QHF_DH_5pn0eOQ9Z18VGEJma03jbwJfgTgYrOZEChowlZ4G1NwaEXsuxtYP_3jVbXXpRIdFYg1x3S-QRGgb7D-73pj7UjAzS98WC6EAh172ghsEmvNO-uBtlDpQlBWU2BX0Fbg8yoDlMm1gRNR4FGiSWvWScjzLkM4cmUQvUjVrZ44EVOjB6V9BoDxROqVcmy966a-LKEFin1irVpEOt_G2YF7XB0tEh4a0oKsibNYApqcPkJu0x9SsMo"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] pt-24 px-margin-page pb-margin-page min-h-screen">
+<!-- Page Header -->
+<div class="mb-10 flex items-end justify-between">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-text-high">Financial Ledger</h1>
+<p class="text-text-medium font-body-lg text-body-lg mt-2 opacity-80 max-w-xl">Comprehensive real-time tracking of terminal utilization, subscription billing, and net system profitability across the device fleet.</p>
+</div>
+<div class="flex gap-stack-md">
+<button class="px-6 py-3 border border-primary/30 text-primary font-label-caps text-label-caps rounded-lg hover:bg-primary/10 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">receipt_long</span>
+                    Generate Receipt
+                </button>
+<button class="primary-gradient-btn px-8 py-3 text-white font-label-caps text-label-caps rounded-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+                    Process Payment
+                </button>
+</div>
+</div>
+<!-- Summary Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-12">
+<!-- Total Collected -->
+<div class="glass-card inner-glow-success p-card-padding rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-[64px] text-success">check_circle</span>
+</div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-success" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Total Collected</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-data-mono text-[36px] font-bold text-success">$113.75</span>
+<span class="text-[12px] text-success/60">+12% vs last shift</span>
+</div>
+<div class="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-success w-[85%]"></div>
+</div>
+</div>
+<!-- Outstanding Dues -->
+<div class="glass-card inner-glow-warning p-card-padding rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-[64px] text-warning">error</span>
+</div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-warning" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Outstanding Dues</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-data-mono text-[36px] font-bold text-warning">$0.00</span>
+<span class="text-[12px] text-warning/60">Cleared</span>
+</div>
+<div class="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-warning w-0"></div>
+</div>
+</div>
+<!-- Net Profit -->
+<div class="glass-card inner-glow-cyan p-card-padding rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-[64px] text-primary">analytics</span>
+</div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+<span class="font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Net Revenue (MTD)</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-data-mono text-[36px] font-bold text-text-high">$4,822.40</span>
+<span class="text-[12px] text-primary/60">Target: $5k</span>
+</div>
+<div class="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[72%] shadow-[0_0_8px_rgba(146,217,255,0.5)]"></div>
+</div>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="flex items-center gap-stack-md mb-6">
+<button class="px-4 py-2 bg-primary/20 text-primary border border-primary/40 rounded-lg font-label-caps text-label-caps">All Invoices</button>
+<button class="px-4 py-2 border border-white/10 text-text-medium hover:text-text-high hover:border-white/30 transition-all rounded-lg font-label-caps text-label-caps">Unpaid</button>
+<button class="px-4 py-2 border border-white/10 text-text-medium hover:text-text-high hover:border-white/30 transition-all rounded-lg font-label-caps text-label-caps">Paid</button>
+<div class="flex-grow"></div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-disabled text-[18px]">search</span>
+<input class="bg-bg-main border border-white/10 rounded-lg pl-10 pr-4 py-2 font-body-md text-body-md focus:ring-1 focus:ring-primary focus:border-primary transition-all w-64 text-text-high" placeholder="Search Invoices..." type="text"/>
+</div>
+</div>
+<!-- Invoices Table Section -->
+<div class="glass-card rounded-xl overflow-hidden">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-high border-b border-white/10">
+<th class="px-card-padding py-4 font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Invoice ID</th>
+<th class="px-card-padding py-4 font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Customer</th>
+<th class="px-card-padding py-4 font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Terminal</th>
+<th class="px-card-padding py-4 font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Duration</th>
+<th class="px-card-padding py-4 font-label-caps text-label-caps text-text-medium uppercase tracking-widest">Status</th>
+<th class="px-card-padding py-4 font-label-caps text-label-caps text-text-medium uppercase tracking-widest text-right">Amount</th>
+<th class="px-card-padding py-4"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<!-- Row 1 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-card-padding py-5 font-data-mono text-primary">#INV-8821</td>
+<td class="px-card-padding py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-bold text-xs border border-white/10">OM</div>
+<span class="font-body-md text-text-high font-medium">OMER KALID</span>
+</div>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-medium">PS-07</td>
+<td class="px-card-padding py-5 text-text-medium">30m 12s</td>
+<td class="px-card-padding py-5">
+<span class="px-3 py-1 rounded-full bg-success/10 border border-success/30 text-success text-[10px] font-bold uppercase tracking-widest">Paid</span>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-high font-bold text-right">$12.50</td>
+<td class="px-card-padding py-5 text-right">
+<button class="text-text-disabled hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-card-padding py-5 font-data-mono text-primary">#INV-8822</td>
+<td class="px-card-padding py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-bold text-xs border border-white/10">JO</div>
+<span class="font-body-md text-text-high font-medium">JONAS ARCH</span>
+</div>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-medium">PC-02</td>
+<td class="px-card-padding py-5 text-text-medium">1h 02m</td>
+<td class="px-card-padding py-5">
+<span class="px-3 py-1 rounded-full bg-success/10 border border-success/30 text-success text-[10px] font-bold uppercase tracking-widest">Paid</span>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-high font-bold text-right">$25.00</td>
+<td class="px-card-padding py-5 text-right">
+<button class="text-text-disabled hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-card-padding py-5 font-data-mono text-primary">#INV-8823</td>
+<td class="px-card-padding py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-bold text-xs border border-white/10">SA</div>
+<span class="font-body-md text-text-high font-medium">SARA CONNOR</span>
+</div>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-medium">VR-01</td>
+<td class="px-card-padding py-5 text-text-medium">45m 00s</td>
+<td class="px-card-padding py-5">
+<span class="px-3 py-1 rounded-full bg-white/5 border border-white/20 text-text-medium text-[10px] font-bold uppercase tracking-widest">Pending</span>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-high font-bold text-right">$35.00</td>
+<td class="px-card-padding py-5 text-right">
+<button class="text-text-disabled hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-card-padding py-5 font-data-mono text-primary">#INV-8824</td>
+<td class="px-card-padding py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-bold text-xs border border-white/10">TH</div>
+<span class="font-body-md text-text-high font-medium">THOMAS ANDERSON</span>
+</div>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-medium">PS-09</td>
+<td class="px-card-padding py-5 text-text-medium">2h 30m</td>
+<td class="px-card-padding py-5">
+<span class="px-3 py-1 rounded-full bg-success/10 border border-success/30 text-success text-[10px] font-bold uppercase tracking-widest">Paid</span>
+</td>
+<td class="px-card-padding py-5 font-data-mono text-text-high font-bold text-right">$50.25</td>
+<td class="px-card-padding py-5 text-right">
+<button class="text-text-disabled hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Table Footer -->
+<div class="p-card-padding border-t border-white/5 flex items-center justify-between">
+<p class="text-text-disabled font-label-caps text-[10px] uppercase tracking-widest">Displaying 4 of 124 transactions</p>
+<div class="flex items-center gap-4">
+<button class="p-2 border border-white/10 rounded-lg hover:border-primary/50 transition-colors">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<span class="font-data-mono text-text-high">1 / 32</span>
+<button class="p-2 border border-white/10 rounded-lg hover:border-primary/50 transition-colors">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Interactive Chart / Visualization -->
+<div class="mt-gutter grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+<div class="glass-card p-card-padding rounded-xl">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-headline-sm text-headline-sm text-text-high">Peak Utilization Hours</h3>
+<span class="material-symbols-outlined text-primary">equalizer</span>
+</div>
+<div class="flex items-end gap-2 h-48">
+<div class="flex-grow bg-primary/10 hover:bg-primary/30 transition-all rounded-t h-[40%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 bg-surface-container p-2 rounded hidden group-hover:block text-[10px] whitespace-nowrap mb-2 border border-white/10">08:00 - 15%</div>
+</div>
+<div class="flex-grow bg-primary/10 hover:bg-primary/30 transition-all rounded-t h-[60%] group relative"></div>
+<div class="flex-grow bg-primary/10 hover:bg-primary/30 transition-all rounded-t h-[85%] group relative"></div>
+<div class="flex-grow bg-primary/40 rounded-t h-[95%] shadow-[0_0_15px_rgba(146,217,255,0.2)] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 bg-primary p-2 rounded hidden group-hover:block text-[10px] whitespace-nowrap mb-2 border border-white/10 text-on-primary font-bold">PEAK - 98%</div>
+</div>
+<div class="flex-grow bg-primary/10 hover:bg-primary/30 transition-all rounded-t h-[75%] group relative"></div>
+<div class="flex-grow bg-primary/10 hover:bg-primary/30 transition-all rounded-t h-[50%] group relative"></div>
+<div class="flex-grow bg-primary/10 hover:bg-primary/30 transition-all rounded-t h-[30%] group relative"></div>
+</div>
+<div class="mt-4 flex justify-between text-text-disabled font-label-caps text-[10px]">
+<span>08:00</span>
+<span>12:00</span>
+<span>16:00</span>
+<span>20:00</span>
+<span>00:00</span>
+</div>
+</div>
+<div class="glass-card p-card-padding rounded-xl flex flex-col justify-center">
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-text-high">Real-time Syncing...</h3>
+<p class="text-text-medium font-body-md">Connected to central payment gateway. All transactions are verifiable via blockchain hash.</p>
+</div>
+</div>
+<div class="mt-8 p-4 bg-surface-container-lowest rounded-lg border border-white/5">
+<code class="font-data-mono text-[11px] text-primary/70 block break-all">
+                         HASH: 0x8a1c92f...e7d2 <br/>
+                         STATUS: NODE_CONFIRMED <br/>
+                         TIMESTAMP: 2024-07-15T09:42:11.002Z
+                     </code>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Micro-interaction for table rows pulse on hover
+        document.querySelectorAll('.table-row-hover').forEach(row => {
+            row.addEventListener('mouseenter', () => {
+                row.style.transform = 'translateX(4px)';
+            });
+            row.addEventListener('mouseleave', () => {
+                row.style.transform = 'translateX(0px)';
+            });
+        });
+    </script>
+</body></html>

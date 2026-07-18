@@ -1,30 +1,35 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
-interface NavItem {
+export interface NavItem {
   to: string;
   label: string;
   icon: string;
   adminOnly?: boolean;
 }
 
-const NAV: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: '⬡' },
-  { to: '/devices', label: 'Devices', icon: '🖥' },
-  { to: '/sessions', label: 'Sessions', icon: '⏱' },
-  { to: '/billing', label: 'Billing', icon: '💳' },
-  { to: '/reservations', label: 'Reservations', icon: '📅' },
-  { to: '/reports', label: 'Reports', icon: '📊' },
-  { to: '/settings', label: 'Settings', icon: '⚙', adminOnly: true },
+export const NAV: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/devices', label: 'Device Fleet', icon: 'devices' },
+  { to: '/sessions', label: 'Active Sessions', icon: 'p2p' },
+  { to: '/billing', label: 'Financials', icon: 'payments' },
+  { to: '/reservations', label: 'Reservations', icon: 'event_upcoming' },
+  { to: '/reports', label: 'Intelligence Reports', icon: 'query_stats' },
+  { to: '/settings', label: 'Security Settings', icon: 'security', adminOnly: true },
 ];
 
 export function Sidebar() {
-  const { user, isAdmin, logout } = useAuth();
+  const { isAdmin, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
-  const handleLogout = async () => {
+  if (isMobile) return null;
+
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
     await logout();
     toast('Signed out', 'info');
     navigate('/login');
@@ -38,37 +43,51 @@ export function Sidebar() {
         top: 0,
         bottom: 0,
         width: 'var(--sidebar-width)',
-        background: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-default)',
+        background: '#0A0A0A',
+        borderRight: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 100,
+        zIndex: 60,
       }}
     >
-      {/* Logo */}
+      {/* Logo Section */}
       <div
         style={{
-          padding: '24px 20px',
+          padding: '40px 32px 32px 32px',
           display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          borderBottom: '1px solid var(--border-default)',
+          flexDirection: 'column',
         }}
       >
         <span
           style={{
-            fontFamily: 'Audiowide, sans-serif',
-            fontSize: '1.5rem',
-            color: 'var(--accent-cyan)',
-            textShadow: '0 0 12px rgba(0,212,255,0.4)',
+            fontFamily: 'Space Grotesk, sans-serif',
+            fontSize: '32px',
+            fontWeight: 700,
+            color: '#00C2FF',
+            letterSpacing: '-0.02em',
+            lineHeight: '1.2',
           }}
         >
           CCMS
         </span>
+        <span
+          style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: '#A1A1AA',
+            textTransform: 'uppercase',
+            opacity: 0.5,
+            letterSpacing: '0.1em',
+            marginTop: '4px',
+          }}
+        >
+          Admin Terminal
+        </span>
       </div>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '16px 0', overflowY: 'auto' }}>
+      {/* Navigation */}
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 0', overflowY: 'auto' }}>
         {NAV.filter((item) => !item.adminOnly || isAdmin).map((item) => (
           <NavLink
             key={item.to}
@@ -79,92 +98,75 @@ export function Sidebar() {
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
-              padding: '12px 20px',
-              color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+              gap: '16px',
+              padding: '12px 32px',
+              color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
               borderLeft: isActive
-                ? '3px solid var(--accent-cyan)'
-                : '3px solid transparent',
-              background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
-              transition: 'all 0.2s ease',
-              fontSize: '14px',
-              fontWeight: 500,
+                ? '2px solid var(--accent-cyan)'
+                : '2px solid transparent',
+              background: isActive ? 'linear-gradient(to right, rgba(0, 194, 255, 0.1), transparent)' : 'transparent',
+              transition: 'all 0.15s ease',
+              textDecoration: 'none',
             })}
           >
-            <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
               {item.icon}
             </span>
-            {item.label}
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              {item.label}
+            </span>
           </NavLink>
         ))}
-      </nav>
 
-      {/* User footer */}
-      <div
-        style={{
-          padding: '16px 20px',
-          borderTop: '1px solid var(--border-default)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-        }}
-      >
-        <div
-          style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: 'var(--accent-cyan-dim)',
-            color: 'var(--accent-cyan)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 600,
-            fontSize: '14px',
-            flexShrink: 0,
-          }}
-        >
-          {(user?.full_name ?? '?').charAt(0).toUpperCase()}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
+        {/* Footer Support/Logout inside Nav flex container */}
+        <div style={{ marginTop: 'auto', paddingBottom: '40px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '24px' }}>
+          <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); toast('Support ticket creation is available in Settings.', 'info'); }}
             style={{
-              fontSize: '13px',
-              color: 'var(--text-primary)',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '12px 32px',
+              color: 'var(--text-secondary)',
+              transition: 'all 0.2s ease',
+              textDecoration: 'none',
             }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#FFFFFF'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
           >
-            {user?.full_name ?? 'User'}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-            {user?.role ?? 'staff'}
-          </div>
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+              help
+            </span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Support
+            </span>
+          </a>
+
+          <a
+            href="#"
+            onClick={handleLogout}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '12px 32px',
+              color: 'var(--text-secondary)',
+              transition: 'all 0.2s ease',
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-red)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+              logout
+            </span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Logout
+            </span>
+          </a>
         </div>
-        <button
-          onClick={handleLogout}
-          title="Logout"
-          style={{
-            color: 'var(--text-secondary)',
-            fontSize: '16px',
-            padding: '6px',
-            borderRadius: '6px',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--accent-red)';
-            e.currentTarget.style.background = 'rgba(255,68,102,0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--text-secondary)';
-            e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          ⏻
-        </button>
-      </div>
+      </nav>
     </aside>
   );
 }

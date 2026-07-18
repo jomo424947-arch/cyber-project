@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Table } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
+import { StatCard } from '../components/StatCard';
 import { useAsync } from '../hooks/useAsync';
 import { dataService } from '../services';
 import { formatCurrency, formatDuration, formatDateTime } from '../utils/format';
@@ -52,8 +53,13 @@ export default function CustomerProfilePage() {
       title={`Customer Profile · @${customer.username}`}
       subtitle="Complete gamer statistics and session history"
       actions={
-        <button className="ccms-btn ccms-btn-ghost" onClick={() => navigate(-1)}>
-          ← Back
+        <button 
+          className="ccms-btn ccms-btn-ghost" 
+          onClick={() => navigate(-1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          Back
         </button>
       }
     >
@@ -62,34 +68,34 @@ export default function CustomerProfilePage() {
         className="ccms-card ccms-stagger" 
         style={{ 
           padding: '24px', 
-          marginBottom: '24px', 
+          marginBottom: '32px', 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-          gap: '20px',
-          borderLeft: '3px solid var(--accent-cyan)'
+          gap: '24px',
+          borderTop: '1px solid rgba(0, 194, 255, 0.3)' // Redesign spec inner glow
         }}
       >
         <div>
           <span className="ccms-eyebrow">Display Name</span>
-          <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', marginTop: '4px', fontWeight: 700 }}>
+          <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '24px', color: 'var(--text-primary)', marginTop: '8px', fontWeight: 600, margin: 0 }}>
             {customer.name}
           </h2>
         </div>
         <div>
           <span className="ccms-eyebrow">Username Handle</span>
-          <div style={{ fontSize: '1.2rem', color: 'var(--accent-cyan)', marginTop: '4px', fontFamily: 'Audiowide, sans-serif' }}>
+          <div style={{ fontSize: '18px', color: 'var(--accent-cyan)', marginTop: '8px', fontFamily: 'JetBrains Mono, monospace', fontWeight: 'bold' }}>
             @{customer.username}
           </div>
         </div>
         <div>
           <span className="ccms-eyebrow">Contact Phone</span>
-          <div style={{ color: 'var(--text-primary)', marginTop: '4px', fontSize: '14px' }}>
+          <div style={{ color: 'var(--text-primary)', marginTop: '8px', fontSize: '14px', fontFamily: 'JetBrains Mono, monospace' }}>
             {customer.phone || '—'}
           </div>
         </div>
         <div>
           <span className="ccms-eyebrow">Date Joined</span>
-          <div style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '13px' }}>
+          <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '14px' }}>
             {new Date(customer.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}
           </div>
         </div>
@@ -99,31 +105,78 @@ export default function CustomerProfilePage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: '16px',
-          marginBottom: '32px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '24px',
+          marginBottom: '48px',
         }}
       >
-        <StatTile icon="⏱" label="Total Playtime" value={`${stats.total_hours} hrs`} color="var(--accent-cyan)" />
-        <StatTile icon="🕹" label="Total Sessions" value={stats.total_sessions} color="var(--accent-purple)" />
-        <StatTile icon="💳" label="Total Spent" value={formatCurrency(stats.total_spend)} color="var(--accent-green)" />
+        <StatCard index={0} icon="⏱" label="Total Playtime" value={`${stats.total_hours} hrs`} accent="var(--accent-cyan)" />
+        <StatCard index={1} icon="🕹" label="Total Sessions" value={stats.total_sessions} accent="var(--accent-purple)" />
+        <StatCard index={2} icon="💳" label="Total Spent" value={formatCurrency(stats.total_spend)} accent="var(--accent-green)" />
         
-        <div className="ccms-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 170, 0, 0.15)', color: 'var(--accent-yellow)', fontSize: '20px' }}>
-              🎯
-            </div>
-            <span className="ccms-eyebrow">Favorite Station</span>
+        {/* Favorite device type custom card matching StatCard style */}
+        <div
+          className="ccms-card-stat ccms-card-stat-hover ccms-stagger group"
+          style={{
+            animationDelay: '240ms',
+            borderTop: '1px solid var(--accent-yellow)', // Inner glow warning
+          }}
+        >
+          {/* Background Decorative Icon */}
+          <div
+            className="absolute top-0 right-0 p-4 opacity-[0.06] group-hover:opacity-10 transition-opacity"
+            style={{ color: 'var(--accent-yellow)' }}
+          >
+            <span className="material-symbols-outlined style-icon text-[72px] leading-none">
+              target
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.6rem', fontFamily: 'Audiowide, sans-serif', color: 'var(--text-primary)', lineHeight: 1 }}>
-            {favoriteMeta ? (
-              <>
-                <span style={{ fontSize: '22px' }}>{favoriteMeta.icon}</span>
-                <span>{favoriteMeta.label}</span>
-              </>
-            ) : (
-              'None yet'
-            )}
+
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-[16px] leading-none" style={{ color: 'var(--accent-yellow)' }}>
+              stars
+            </span>
+            <span className="font-label-caps text-label-caps text-text-secondary leading-none">
+              Favorite Station
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                fontFamily: 'Space Grotesk, sans-serif',
+                fontSize: '28px',
+                fontWeight: 600,
+                lineHeight: 1.2,
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              {favoriteMeta ? (
+                <>
+                  <span className="material-symbols-outlined" style={{ color: 'var(--accent-yellow)', fontSize: '24px' }}>
+                    {stats.favorite_device_type === 'pc' ? 'desktop_windows' : stats.favorite_device_type === 'console' ? 'sports_esports' : 'smart_display'}
+                  </span>
+                  <span>{favoriteMeta.label}</span>
+                </>
+              ) : (
+                'None yet'
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: '16px', height: '4px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '9999px', overflow: 'hidden' }}>
+            <div 
+              style={{ 
+                height: '100%', 
+                background: 'var(--accent-yellow)', 
+                width: favoriteMeta ? '80%' : '0%', 
+                borderRadius: '9999px',
+                boxShadow: favoriteMeta ? '0 0 8px var(--accent-yellow)' : 'none',
+              }} 
+            />
           </div>
         </div>
       </div>
@@ -131,8 +184,8 @@ export default function CustomerProfilePage() {
       {/* History table */}
       <div className="ccms-card" style={{ padding: '0', overflow: 'hidden' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-default)' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Session History</h3>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+          <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Session History</h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
             Detailed record of all gaming sessions played
           </p>
         </div>
@@ -147,8 +200,10 @@ export default function CustomerProfilePage() {
                 key: 'device',
                 header: 'Device',
                 render: (s: Session) => (
-                  <strong style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>{s.device ? DEVICE_TYPE_META[s.device.type].icon : '🖥'}</span>
+                  <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                      {s.device?.type === 'pc' ? 'desktop_windows' : s.device?.type === 'console' ? 'sports_esports' : 'smart_display'}
+                    </span>
                     <span>{s.device?.name ?? 'Deleted Device'}</span>
                   </strong>
                 )
@@ -160,7 +215,7 @@ export default function CustomerProfilePage() {
                   <Badge 
                     label={s.session_type === 'fixed' ? 'Fixed Time' : 'Open Time'} 
                     color={s.session_type === 'fixed' ? 'var(--accent-purple)' : 'var(--accent-cyan)'} 
-                    bg={s.session_type === 'fixed' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(0, 212, 255, 0.15)'}
+                    bg={s.session_type === 'fixed' ? 'rgba(54, 38, 206, 0.1)' : 'rgba(0, 194, 255, 0.1)'}
                   />
                 )
               },
@@ -185,7 +240,7 @@ export default function CustomerProfilePage() {
                 render: (s: Session) => s.status === 'active' ? (
                   '—'
                 ) : (
-                  <span style={{ color: 'var(--accent-green)', fontFamily: 'Audiowide, sans-serif', fontWeight: 600 }}>
+                  <span style={{ color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
                     {formatCurrency(s.total_cost)}
                   </span>
                 )
@@ -197,40 +252,5 @@ export default function CustomerProfilePage() {
         )}
       </div>
     </Layout>
-  );
-}
-
-function StatTile({ icon, label, value, color }: { icon: string; label: string; value: string | number; color: string }) {
-  return (
-    <div className="ccms-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div 
-          style={{ 
-            width: '40px', 
-            height: '40px', 
-            borderRadius: '50%', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            background: `${color}22`, 
-            color: color, 
-            fontSize: '20px' 
-          }}
-        >
-          {icon}
-        </div>
-        <span className="ccms-eyebrow">{label}</span>
-      </div>
-      <div 
-        style={{ 
-          fontFamily: 'Audiowide, sans-serif', 
-          fontSize: '1.8rem', 
-          color: 'var(--text-primary)', 
-          lineHeight: 1 
-        }}
-      >
-        {value}
-      </div>
-    </div>
   );
 }

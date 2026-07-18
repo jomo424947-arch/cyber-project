@@ -85,7 +85,13 @@ export async function startSession(req: Request, res: Response) {
         })
         .select('id')
         .single();
-      if (cInsErr) throw cInsErr;
+      if (cInsErr) {
+        // Handle race condition: another request created this username concurrently.
+        if ((cInsErr as any).code === '23505') {
+          throw conflict('A customer with that username already exists', 'CUSTOMER_USERNAME_CONFLICT');
+        }
+        throw cInsErr;
+      }
       finalCustomerId = newCustomer.id;
     }
   } else if (!finalCustomerId && customer_name) {

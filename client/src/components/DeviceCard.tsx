@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { StatusBadge } from './StatusBadge';
-import { DEVICE_TYPE_META } from '../utils/constants';
 import { formatElapsed, formatCurrency } from '../utils/format';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
@@ -18,6 +17,19 @@ interface DeviceCardProps {
   index?: number;
 }
 
+function getDeviceMaterialIcon(type: string): string {
+  switch (type) {
+    case 'pc':
+      return 'desktop_windows';
+    case 'console':
+      return 'sports_esports';
+    case 'vr':
+      return 'smart_display';
+    default:
+      return 'devices';
+  }
+}
+
 export function DeviceCard({ 
   device, 
   activeSession, 
@@ -28,7 +40,7 @@ export function DeviceCard({
   index = 0 
 }: DeviceCardProps) {
   const isActive = device.status === 'in_use';
-  const typeMeta = DEVICE_TYPE_META[device.type];
+  const typeIcon = getDeviceMaterialIcon(device.type);
   const [showAuditLogs, setShowAuditLogs] = useState(false);
 
   let actionLabel: string | null = null;
@@ -67,8 +79,8 @@ export function DeviceCard({
               <span
                 className="pulse-warning"
                 style={{
-                  fontFamily: 'Audiowide, sans-serif',
-                  fontSize: '1rem',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '14px',
                   color: 'var(--accent-yellow)',
                   fontWeight: 'bold'
                 }}
@@ -94,8 +106,8 @@ export function DeviceCard({
               <span className="ccms-eyebrow" style={{ color: 'var(--accent-red)' }}>OVERTIME</span>
               <span
                 style={{
-                  fontFamily: 'Audiowide, sans-serif',
-                  fontSize: '1.1rem',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '14px',
                   color: 'var(--accent-red)',
                   fontWeight: 'bold',
                   textShadow: '0 0 8px rgba(255, 68, 102, 0.4)'
@@ -122,9 +134,10 @@ export function DeviceCard({
           <span className="ccms-eyebrow">Remaining</span>
           <span
             style={{
-              fontFamily: 'Audiowide, sans-serif',
-              fontSize: '1.1rem',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '14px',
               color: 'var(--accent-cyan)',
+              fontWeight: 600,
             }}
           >
             {hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
@@ -139,9 +152,10 @@ export function DeviceCard({
         <span className="ccms-eyebrow">Elapsed</span>
         <span
           style={{
-            fontFamily: 'Audiowide, sans-serif',
-            fontSize: '1.1rem',
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '14px',
             color: 'var(--accent-green)',
+            fontWeight: 600,
           }}
         >
           {formatElapsed(activeSession.started_at, now)}
@@ -154,10 +168,10 @@ export function DeviceCard({
     <div
       className="ccms-card ccms-card-hover ccms-stagger"
       style={{
-        padding: '16px',
+        padding: '20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: '16px',
         borderLeft: isActive ? '3px solid var(--accent-red)' : undefined,
         boxShadow: isActive
           ? '0 4px 24px rgba(0,0,0,0.4), -2px 0 12px rgba(255,68,102,0.2)'
@@ -166,12 +180,15 @@ export function DeviceCard({
       }}
     >
       {/* Header: type icon + name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '18px' }}>{typeMeta.icon}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '22px', color: 'var(--accent-cyan)' }}>
+          {typeIcon}
+        </span>
         <span
           style={{
-            fontFamily: 'Audiowide, sans-serif',
-            fontSize: '1.05rem',
+            fontFamily: 'Space Grotesk, sans-serif',
+            fontSize: '18px',
+            fontWeight: 600,
             color: 'var(--text-primary)',
             flex: 1,
           }}
@@ -179,26 +196,27 @@ export function DeviceCard({
           {device.name}
         </span>
         {isActive && activeSession && (
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {activeSession.edited_start_at && (
               <button
                 type="button"
                 title="View edit logs"
                 onClick={() => setShowAuditLogs(true)}
                 style={{
-                  background: 'rgba(255, 170, 0, 0.15)',
+                  background: 'rgba(255, 170, 0, 0.1)',
                   border: '1px solid var(--accent-yellow)',
                   color: 'var(--accent-yellow)',
                   borderRadius: '4px',
-                  padding: '2px 6px',
+                  padding: '4px 8px',
                   fontSize: '11px',
+                  fontFamily: 'JetBrains Mono, monospace',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px'
+                  gap: '4px',
                 }}
               >
-                📜 Logs
+                Logs
               </button>
             )}
             {onEditSession && (
@@ -207,16 +225,17 @@ export function DeviceCard({
                 title="Edit active session"
                 onClick={() => onEditSession(activeSession)}
                 style={{
-                  background: 'rgba(0, 212, 255, 0.1)',
-                  border: '1px solid var(--border-default)',
+                  background: 'rgba(0, 194, 255, 0.1)',
+                  border: '1px solid rgba(0, 194, 255, 0.2)',
                   color: 'var(--accent-cyan)',
                   borderRadius: '4px',
-                  padding: '2px 6px',
+                  padding: '4px 8px',
                   fontSize: '11px',
-                  cursor: 'pointer'
+                  fontFamily: 'JetBrains Mono, monospace',
+                  cursor: 'pointer',
                 }}
               >
-                ✏️ Edit
+                Edit
               </button>
             )}
           </div>
@@ -224,7 +243,9 @@ export function DeviceCard({
       </div>
 
       {/* Status */}
-      <StatusBadge status={device.status} />
+      <div>
+        <StatusBadge status={device.status} />
+      </div>
 
       {/* Active session info */}
       {isActive && activeSession && (
@@ -233,8 +254,8 @@ export function DeviceCard({
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
-            padding: '10px 12px',
-            background: 'var(--bg-input)',
+            padding: '12px 14px',
+            background: 'var(--bg-elevated)',
             borderRadius: '8px',
             border: '1px solid var(--border-default)',
           }}
@@ -273,10 +294,11 @@ export function DeviceCard({
               className="ccms-btn ccms-btn-ghost"
               style={{
                 width: '100%',
-                padding: '4px 8px',
+                padding: '6px 12px',
                 fontSize: '11px',
                 marginTop: '4px',
-                border: '1px dashed var(--border-default)'
+                border: '1px dashed var(--border-default)',
+                minHeight: 'auto',
               }}
               onClick={() => onExtendSession(activeSession)}
             >
@@ -298,19 +320,24 @@ export function DeviceCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           marginTop: 'auto',
-          paddingTop: '4px',
+          paddingTop: '8px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.05)'
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span className="ccms-eyebrow">Device Rate</span>
-          <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600 }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
             {formatCurrency(device.hourly_rate)}/hr
           </span>
         </div>
         {actionLabel && onAction && (
           <button
             className={`ccms-btn ${actionVariant === 'danger' ? 'ccms-btn-danger' : actionVariant === 'ghost' ? 'ccms-btn-ghost' : 'ccms-btn-primary'}`}
-            style={{ padding: '8px 14px', fontSize: '13px' }}
+            style={{ 
+              padding: '8px 16px', 
+              fontSize: '11px',
+              minHeight: '36px',
+            }}
             onClick={() => onAction(device)}
           >
             {actionLabel}
@@ -337,7 +364,8 @@ function SpecList({ specs }: { specs: Record<string, string> }) {
         <span
           key={k}
           style={{
-            fontSize: '11px',
+            fontSize: '10px',
+            fontFamily: 'JetBrains Mono, monospace',
             padding: '2px 8px',
             borderRadius: '4px',
             background: 'var(--bg-elevated)',
@@ -352,7 +380,6 @@ function SpecList({ specs }: { specs: Record<string, string> }) {
   );
 }
 
-// ─── Local Sub-Modal to view Audit Logs ───────────────────────────────
 function AuditLogModal({ 
   session, 
   onClose 

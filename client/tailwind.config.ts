@@ -1,7 +1,5 @@
 import type { Config } from 'tailwindcss';
 
-// Tailwind is configured to reference the CSS custom properties defined in index.css,
-// so utility classes like `bg-surface`, `text-cyan`, `border-glow` map to the design tokens.
 const config: Config = {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
@@ -31,8 +29,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['Audiowide', 'sans-serif'],
+        display: ['Space Grotesk', 'sans-serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
         card: 'var(--shadow-card)',
@@ -41,6 +40,18 @@ const config: Config = {
       },
       borderRadius: {
         card: '12px',
+        DEFAULT: '0.25rem',
+        lg: '0.5rem',
+        xl: '0.75rem',
+        full: '9999px',
+      },
+      spacing: {
+        'card-padding': '24px',
+        'margin-page': '32px',
+        base: '8px',
+        'stack-md': '16px',
+        gutter: '24px',
+        'stack-sm': '8px',
       },
       keyframes: {
         'pulse-dot': {
