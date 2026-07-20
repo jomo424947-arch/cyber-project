@@ -12,8 +12,8 @@ import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
-import { RESERVATION_STATUS_META, DEVICE_TYPE_META } from '../utils/constants';
-import { formatDateTime, toDateTimeLocalValue } from '../utils/format';
+import { RESERVATION_STATUS_META } from '../utils/constants';
+import { formatDateTime, toDateTimeLocalValue, formatCurrency } from '../utils/format';
 import type { Reservation, Device } from '../types';
 
 type Filter = 'upcoming' | 'all';

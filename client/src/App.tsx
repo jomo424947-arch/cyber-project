@@ -4,12 +4,15 @@ import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
+import RoomsPage from './pages/RoomsPage';
 import DevicesPage from './pages/DevicesPage';
 import SessionsPage from './pages/SessionsPage';
+import ProductsPage from './pages/ProductsPage';
 import BillingPage from './pages/BillingPage';
 import ReservationsPage from './pages/ReservationsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import PricingPage from './pages/PricingPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 
 /** Wraps a page with the auth gate — redirects to /login if not authenticated. */
@@ -65,12 +68,15 @@ export default function App() {
       <Route path="/verify-email"   element={<AuthPage />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+      <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
       <Route path="/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
       <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
+      <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
       <Route path="/reservations" element={<ProtectedRoute><ReservationsPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+      <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />
       <Route path="/customers/:id" element={<ProtectedRoute><CustomerProfilePage /></ProtectedRoute>} />
 
       <Route path="/" element={<Navigate to="/login" replace />} />

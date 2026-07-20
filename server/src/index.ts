@@ -14,6 +14,8 @@ import billingRoutes from './routes/billing.routes';
 import reservationRoutes from './routes/reservations.routes';
 import reportRoutes from './routes/reports.routes';
 import customerRoutes from './routes/customers.routes';
+import productRoutes from './routes/products.routes';
+import pricingRoutes from './routes/pricing.routes';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import { supabase } from './lib/supabase';
 import { csrfProtection } from './middleware/csrf';
@@ -55,6 +57,8 @@ app.use('/api/invoices', billingRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/pricing', pricingRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

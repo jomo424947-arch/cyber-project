@@ -21,6 +21,7 @@ export interface DbDevice {
   status: DeviceStatus;
   specs: Record<string, unknown> | null;
   hourly_rate: number;
+  hourly_rate_multi: number;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +49,7 @@ export interface DbSession {
   created_by: string | null;
   created_at: string;
   session_type: 'open' | 'fixed';
+  play_mode: 'single' | 'multiplayer';
   scheduled_end: string | null;
   hourly_rate_override: number | null;
   grace_period_minutes: number;
@@ -55,7 +57,7 @@ export interface DbSession {
   overtime_minutes: number | null;
   edited_start_at: boolean;
   // joined relations (optional)
-  device?: Pick<DbDevice, 'id' | 'name' | 'type' | 'hourly_rate'>;
+  device?: Pick<DbDevice, 'id' | 'name' | 'type' | 'hourly_rate' | 'hourly_rate_multi'>;
   customer?: Pick<DbCustomer, 'id' | 'name' | 'phone' | 'username'>;
 }
 

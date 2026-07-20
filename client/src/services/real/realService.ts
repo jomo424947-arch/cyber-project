@@ -15,6 +15,9 @@ import type {
   LeaderboardEntry,
   CustomerProfileData,
   Customer,
+  Product,
+  SessionOrder,
+  PricingTier,
 } from '../../types';
 
 // The backend wraps every list response in { data: [...] }.
@@ -190,5 +193,44 @@ export const realService: DataService = {
   async getCustomerProfile(id) {
     const { data } = await http.get<OneWrap<CustomerProfileData>>(`/api/customers/${id}/profile`);
     return data.data;
+  },
+  async listProducts() {
+    const { data } = await http.get<ListWrap<Product>>('/api/products');
+    return data.data;
+  },
+  async createProduct(payload: { name: string; price: number }) {
+    const { data } = await http.post<OneWrap<Product>>('/api/products', payload);
+    return data.data;
+  },
+  async updateProduct(id: string, patch: { name?: string; price?: number }) {
+    const { data } = await http.patch<OneWrap<Product>>(`/api/products/${id}`, patch);
+    return data.data;
+  },
+  async deleteProduct(id: string) {
+    await http.delete(`/api/products/${id}`);
+  },
+  async addSessionOrder(sessionId, productId, quantity) {
+    const { data } = await http.post<OneWrap<SessionOrder>>(`/api/sessions/${sessionId}/orders`, {
+      product_id: productId,
+      quantity,
+    });
+    return data.data;
+  },
+  async listSessionOrders(sessionId) {
+    const { data } = await http.get<ListWrap<SessionOrder>>(`/api/sessions/${sessionId}/orders`);
+    return data.data;
+  },
+
+  // ─── Pricing ─────────────────────────────────────────────────────────────
+
+  async getPricing() {
+    const { data } = await http.get<ListWrap<PricingTier>>('/api/pricing');
+    return data.data;
+  },
+  async updateBulkPricing(type: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }) {
+    await http.patch('/api/pricing/bulk', { type, ...rates });
+  },
+  async updateDevicePricing(id: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }) {
+    await http.patch(`/api/pricing/device/${id}`, rates);
   },
 };

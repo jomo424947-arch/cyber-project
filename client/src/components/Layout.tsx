@@ -28,9 +28,9 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
 
   const mobileMainItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/devices', label: 'Device Fleet', icon: 'devices' },
+    { to: '/rooms', label: 'Rooms', icon: 'meeting_room' },
+    { to: '/devices', label: 'Devices', icon: 'devices' },
     { to: '/sessions', label: 'Active', icon: 'p2p' },
-    { to: '/reservations', label: 'Bookings', icon: 'event_upcoming' },
   ];
 
   return (
@@ -89,15 +89,6 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 }}
               >
                 Network: Latency 24ms
-              </span>
-            </div>
-            <div style={{ width: '1px', height: '16px', background: 'rgba(255, 255, 255, 0.1)' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                verified_user
-              </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px' }}>
-                Encrypted Session
               </span>
             </div>
           </div>
@@ -165,7 +156,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 }}
               >
                 <img 
-                  style={{ width: '100%', height: '100%', objectCover: 'cover' }} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuBp_v8qgfulFoXebIOzh8QHF_DH_5pn0eOQ9Z18VGEJma03jbwJfgTgYrOZEChowlZ4G1NwaEXsuxtYP_3jVbXXpRIdFYg1x3S-QRGgb7D-73pj7UjAzS98WC6EAh172ghsEmvNO-uBtlDpQlBWU2BX0Fbg8yoDlMm1gRNR4FGiSWvWScjzLkM4cmUQvUjVrZ44EVOjB6V9BoDxROqVcmy966a-LKEFin1irVpEOt_G2YF7XB0tEh4a0oKsibNYApqcPkJu0x9SsMo"
                   alt="Avatar"
                 />
@@ -334,6 +325,46 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{user?.role ?? 'staff'}</div>
                   </div>
                 </div>
+
+                <NavLink
+                  to="/products"
+                  onClick={() => setShowMoreMenu(false)}
+                  style={({ isActive }) => ({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                    background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                    textDecoration: 'none',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    minHeight: '44px',
+                  })}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>inventory_2</span> Products
+                </NavLink>
+
+                <NavLink
+                  to="/reservations"
+                  onClick={() => setShowMoreMenu(false)}
+                  style={({ isActive }) => ({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                    background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                    textDecoration: 'none',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    minHeight: '44px',
+                  })}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>event_upcoming</span> Reservations
+                </NavLink>
 
                 <NavLink
                   to="/billing"

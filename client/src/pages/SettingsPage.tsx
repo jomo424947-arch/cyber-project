@@ -218,6 +218,7 @@ function DeviceFormModal({
   const [name, setName] = useState(initial?.name ?? '');
   const [type, setType] = useState<DeviceType>(initial?.type ?? 'pc');
   const [hourlyRate, setHourlyRate] = useState(String(initial?.hourly_rate ?? '5'));
+  const [hourlyRateMulti, setHourlyRateMulti] = useState(String(initial?.hourly_rate_multi ?? '5'));
   const [specsCpu, setSpecsCpu] = useState((initial?.specs as Record<string, string>)?.CPU ?? '');
   const [specsGpu, setSpecsGpu] = useState((initial?.specs as Record<string, string>)?.GPU ?? '');
   const [specsRam, setSpecsRam] = useState((initial?.specs as Record<string, string>)?.RAM ?? '');
@@ -231,13 +232,15 @@ function DeviceFormModal({
       if (specsGpu) specs.GPU = specsGpu;
       if (specsRam) specs.RAM = specsRam;
       const rate = parseFloat(hourlyRate);
-      if (Number.isNaN(rate) || rate < 0) {
+      const rateMulti = parseFloat(hourlyRateMulti);
+      if (Number.isNaN(rate) || rate < 0 || Number.isNaN(rateMulti) || rateMulti < 0) {
         throw new Error('Invalid hourly rate');
       }
       const patch: Record<string, unknown> = {
         name,
         type,
         hourly_rate: rate,
+        hourly_rate_multi: rateMulti,
         specs: Object.keys(specs).length > 0 ? specs : null,
       };
       await onDone(patch);
@@ -248,7 +251,7 @@ function DeviceFormModal({
     }
   };
 
-  const isValid = name.trim() && !Number.isNaN(parseFloat(hourlyRate));
+  const isValid = name.trim() && !Number.isNaN(parseFloat(hourlyRate)) && !Number.isNaN(parseFloat(hourlyRateMulti));
 
   return (
     <Modal
@@ -272,14 +275,24 @@ function DeviceFormModal({
           <option value="console">Console</option>
           <option value="vr">VR</option>
         </Select>
-        <Input
-          label="Base Hourly Rate ($)"
-          type="number"
-          step="0.5"
-          min="0"
-          value={hourlyRate}
-          onChange={(e) => setHourlyRate(e.target.value)}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <Input
+            label="Single Rate ($/hr)"
+            type="number"
+            step="0.5"
+            min="0"
+            value={hourlyRate}
+            onChange={(e) => setHourlyRate(e.target.value)}
+          />
+          <Input
+            label="Multi Rate ($/hr)"
+            type="number"
+            step="0.5"
+            min="0"
+            value={hourlyRateMulti}
+            onChange={(e) => setHourlyRateMulti(e.target.value)}
+          />
+        </div>
         <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '14px' }}>
           <span className="ccms-eyebrow">Hardware Specifications (optional)</span>
         </div>

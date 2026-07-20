@@ -168,6 +168,20 @@ textarea {
   }
 }
 
+/* Orders expandable row slide-down */
+@keyframes orders-slide-down {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    max-height: 500px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ============================================================================
    Component utility classes (reused across the app)
    ============================================================================ */

@@ -12,12 +12,15 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/rooms', label: 'Gaming Rooms', icon: 'meeting_room' },
   { to: '/devices', label: 'Device Fleet', icon: 'devices' },
   { to: '/sessions', label: 'Active Sessions', icon: 'p2p' },
+  { to: '/products', label: 'Product Catalog', icon: 'inventory_2' },
   { to: '/billing', label: 'Financials', icon: 'payments' },
   { to: '/reservations', label: 'Reservations', icon: 'event_upcoming' },
   { to: '/reports', label: 'Intelligence Reports', icon: 'query_stats' },
   { to: '/settings', label: 'Security Settings', icon: 'security', adminOnly: true },
+  { to: '/pricing', label: 'Pricing Settings', icon: 'price_change', adminOnly: true },
 ];
 
 export function Sidebar() {

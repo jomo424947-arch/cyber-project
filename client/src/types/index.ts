@@ -21,6 +21,7 @@ export interface Device {
   status: DeviceStatus;
   specs: Record<string, string> | null;
   hourly_rate: number;
+  hourly_rate_multi: number;
   created_at: string;
   updated_at: string;
 }
@@ -48,13 +49,14 @@ export interface Session {
   created_by: string | null;
   created_at: string;
   session_type: 'open' | 'fixed';
+  play_mode: 'single' | 'multiplayer';
   scheduled_end: string | null;
   hourly_rate_override: number | null;
   grace_period_minutes: number;
   is_overtime: boolean;
   overtime_minutes: number | null;
   edited_start_at: boolean;
-  device?: Pick<Device, 'id' | 'name' | 'type' | 'hourly_rate'>;
+  device?: Pick<Device, 'id' | 'name' | 'type' | 'hourly_rate' | 'hourly_rate_multi'>;
   customer?: Pick<Customer, 'id' | 'name' | 'phone' | 'username'>;
 }
 
@@ -175,3 +177,32 @@ export interface CustomerProfileData {
   };
   sessions: Session[];
 }
+
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  created_at: string;
+}
+
+export interface SessionOrder {
+  id: string;
+  session_id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  created_at: string;
+  product?: Product;
+}
+
+export interface PricingTier {
+  type: DeviceType;
+  hourly_rate: number;
+  hourly_rate_multi: number;
+  device_count: number;
+  devices: Array<{ id: string; name: string; hourly_rate: number; hourly_rate_multi: number }>;
+  all_same: boolean;
+  all_same_multi: boolean;
+}
+

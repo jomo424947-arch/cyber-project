@@ -4,14 +4,12 @@ import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
 import { StatCard } from '../components/StatCard';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
-import { PAYMENT_METHOD_LABELS } from '../utils/constants';
-import { formatCurrency, formatDateTime, formatDuration } from '../utils/format';
+import { formatCurrency, formatDuration } from '../utils/format';
 import type { Invoice } from '../types';
 
 type Filter = 'all' | 'paid' | 'unpaid';

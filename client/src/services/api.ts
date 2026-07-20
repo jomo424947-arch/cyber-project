@@ -14,6 +14,9 @@ import type {
   LeaderboardEntry,
   CustomerProfileData,
   Customer,
+  Product,
+  SessionOrder,
+  PricingTier,
 } from '../types';
 
 /**
@@ -64,4 +67,17 @@ export interface DataService {
   listCustomers(): Promise<Customer[]>;
   getLeaderboard(month?: string): Promise<LeaderboardEntry[]>;
   getCustomerProfile(id: string): Promise<CustomerProfileData>;
+
+  // cafe / products
+  listProducts(): Promise<Product[]>;
+  createProduct(payload: { name: string; price: number }): Promise<Product>;
+  updateProduct(id: string, patch: { name?: string; price?: number }): Promise<Product>;
+  deleteProduct(id: string): Promise<void>;
+  addSessionOrder(sessionId: string, productId: string, quantity: number): Promise<SessionOrder>;
+  listSessionOrders(sessionId: string): Promise<SessionOrder[]>;
+
+  // pricing
+  getPricing(): Promise<PricingTier[]>;
+  updateBulkPricing(type: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }): Promise<void>;
+  updateDevicePricing(id: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }): Promise<void>;
 }

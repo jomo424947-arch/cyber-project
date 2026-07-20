@@ -18,7 +18,7 @@ export async function listSessions(req: Request, res: Response) {
   let query = supabase
     .from('sessions')
     .select(
-      '*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,email,username)'
+      '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,email,username)'
     )
     .order('started_at', { ascending: false });
 
@@ -55,6 +55,7 @@ export async function startSession(req: Request, res: Response) {
     customer_name, 
     customer_phone,
     session_type = 'open',
+    play_mode = 'single',
     started_at,
     scheduled_end,
     hourly_rate_override,
@@ -96,17 +97,19 @@ export async function startSession(req: Request, res: Response) {
       }
       finalCustomerId = newCustomer.id;
     }
-  } else if (!finalCustomerId && customer_name) {
-    // Legacy support: create customer with unique generated username
-    const cleanName = customer_name.replace(/[^a-zA-Z0-9_]/g, '');
+  } else if (!finalCustomerId) {
+    // Make customer_name optional: fallback to 'Walk-in' if empty or not provided
+    const nameToUse = (customer_name && customer_name.trim()) ? customer_name.trim() : 'Walk-in';
+    const cleanName = nameToUse.replace(/[^a-zA-Z0-9_]/g, '');
+    const cleanPrefix = cleanName || 'walkin';
     const uniqueSuffix = Math.random().toString(36).substring(2, 6);
-    const generatedUsername = `${cleanName}_${uniqueSuffix}`.toLowerCase().substring(0, 30);
+    const generatedUsername = `${cleanPrefix}_${uniqueSuffix}`.toLowerCase().substring(0, 30);
 
     const { data: newCustomer, error: cErr } = await supabase
       .from('customers')
       .insert({ 
         username: generatedUsername,
-        name: customer_name, 
+        name: nameToUse, 
         phone: customer_phone ?? null 
       })
       .select('id')
@@ -120,7 +123,7 @@ export async function startSession(req: Request, res: Response) {
   // 2. Verify the device exists and is startable.
   const { data: device, error: dErr } = await supabase
     .from('devices')
-    .select('id, status, hourly_rate')
+    .select('id, status, hourly_rate, hourly_rate_multi')
     .eq('id', device_id)
     .maybeSingle();
   if (dErr) throw dErr;
@@ -129,9 +132,12 @@ export async function startSession(req: Request, res: Response) {
   if (device.status === 'in_use') throw conflict('Device is already in use', 'DEVICE_BUSY');
   if (device.status === 'offline') throw conflict('Device is offline', 'DEVICE_OFFLINE');
 
+  // Select rate based on play mode
+  const deviceBaseRate = play_mode === 'multiplayer' ? Number(device.hourly_rate_multi) : Number(device.hourly_rate);
+
   // Authorization check on hourly rate override.
   if (hourly_rate_override !== undefined && hourly_rate_override !== null) {
-    if (Number(hourly_rate_override) !== Number(device.hourly_rate)) {
+    if (Number(hourly_rate_override) !== deviceBaseRate) {
       if (req.user?.role !== 'admin') {
         throw forbidden('Only admins can override the hourly rate');
       }
@@ -174,6 +180,7 @@ export async function startSession(req: Request, res: Response) {
       device_id,
       customer_id: finalCustomerId,
       session_type,
+      play_mode,
       started_at: sessionStart.toISOString(),
       scheduled_end: session_type === 'fixed' ? new Date(scheduled_end).toISOString() : null,
       hourly_rate_override: hourly_rate_override !== undefined && hourly_rate_override !== null ? Number(hourly_rate_override) : null,
@@ -183,7 +190,7 @@ export async function startSession(req: Request, res: Response) {
       created_by: req.user!.id,
     })
     .select(
-      '*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,username)'
+      '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)'
     )
     .single();
 
@@ -227,7 +234,7 @@ export async function editSession(req: Request, res: Response) {
 
   const { data: session, error: sErr } = await supabase
     .from('sessions')
-    .select('*, device:devices(id,name,type,hourly_rate)')
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi)')
     .eq('id', id)
     .maybeSingle();
 
@@ -279,7 +286,8 @@ export async function editSession(req: Request, res: Response) {
   }
 
   if (hourly_rate_override !== undefined) {
-    const deviceRate = session.device ? Number(session.device.hourly_rate) : 0;
+    const baseRate = session.play_mode === 'multiplayer' ? Number(session.device?.hourly_rate_multi) : Number(session.device?.hourly_rate);
+    const deviceRate = session.device ? baseRate : 0;
     const newVal = hourly_rate_override !== null && hourly_rate_override !== undefined ? Number(hourly_rate_override) : null;
     const targetRate = newVal !== null ? newVal : deviceRate;
 
@@ -322,7 +330,7 @@ export async function editSession(req: Request, res: Response) {
       .from('sessions')
       .update(updates)
       .eq('id', id)
-      .select('*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,username)')
+      .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
       .single();
 
     if (updErr) throw updErr;
@@ -340,7 +348,7 @@ export async function editSession(req: Request, res: Response) {
   } else {
     const { data: current, error: fetchErr } = await supabase
       .from('sessions')
-      .select('*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,username)')
+      .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
       .eq('id', id)
       .single();
     if (fetchErr) throw fetchErr;
@@ -376,7 +384,7 @@ export async function extendSession(req: Request, res: Response) {
     .from('sessions')
     .update({ scheduled_end: newEnd.toISOString() })
     .eq('id', id)
-    .select('*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,username)')
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
     .single();
 
   if (updErr) throw updErr;
@@ -405,7 +413,7 @@ export async function endSession(req: Request, res: Response) {
   // 1. Load the active session + device rate.
   const { data: session, error: sErr } = await supabase
     .from('sessions')
-    .select('*, device:devices(id,name,type,hourly_rate)')
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi)')
     .eq('id', id)
     .maybeSingle();
   if (sErr) throw sErr;
@@ -423,6 +431,10 @@ export async function endSession(req: Request, res: Response) {
     throw badRequest('Session end time cannot be in the future');
   }
 
+  const deviceHourlyRate = session.play_mode === 'multiplayer' 
+    ? Number(session.device?.hourly_rate_multi ?? 0) 
+    : Number(session.device?.hourly_rate ?? 0);
+
   const {
     rawMinutes,
     billedMinutes,
@@ -434,7 +446,7 @@ export async function endSession(req: Request, res: Response) {
   } = calculateSessionCost({
     startedAt: session.started_at,
     endedAt: sessionEnd,
-    deviceHourlyRate: Number(session.device?.hourly_rate ?? 0),
+    deviceHourlyRate,
     hourlyRateOverride: session.hourly_rate_override,
     sessionType: session.session_type,
     scheduledEnd: session.scheduled_end,
@@ -442,20 +454,38 @@ export async function endSession(req: Request, res: Response) {
     overtimeRateMultiplier: Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0),
   });
 
+  // Fetch total café orders cost
+  let cafeTotalCost = 0;
+  const { data: orders, error: oErr } = await supabase
+    .from('session_orders')
+    .select('total_price')
+    .eq('session_id', id);
+
+  if (oErr) {
+    if (oErr.code === 'PGRST205') {
+      console.warn('[session] session_orders table does not exist. Defaulting cafe cost to 0.');
+    } else {
+      throw oErr;
+    }
+  } else {
+    cafeTotalCost = (orders ?? []).reduce((sum, ord) => sum + Number(ord.total_price), 0);
+  }
+  const finalTotalCost = Number((totalCost + cafeTotalCost).toFixed(2));
+
   // 3. End the session.
   const { data: ended, error: endErr } = await supabase
     .from('sessions')
     .update({
       ended_at: sessionEnd.toISOString(),
       duration_minutes: billedMinutes,
-      total_cost: totalCost,
+      total_cost: finalTotalCost,
       status: 'ended',
       is_overtime: isOvertime,
       overtime_minutes: overtimeMinutes > 0 ? overtimeMinutes : null,
     })
     .eq('id', id)
     .select(
-      '*, device:devices(id,name,type,hourly_rate), customer:customers(id,name,phone,username)'
+      '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)'
     )
     .single();
   if (endErr) throw endErr;
@@ -465,7 +495,7 @@ export async function endSession(req: Request, res: Response) {
     .from('invoices')
     .insert({
       session_id: id,
-      amount: totalCost,
+      amount: finalTotalCost,
       paid: !!mark_paid,
       payment_method,
       paid_at: mark_paid ? sessionEnd.toISOString() : null,
@@ -501,8 +531,78 @@ export async function endSession(req: Request, res: Response) {
   res.json({
     data: ended as unknown as DbSession,
     invoice,
-    billing: { raw_minutes: rawMinutes, billed_minutes: billedMinutes, total_cost: totalCost, overtime_minutes: overtimeMinutes, overtime_cost: overtimeCost },
+    billing: { 
+      raw_minutes: rawMinutes, 
+      billed_minutes: billedMinutes, 
+      device_cost: totalCost, 
+      cafe_cost: cafeTotalCost, 
+      total_cost: finalTotalCost, 
+      overtime_minutes: overtimeMinutes, 
+      overtime_cost: overtimeCost 
+    },
   });
+}
+
+/** POST /api/sessions/:id/orders — add a café order to a session. */
+export async function addSessionOrder(req: Request, res: Response) {
+  const { id: sessionId } = req.params;
+  const { product_id, quantity } = req.body;
+
+  // 1. Verify session is active
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id, status')
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+  if (session.status === 'ended') {
+    throw badRequest('Cannot add café orders to an ended session');
+  }
+
+  // 2. Fetch product price
+  const { data: product, error: pErr } = await supabase
+    .from('products')
+    .select('id, price')
+    .eq('id', product_id)
+    .maybeSingle();
+
+  if (pErr) throw pErr;
+  if (!product) throw notFound('Product not found');
+
+  const unitPrice = Number(product.price);
+  const totalPrice = Number((unitPrice * Number(quantity)).toFixed(2));
+
+  // 3. Insert order
+  const { data: order, error: insErr } = await supabase
+    .from('session_orders')
+    .insert({
+      session_id: sessionId,
+      product_id,
+      quantity,
+      unit_price: unitPrice,
+      total_price: totalPrice,
+    })
+    .select('*, product:products(id,name,price)')
+    .single();
+
+  if (insErr) throw insErr;
+  res.status(201).json({ data: order });
+}
+
+/** GET /api/sessions/:id/orders — list all café orders for a session. */
+export async function listSessionOrders(req: Request, res: Response) {
+  const { id: sessionId } = req.params;
+
+  const { data: orders, error } = await supabase
+    .from('session_orders')
+    .select('*, product:products(id,name,price)')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  res.json({ data: orders ?? [] });
 }
 
 /** GET /api/sessions/:id/audit-logs — list audit trails for a session. */

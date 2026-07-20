@@ -7,7 +7,7 @@ import { LoadingSpinner } from './ui/LoadingSpinner';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
-import type { Device, Session, Customer, PaymentMethod, SessionAuditLog } from '../types';
+import type { Device, Session, Customer, PaymentMethod, SessionAuditLog, SessionOrder } from '../types';
 
 // Helper to format Date objects for datetime-local inputs
 const toLocalISOString = (date: Date) => {
@@ -18,10 +18,12 @@ const toLocalISOString = (date: Date) => {
 // ─── Start Session modal ───────────────────────────────────────────────
 export function StartSessionModal({
   device,
+  playMode,
   onClose,
   onDone,
 }: {
   device: Device;
+  playMode: 'single' | 'multiplayer';
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -33,15 +35,12 @@ export function StartSessionModal({
   const [customerId, setCustomerId] = useState('');
   
   // Quick-create state
-  const [username, setUsername] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
 
   // Session options
   const [sessionType, setSessionType] = useState<'open' | 'fixed'>('open');
   const [startedAt, setStartedAt] = useState(toLocalISOString(new Date()));
   const [durationMinutes, setDurationMinutes] = useState('60');
-  const [hourlyRateOverride, setHourlyRateOverride] = useState(device.hourly_rate.toString());
   const [gracePeriod, setGracePeriod] = useState('0');
   
   const [loading, setLoading] = useState(false);
@@ -69,17 +68,6 @@ export function StartSessionModal({
     return toLocalISOString(endDate);
   }, [sessionType, startedAt, durationMinutes]);
 
-  const usernameError = useMemo(() => {
-    if (mode !== 'new' || !username) return '';
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      return 'Only letters, numbers, and underscores allowed (no spaces)';
-    }
-    if (customers?.some((c) => c.username.toLowerCase() === username.toLowerCase())) {
-      return 'Username is already taken';
-    }
-    return '';
-  }, [mode, username, customers]);
-
   const submit = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -87,19 +75,15 @@ export function StartSessionModal({
       const payload: any = {
         device_id: device.id,
         session_type: sessionType,
+        play_mode: playMode,
         grace_period_minutes: sessionType === 'fixed' ? (parseInt(gracePeriod, 10) || 0) : 0,
-        hourly_rate_override: parseFloat(hourlyRateOverride) !== device.hourly_rate ? parseFloat(hourlyRateOverride) : null,
       };
 
       if (mode === 'existing') {
         if (!customerId) throw new Error('Please select a customer');
         payload.customer_id = customerId;
       } else {
-        if (!username.trim()) throw new Error('Username is required');
-        if (usernameError) throw new Error(usernameError);
-        payload.customer_username = username.trim().toLowerCase();
-        payload.customer_name = name.trim() || username.trim();
-        payload.customer_phone = phone.trim() || undefined;
+        payload.customer_name = name.trim() || undefined;
       }
 
       const now = new Date();
@@ -132,11 +116,7 @@ export function StartSessionModal({
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button
             loading={loading}
-            disabled={
-              mode === 'existing' 
-                ? !customerId 
-                : !username.trim() || !!usernameError || !name.trim()
-            }
+            disabled={mode === 'existing' && !customerId}
             onClick={submit}
           >
             Start Session
@@ -167,28 +147,13 @@ export function StartSessionModal({
         </div>
 
         {mode === 'new' ? (
-          <>
-            <Input
-              label="Username (unique identifier)*"
-              placeholder="e.g. omar_99"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              error={usernameError}
-              autoFocus
-            />
-            <Input
-              label="Customer Display Name*"
-              placeholder="e.g. Omar Khalid"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input
-              label="Phone (optional)"
-              placeholder="+20 100 000 0000"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </>
+          <Input
+            label="Customer Display Name (optional)"
+            placeholder="e.g. Omar Khalid"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
         ) : (
           <>
             <Input
@@ -276,14 +241,7 @@ export function StartSessionModal({
           </>
         )}
 
-        <Input
-          type="number"
-          label="Hourly Rate Override ($/hr)"
-          min="0"
-          step="0.01"
-          value={hourlyRateOverride}
-          onChange={(e) => setHourlyRateOverride(e.target.value)}
-        />
+
 
         {errorMsg && (
           <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
@@ -310,6 +268,13 @@ export function EndSessionModal({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [orders, setOrders] = useState<SessionOrder[] | null>(null);
+
+  useEffect(() => {
+    dataService.listSessionOrders(session.id)
+      .then(setOrders)
+      .catch((err) => console.error('Failed to list session orders in end modal:', err));
+  }, [session.id]);
 
   const startedTime = new Date(session.started_at).getTime();
   const endingTime = new Date(endedAt).getTime();
@@ -317,7 +282,11 @@ export function EndSessionModal({
   const rawMinutes = Math.max(0, Math.ceil((endingTime - startedTime) / 60000));
   const billedMinutes = Math.max(30, rawMinutes);
   
-  const rate = Number(session.hourly_rate_override !== null ? session.hourly_rate_override : session.device?.hourly_rate ?? 0);
+  const rate = Number(
+    session.hourly_rate_override !== null
+      ? session.hourly_rate_override
+      : (session.play_mode === 'multiplayer' ? session.device?.hourly_rate_multi : session.device?.hourly_rate) ?? 0
+  );
   const baseCost = (billedMinutes / 60) * rate;
 
   let overtimeMinutes = 0;
@@ -332,7 +301,8 @@ export function EndSessionModal({
     }
   }
 
-  const totalCost = baseCost + overtimeCost;
+  const cafeCost = orders ? orders.reduce((sum, ord) => sum + Number(ord.total_price), 0) : 0;
+  const totalCost = baseCost + overtimeCost + cafeCost;
 
   const submit = async () => {
     setLoading(true);
@@ -408,6 +378,23 @@ export function EndSessionModal({
             </>
           )}
 
+          {cafeCost > 0 && (
+            <>
+              <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Café Orders:</span>
+                {(orders ?? []).map((ord) => (
+                  <div key={ord.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <span>{ord.product?.name} (x{ord.quantity})</span>
+                    <span>{formatCurrency(ord.total_price)}</span>
+                  </div>
+                ))}
+              </div>
+              <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+              <Row label="Total Café Cost" value={formatCurrency(cafeCost)} valueColor="var(--accent-cyan)" />
+            </>
+          )}
+
           <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
           
           <Row 
@@ -464,7 +451,6 @@ export function EditSessionModal({
 }) {
   const [startedAt, setStartedAt] = useState(toLocalISOString(new Date(session.started_at)));
   const [scheduledEnd, setScheduledEnd] = useState(session.scheduled_end ? toLocalISOString(new Date(session.scheduled_end)) : '');
-  const [hourlyRateOverride, setHourlyRateOverride] = useState(session.hourly_rate_override !== null ? session.hourly_rate_override.toString() : (session.device?.hourly_rate || 0).toString());
   const [gracePeriod, setGracePeriod] = useState(session.grace_period_minutes.toString());
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -481,7 +467,6 @@ export function EditSessionModal({
 
       const patch: any = {
         started_at: start.toISOString(),
-        hourly_rate_override: parseFloat(hourlyRateOverride) !== (session.device?.hourly_rate ?? 0) ? parseFloat(hourlyRateOverride) : null,
       };
 
       if (session.session_type === 'fixed') {
@@ -548,14 +533,7 @@ export function EditSessionModal({
           </>
         )}
 
-        <Input
-          type="number"
-          label="Hourly Rate Override ($/hr)"
-          min="0"
-          step="0.01"
-          value={hourlyRateOverride}
-          onChange={(e) => setHourlyRateOverride(e.target.value)}
-        />
+
 
         {errorMsg && (
           <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>

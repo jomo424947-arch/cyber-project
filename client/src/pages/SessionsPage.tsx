@@ -9,7 +9,6 @@ import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
-import { useIsMobile } from '../hooks/useIsMobile';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatDuration, formatCurrency, formatDateTime } from '../utils/format';
@@ -18,6 +17,7 @@ import {
   EditSessionModal, 
   AuditLogModal 
 } from '../components/SessionModals';
+import { AddCafeModal } from '../components/AddCafeModal';
 import type { Session } from '../types';
 
 type Tab = 'active' | 'history';
@@ -26,11 +26,11 @@ export default function SessionsPage() {
   const [tab, setTab] = useState<Tab>('active');
   const now = useNow(1000);
   const { toast } = useToast();
-  const isMobile = useIsMobile();
 
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
   const [auditTarget, setAuditTarget] = useState<Session | null>(null);
+  const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
 
   const { data, loading, refetch } = useAsync(
     () => dataService.listSessions(),
@@ -180,7 +180,11 @@ export default function SessionsPage() {
                       header: 'Rate', 
                       align: 'right' as const, 
                       render: (s: Session) => {
-                        const rate = Number(s.hourly_rate_override !== null ? s.hourly_rate_override : s.device?.hourly_rate ?? 0);
+                        const rate = Number(
+                          s.hourly_rate_override !== null
+                            ? s.hourly_rate_override
+                            : (s.play_mode === 'multiplayer' ? s.device?.hourly_rate_multi : s.device?.hourly_rate) ?? 0
+                        );
                         return (
                           <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                             {s.hourly_rate_override !== null && (
@@ -212,6 +216,19 @@ export default function SessionsPage() {
                               Logs
                             </button>
                           )}
+                          <button
+                            type="button"
+                            className="ccms-btn ccms-btn-ghost"
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '11px',
+                              minHeight: '32px',
+                              color: 'var(--accent-cyan)',
+                            }}
+                            onClick={() => setCafeTarget(s)}
+                          >
+                            + Café
+                          </button>
                           <button
                             type="button"
                             className="ccms-btn ccms-btn-ghost"
@@ -345,6 +362,15 @@ export default function SessionsPage() {
         <AuditLogModal
           session={auditTarget}
           onClose={() => setAuditTarget(null)}
+        />
+      )}
+
+      {/* Add Cafe Modal */}
+      {cafeTarget && (
+        <AddCafeModal
+          session={cafeTarget}
+          onClose={() => setCafeTarget(null)}
+          onDone={refetch}
         />
       )}
     </Layout>

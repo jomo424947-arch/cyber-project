@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { StatCard } from '../components/StatCard';
@@ -6,15 +6,22 @@ import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
+import { SessionOrdersRow } from '../components/SessionOrdersRow';
+import { EndSessionModal } from '../components/SessionModals';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
 import { formatElapsed, formatCurrency, formatDateTime } from '../utils/format';
+import { AddCafeModal } from '../components/AddCafeModal';
 import type { Device, Session, Invoice, Reservation } from '../types';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const now = useNow(1000);
+  const { toast } = useToast();
+  const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
+  const [endTarget, setEndTarget] = useState<Session | null>(null);
 
   // Fetch everything in parallel via a single async wrapper.
   const { data, loading, error, refetch } = useAsync(async () => {
@@ -190,28 +197,74 @@ export default function DashboardPage() {
                 key: 'rate',
                 header: 'Rate',
                 align: 'right',
-                render: (s) => (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>
-                    {formatCurrency(s.device?.hourly_rate ?? 0)}/hr
-                  </span>
-                ),
+                render: (s) => {
+                  const rate = s.hourly_rate_override !== null
+                    ? s.hourly_rate_override
+                    : (s.play_mode === 'multiplayer' ? s.device?.hourly_rate_multi : s.device?.hourly_rate) ?? 0;
+                  return (
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>
+                      {formatCurrency(rate)}/hr
+                    </span>
+                  );
+                },
               },
               {
                 key: 'status',
                 header: 'Status',
                 align: 'right',
                 render: (s) => (
-                  <span style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ display: 'inline-flex', gap: '12px', alignItems: 'center' }}>
                     {s.device && <StatusBadge status="in_use" />}
+                    <button
+                      className="ccms-btn ccms-btn-ghost"
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        minHeight: '28px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        borderColor: 'var(--accent-cyan)',
+                        color: 'var(--accent-cyan)',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCafeTarget(s);
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
+                      + Café
+                    </button>
                   </span>
                 ),
               },
             ]}
             data={activeSessions}
             rowKey={(s) => s.id}
+            renderExpandedRow={(s, expanded) => (
+              <SessionOrdersRow session={s} expanded={expanded} onEndSession={(s) => setEndTarget(s)} />
+            )}
           />
         )}
       </div>
+      {cafeTarget && (
+        <AddCafeModal
+          session={cafeTarget}
+          onClose={() => setCafeTarget(null)}
+          onDone={refetch}
+        />
+      )}
+      {endTarget && (
+        <EndSessionModal
+          session={endTarget}
+          onClose={() => setEndTarget(null)}
+          onDone={() => {
+            setEndTarget(null);
+            toast('Session ended successfully', 'success');
+            refetch();
+          }}
+        />
+      )}
     </Layout>
   );
 }
