@@ -3,12 +3,13 @@ import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { formatCurrency } from '../utils/format';
 import { apiErrorMessage } from '../services/http';
 import type { PricingTier } from '../types';
 
-const TYPE_META: Record<string, { label: string; labelAr: string; icon: string; color: string; gradient: string; description: string }> = {
+const TYPE_META: Record<string, { label: string; labelAr: string; icon: string; color: string; gradient: string; description: string; descriptionAr: string }> = {
   pc: {
     label: 'PC Stations',
     labelAr: 'أجهزة الكمبيوتر',
@@ -16,6 +17,7 @@ const TYPE_META: Record<string, { label: string; labelAr: string; icon: string; 
     color: 'var(--accent-cyan)',
     gradient: 'linear-gradient(135deg, rgba(0, 194, 255, 0.12) 0%, rgba(0, 112, 255, 0.06) 100%)',
     description: 'PC stations for individual or team play',
+    descriptionAr: 'أجهزة الكمبيوتر المكتبية الفردية والجماعية للعب والتصفح',
   },
   console: {
     label: 'Console Stations',
@@ -24,6 +26,7 @@ const TYPE_META: Record<string, { label: string; labelAr: string; icon: string; 
     color: 'var(--accent-purple)',
     gradient: 'linear-gradient(135deg, rgba(54, 38, 206, 0.15) 0%, rgba(139, 92, 246, 0.06) 100%)',
     description: 'Console rooms for single or local multiplayer',
+    descriptionAr: 'منصات البلايستيشن والإكس بوكس للعب الفردي والمحلي المشترك',
   },
   vr: {
     label: 'VR Experience',
@@ -32,12 +35,14 @@ const TYPE_META: Record<string, { label: string; labelAr: string; icon: string; 
     color: 'var(--accent-green)',
     gradient: 'linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%)',
     description: 'Virtual reality pods and immersive gaming',
+    descriptionAr: 'مقصورات الواقع الافتراضي والألعاب الانغماسية ثلاثية الأبعاد',
   },
 };
 
 export default function PricingPage() {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+  const { t, language, isRtl } = useLanguage();
   const [tiers, setTiers] = useState<PricingTier[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingTier, setEditingTier] = useState<{ type: string; field: 'hourly_rate' | 'hourly_rate_multi' } | null>(null);
@@ -70,14 +75,21 @@ export default function PricingPage() {
   const handleBulkSave = async (type: string, field: 'hourly_rate' | 'hourly_rate_multi') => {
     const rate = parseFloat(editValue);
     if (isNaN(rate) || rate < 0) {
-      toast('Please enter a valid price', 'error');
+      toast(language === 'ar' ? 'يرجى إدخال سعر صحيح' : 'Please enter a valid price', 'error');
       return;
     }
     setSaving(true);
     try {
       await dataService.updateBulkPricing(type, { [field]: rate });
-      const label = field === 'hourly_rate' ? 'Single Player' : 'Multiplayer';
-      toast(`Updated all ${TYPE_META[type]?.label ?? type} (${label}) rates to ${formatCurrency(rate)}/hr`, 'success');
+      const label = field === 'hourly_rate' 
+        ? (language === 'ar' ? 'فردي' : 'Single Player') 
+        : (language === 'ar' ? 'جماعي' : 'Multiplayer');
+      toast(
+        language === 'ar'
+          ? `تم تحديث أسعار ${TYPE_META[type]?.labelAr ?? type} (${label}) لتصبح ${formatCurrency(rate)}/ساعة`
+          : `Updated all ${TYPE_META[type]?.label ?? type} (${label}) rates to ${formatCurrency(rate)}/hr`, 
+        'success'
+      );
       setEditingTier(null);
       await fetchPricing();
     } catch (err) {
@@ -90,13 +102,13 @@ export default function PricingPage() {
   const handleDeviceSave = async (deviceId: string, field: 'hourly_rate' | 'hourly_rate_multi') => {
     const rate = parseFloat(deviceEditValue);
     if (isNaN(rate) || rate < 0) {
-      toast('Please enter a valid price', 'error');
+      toast(language === 'ar' ? 'يرجى إدخال سعر صحيح' : 'Please enter a valid price', 'error');
       return;
     }
     setSaving(true);
     try {
       await dataService.updateDevicePricing(deviceId, { [field]: rate });
-      toast('Device price updated', 'success');
+      toast(language === 'ar' ? 'تم تحديث سعر الجهاز بنجاح' : 'Device price updated', 'success');
       setEditingDevice(null);
       await fetchPricing();
     } catch (err) {
@@ -120,8 +132,8 @@ export default function PricingPage() {
 
   if (loading) {
     return (
-      <Layout title="Pricing Settings" subtitle="Configure hourly rates for all device types">
-        <LoadingSpinner label="Loading pricing…" />
+      <Layout title={t('pricing')} subtitle={language === 'ar' ? 'تهيئة أسعار الساعة للأجهزة والأقسام المختلفة.' : 'Configure hourly rates for all device types'}>
+        <LoadingSpinner label={t('loading')} />
       </Layout>
     );
   }
@@ -133,16 +145,16 @@ export default function PricingPage() {
 
   return (
     <Layout
-      title="Pricing Settings"
-      subtitle="Configure hourly rates for single & multiplayer"
+      title={t('pricing')}
+      subtitle={language === 'ar' ? 'تهيئة أسعار الساعة الفردية والمتعددة لكافة الأجهزة' : 'Configure hourly rates for single & multiplayer'}
       actions={
         <button
           className="ccms-btn ccms-btn-ghost"
           onClick={fetchPricing}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
-          Refresh
+          {language === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
       }
     >
@@ -152,10 +164,10 @@ export default function PricingPage() {
             devices
           </span>
           <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
-            No devices found
+            {language === 'ar' ? 'لم يتم العثور على أجهزة' : 'No devices found'}
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-            Add devices from the Device Fleet page to configure pricing.
+            {language === 'ar' ? 'أضف أجهزة من صفحة أسطول الأجهزة لتهيئة أسعارها هنا.' : 'Add devices from the Device Fleet page to configure pricing.'}
           </p>
         </div>
       ) : (
@@ -168,6 +180,7 @@ export default function PricingPage() {
               color: 'var(--accent-cyan)',
               gradient: 'linear-gradient(135deg, rgba(0, 194, 255, 0.1), transparent)',
               description: '',
+              descriptionAr: '',
             };
             const isExpanded = expandedTypes.has(tier.type);
 
@@ -179,7 +192,8 @@ export default function PricingPage() {
                   padding: 0,
                   overflow: 'hidden',
                   animationDelay: `${tierIndex * 100}ms`,
-                  borderLeft: `3px solid ${meta.color}`,
+                  borderLeft: isRtl ? 'none' : `3px solid ${meta.color}`,
+                  borderRight: isRtl ? `3px solid ${meta.color}` : 'none',
                 }}
               >
                 {/* Tier Info Header */}
@@ -216,14 +230,11 @@ export default function PricingPage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
                         <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                          {meta.label}
+                          {language === 'ar' ? meta.labelAr : meta.label}
                         </h2>
-                        <span style={{ fontSize: '13px', color: meta.color, fontWeight: 600, opacity: 0.7 }}>
-                          ({meta.labelAr})
-                        </span>
                       </div>
                       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-                        {meta.description}
+                        {language === 'ar' ? meta.descriptionAr : meta.description}
                       </p>
                     </div>
                   </div>
@@ -240,7 +251,7 @@ export default function PricingPage() {
                     borderRadius: '6px',
                     border: '1px solid rgba(255, 255, 255, 0.06)',
                   }}>
-                    {tier.device_count} device{tier.device_count !== 1 ? 's' : ''}
+                    {tier.device_count} {language === 'ar' ? 'أجهزة مسجلة' : `device${tier.device_count !== 1 ? 's' : ''}`}
                   </span>
                 </div>
 
@@ -261,10 +272,10 @@ export default function PricingPage() {
                     <div>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>person</span>
-                        Single Player Rate (سنجل)
+                        {language === 'ar' ? 'سعر الساعة الفردي (Single)' : 'Single Player Rate'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        Hourly rate charged when starting a session in Single mode
+                        {language === 'ar' ? 'سعر الساعة المحتسب عند بدء جلسة لعب بنمط فردي' : 'Hourly rate charged when starting a session in Single mode'}
                       </div>
                     </div>
 
@@ -272,7 +283,7 @@ export default function PricingPage() {
                       {editingTier?.type === tier.type && editingTier?.field === 'hourly_rate' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>$</span>
+                            <span style={{ position: 'absolute', left: isRtl ? 'auto' : '12px', right: isRtl ? '12px' : 'auto', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>$</span>
                             <input
                               type="number"
                               value={editValue}
@@ -286,7 +297,7 @@ export default function PricingPage() {
                               min="0"
                               style={{
                                 width: '120px',
-                                padding: '10px 12px 10px 24px',
+                                padding: isRtl ? '10px 24px 10px 12px' : '10px 12px 10px 24px',
                                 fontSize: '16px',
                                 fontWeight: 700,
                                 fontFamily: 'JetBrains Mono, monospace',
@@ -295,31 +306,31 @@ export default function PricingPage() {
                                 borderRadius: '10px',
                                 color: 'var(--text-primary)',
                                 outline: 'none',
-                                textAlign: 'right'
+                                textAlign: isRtl ? 'left' : 'right'
                               }}
                             />
                           </div>
-                          <button className="ccms-btn ccms-btn-primary" style={{ minHeight: '40px', padding: '8px 16px' }} onClick={() => handleBulkSave(tier.type, 'hourly_rate')} disabled={saving}>Save</button>
-                          <button className="ccms-btn ccms-btn-ghost" style={{ minHeight: '40px', padding: '8px 12px' }} onClick={() => setEditingTier(null)}>Cancel</button>
+                          <button className="ccms-btn ccms-btn-primary" style={{ minHeight: '40px', padding: '8px 16px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }} onClick={() => handleBulkSave(tier.type, 'hourly_rate')} disabled={saving}>{t('save')}</button>
+                          <button className="ccms-btn ccms-btn-ghost" style={{ minHeight: '40px', padding: '8px 12px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }} onClick={() => setEditingTier(null)}>{t('cancel')}</button>
                         </div>
                       ) : (
                         <>
-                          <div style={{ textAlign: 'right' }}>
+                          <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
                             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {formatCurrency(tier.hourly_rate)}<span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/hr</span>
+                              {formatCurrency(tier.hourly_rate)}<span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/{language === 'ar' ? 'ساعة' : 'hr'}</span>
                             </div>
-                            {!tier.all_same && <span style={{ fontSize: '10px', color: 'var(--accent-yellow)', fontFamily: 'JetBrains Mono, monospace' }}>mixed rates</span>}
+                            {!tier.all_same && <span style={{ fontSize: '10px', color: 'var(--accent-yellow)', fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace' }}>{language === 'ar' ? 'أسعار متفاوتة' : 'mixed rates'}</span>}
                           </div>
                           {isAdmin && (
                             <button
                               className="ccms-btn ccms-btn-ghost"
-                              style={{ minHeight: '36px', padding: '6px 12px', fontSize: '11px', borderColor: 'rgba(255,255,255,0.08)' }}
+                              style={{ minHeight: '36px', padding: '6px 12px', fontSize: '11px', borderColor: 'rgba(255,255,255,0.08)', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
                               onClick={() => {
                                 setEditingTier({ type: tier.type, field: 'hourly_rate' });
                                 setEditValue(String(tier.hourly_rate));
                               }}
                             >
-                              Edit
+                              {t('edit')}
                             </button>
                           )}
                         </>
@@ -342,10 +353,10 @@ export default function PricingPage() {
                     <div>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-purple)' }}>group</span>
-                        Multiplayer Rate (مالتي)
+                        {language === 'ar' ? 'سعر الساعة الجماعي (Multi)' : 'Multiplayer Rate'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        Hourly rate charged when starting a session in Multi mode
+                        {language === 'ar' ? 'سعر الساعة المحتسب عند بدء جلسة لعب بنمط متعدد' : 'Hourly rate charged when starting a session in Multi mode'}
                       </div>
                     </div>
 
@@ -353,7 +364,7 @@ export default function PricingPage() {
                       {editingTier?.type === tier.type && editingTier?.field === 'hourly_rate_multi' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>$</span>
+                            <span style={{ position: 'absolute', left: isRtl ? 'auto' : '12px', right: isRtl ? '12px' : 'auto', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>$</span>
                             <input
                               type="number"
                               value={editValue}
@@ -367,7 +378,7 @@ export default function PricingPage() {
                               min="0"
                               style={{
                                 width: '120px',
-                                padding: '10px 12px 10px 24px',
+                                padding: isRtl ? '10px 24px 10px 12px' : '10px 12px 10px 24px',
                                 fontSize: '16px',
                                 fontWeight: 700,
                                 fontFamily: 'JetBrains Mono, monospace',
@@ -376,31 +387,31 @@ export default function PricingPage() {
                                 borderRadius: '10px',
                                 color: 'var(--text-primary)',
                                 outline: 'none',
-                                textAlign: 'right'
+                                textAlign: isRtl ? 'left' : 'right'
                               }}
                             />
                           </div>
-                          <button className="ccms-btn ccms-btn-primary" style={{ minHeight: '40px', padding: '8px 16px', background: 'var(--accent-purple)' }} onClick={() => handleBulkSave(tier.type, 'hourly_rate_multi')} disabled={saving}>Save</button>
-                          <button className="ccms-btn ccms-btn-ghost" style={{ minHeight: '40px', padding: '8px 12px' }} onClick={() => setEditingTier(null)}>Cancel</button>
+                          <button className="ccms-btn ccms-btn-primary" style={{ minHeight: '40px', padding: '8px 16px', background: 'var(--accent-purple)', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }} onClick={() => handleBulkSave(tier.type, 'hourly_rate_multi')} disabled={saving}>{t('save')}</button>
+                          <button className="ccms-btn ccms-btn-ghost" style={{ minHeight: '40px', padding: '8px 12px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }} onClick={() => setEditingTier(null)}>{t('cancel')}</button>
                         </div>
                       ) : (
                         <>
-                          <div style={{ textAlign: 'right' }}>
+                          <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
                             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: 700, color: 'var(--accent-purple)' }}>
-                              {formatCurrency(tier.hourly_rate_multi)}<span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/hr</span>
+                              {formatCurrency(tier.hourly_rate_multi)}<span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/{language === 'ar' ? 'ساعة' : 'hr'}</span>
                             </div>
-                            {!tier.all_same_multi && <span style={{ fontSize: '10px', color: 'var(--accent-yellow)', fontFamily: 'JetBrains Mono, monospace' }}>mixed rates</span>}
+                            {!tier.all_same_multi && <span style={{ fontSize: '10px', color: 'var(--accent-yellow)', fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace' }}>{language === 'ar' ? 'أسعار متفاوتة' : 'mixed rates'}</span>}
                           </div>
                           {isAdmin && (
                             <button
                               className="ccms-btn ccms-btn-ghost"
-                              style={{ minHeight: '36px', padding: '6px 12px', fontSize: '11px', borderColor: 'rgba(255,255,255,0.08)' }}
+                              style={{ minHeight: '36px', padding: '6px 12px', fontSize: '11px', borderColor: 'rgba(255,255,255,0.08)', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
                               onClick={() => {
                                 setEditingTier({ type: tier.type, field: 'hourly_rate_multi' });
                                 setEditValue(String(tier.hourly_rate_multi));
                               }}
                             >
-                              Edit
+                              {t('edit')}
                             </button>
                           )}
                         </>
@@ -424,21 +435,22 @@ export default function PricingPage() {
                       cursor: 'pointer',
                       color: 'var(--text-secondary)',
                       fontSize: '12px',
-                      fontFamily: 'JetBrains Mono, monospace',
+                      fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
                       fontWeight: 600,
                       letterSpacing: '0.06em',
                       textTransform: 'uppercase',
                       transition: 'all 0.2s ease',
+                      textAlign: isRtl ? 'right' : 'left',
                     }}
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                         {isExpanded ? 'expand_less' : 'expand_more'}
                       </span>
-                      Individual Device Pricing
+                      {language === 'ar' ? 'أسعار الأجهزة الفردية التفصيلية' : 'Individual Device Pricing'}
                     </span>
                     <span style={{ fontSize: '10px', opacity: 0.6 }}>
-                      {tier.device_count} device{tier.device_count !== 1 ? 's' : ''}
+                      {tier.device_count} {language === 'ar' ? 'أجهزة' : `device${tier.device_count !== 1 ? 's' : ''}`}
                     </span>
                   </button>
                 </div>
@@ -446,7 +458,7 @@ export default function PricingPage() {
                 {/* Per-Device Pricing List */}
                 {isExpanded && (
                   <div style={{ padding: '16px 32px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {tier.devices.map((device, dIdx) => (
+                    {tier.devices.map((device) => (
                       <div
                         key={device.id}
                         style={{
@@ -469,7 +481,7 @@ export default function PricingPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
                           {/* Device Single Rate */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Single:</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{language === 'ar' ? 'فردي:' : 'Single:'}</span>
                             {editingDevice?.id === device.id && editingDevice?.field === 'hourly_rate' ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <input
@@ -483,14 +495,18 @@ export default function PricingPage() {
                                   autoFocus
                                   step="0.5"
                                   min="0"
-                                  style={{ width: '80px', padding: '4px 6px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', background: 'var(--bg-input)', border: '1px solid var(--accent-cyan)', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
+                                  style={{ width: '80px', padding: '4px 6px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', background: 'var(--bg-input)', border: '1px solid var(--accent-cyan)', borderRadius: '4px', color: 'var(--text-primary)', textAlign: isRtl ? 'left' : 'right' }}
                                 />
-                                <button onClick={() => handleDeviceSave(device.id, 'hourly_rate')} style={{ padding: '3px 6px', color: 'var(--accent-green)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
-                                <button onClick={() => setEditingDevice(null)} style={{ padding: '3px 6px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>✕</button>
+                                <button onClick={() => handleDeviceSave(device.id, 'hourly_rate')} style={{ padding: '3px 6px', color: 'var(--accent-green)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span>
+                                </button>
+                                <button onClick={() => setEditingDevice(null)} style={{ padding: '3px 6px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                                </button>
                               </div>
                             ) : (
                               <>
-                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(device.hourly_rate)}/hr</span>
+                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(device.hourly_rate)}/{language === 'ar' ? 'ساعة' : 'hr'}</span>
                                 {isAdmin && (
                                   <button
                                     onClick={() => {
@@ -508,7 +524,7 @@ export default function PricingPage() {
 
                           {/* Device Multi Rate */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Multi:</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{language === 'ar' ? 'جماعي:' : 'Multi:'}</span>
                             {editingDevice?.id === device.id && editingDevice?.field === 'hourly_rate_multi' ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <input
@@ -522,14 +538,18 @@ export default function PricingPage() {
                                   autoFocus
                                   step="0.5"
                                   min="0"
-                                  style={{ width: '80px', padding: '4px 6px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', background: 'var(--bg-input)', border: '1px solid var(--accent-purple)', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
+                                  style={{ width: '80px', padding: '4px 6px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', background: 'var(--bg-input)', border: '1px solid var(--accent-purple)', borderRadius: '4px', color: 'var(--text-primary)', textAlign: isRtl ? 'left' : 'right' }}
                                 />
-                                <button onClick={() => handleDeviceSave(device.id, 'hourly_rate_multi')} style={{ padding: '3px 6px', color: 'var(--accent-green)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
-                                <button onClick={() => setEditingDevice(null)} style={{ padding: '3px 6px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>✕</button>
+                                <button onClick={() => handleDeviceSave(device.id, 'hourly_rate_multi')} style={{ padding: '3px 6px', color: 'var(--accent-green)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span>
+                                </button>
+                                <button onClick={() => setEditingDevice(null)} style={{ padding: '3px 6px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                                </button>
                               </div>
                             ) : (
                               <>
-                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, color: 'var(--accent-purple)' }}>{formatCurrency(device.hourly_rate_multi)}/hr</span>
+                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, color: 'var(--accent-purple)' }}>{formatCurrency(device.hourly_rate_multi)}/{language === 'ar' ? 'ساعة' : 'hr'}</span>
                                 {isAdmin && (
                                   <button
                                     onClick={() => {

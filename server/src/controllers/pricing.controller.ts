@@ -10,6 +10,7 @@ export async function getPricing(req: Request, res: Response) {
   const { data: devices, error } = await supabase
     .from('devices')
     .select('id, name, type, hourly_rate, hourly_rate_multi')
+    .eq('tenant_id', req.user!.tenant_id)
     .eq('archived', false)
     .order('name', { ascending: true });
 
@@ -92,6 +93,7 @@ export async function updateBulkPricing(req: Request, res: Response) {
     .from('devices')
     .update(patch)
     .eq('type', type)
+    .eq('tenant_id', req.user!.tenant_id)
     .eq('archived', false)
     .select('id, name, type, hourly_rate, hourly_rate_multi');
 
@@ -133,6 +135,7 @@ export async function updateDevicePricing(req: Request, res: Response) {
     .from('devices')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select('id, name, type, hourly_rate, hourly_rate_multi')
     .maybeSingle();
 

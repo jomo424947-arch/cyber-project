@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { StatCard } from '../components/StatCard';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency, formatDuration } from '../utils/format';
@@ -21,6 +22,7 @@ export default function BillingPage() {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const { t, language, isRtl } = useLanguage();
 
   const { data, loading, refetch } = useAsync(() => dataService.listInvoices(), []);
 
@@ -55,7 +57,7 @@ export default function BillingPage() {
     setActiveMenuId(null);
     try {
       await dataService.payInvoice(id);
-      toast('Invoice marked as paid', 'success');
+      toast(language === 'ar' ? 'تم تحديد الفاتورة كمحررة ومدفوعة' : 'Invoice marked as paid', 'success');
       refetch();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not update invoice'), 'error');
@@ -85,25 +87,29 @@ export default function BillingPage() {
 
   return (
     <Layout 
-      title="Financial Ledger" 
-      subtitle="Comprehensive real-time tracking of terminal utilization, subscription billing, and net system profitability across the device fleet."
+      title={t('billing')} 
+      subtitle={
+        language === 'ar'
+          ? 'متابعة شاملة للحسابات والمدفوعات، وإحصائيات استخدام الأجهزة وبث الفواتير بشكل مباشر.'
+          : 'Comprehensive real-time tracking of terminal utilization, subscription billing, and net system profitability.'
+      }
       actions={
         <>
           <button 
             className="ccms-btn ccms-btn-ghost" 
-            onClick={() => toast('Excel summary sheet exported.', 'success')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => toast(language === 'ar' ? 'تم تصدير كشف الحساب بنجاح' : 'Excel summary sheet exported.', 'success')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>receipt_long</span>
-            Generate Receipt
+            {language === 'ar' ? 'إنشاء كشف حساب' : 'Generate Receipt'}
           </button>
           <button 
             className="ccms-btn ccms-btn-primary" 
-            onClick={() => toast('Gateway scanner listening for payments...', 'info')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => toast(language === 'ar' ? 'جاري انتظار تأكيد الدفع الإلكتروني...' : 'Gateway scanner listening for payments...', 'info')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>account_balance_wallet</span>
-            Process Payment
+            {language === 'ar' ? 'تسجيل دفعة جديدة' : 'Process Payment'}
           </button>
         </>
       }
@@ -117,9 +123,9 @@ export default function BillingPage() {
           marginBottom: '48px',
         }}
       >
-        <StatCard index={0} icon="✓" label="Total Collected" value={formatCurrency(totals.collected)} accent="var(--accent-green)" />
-        <StatCard index={1} icon="!" label="Outstanding Dues" value={formatCurrency(totals.outstanding)} accent="var(--accent-yellow)" />
-        <StatCard index={2} icon="$" label="Net Revenue (MTD)" value={formatCurrency(totals.collected + totals.outstanding)} accent="var(--accent-cyan)" />
+        <StatCard index={0} icon="check_circle" label={language === 'ar' ? 'المدفوعات المحصلة' : 'Total Collected'} value={formatCurrency(totals.collected)} accent="var(--accent-green)" />
+        <StatCard index={1} icon="warning" label={language === 'ar' ? 'المستحقات المعلقة' : 'Outstanding Dues'} value={formatCurrency(totals.outstanding)} accent="var(--accent-yellow)" />
+        <StatCard index={2} icon="payments" label={language === 'ar' ? 'صافي الإيرادات' : 'Net Revenue (MTD)'} value={formatCurrency(totals.collected + totals.outstanding)} accent="var(--accent-cyan)" />
       </div>
 
       {/* Filter row */}
@@ -130,31 +136,37 @@ export default function BillingPage() {
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
                 fontSize: '12px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                letterSpacing: '0.1em',
+                letterSpacing: '0.05em',
                 padding: '10px 20px',
                 borderRadius: '8px',
-                border: filter === f ? '1px solid var(--accent-cyan)' : '1px solid rgba(255, 255, 255, 0.1)',
-                background: filter === f ? 'rgba(0, 194, 255, 0.15)' : 'transparent',
+                border: filter === f ? '1px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                background: filter === f ? 'var(--accent-cyan-dim)' : 'transparent',
                 color: filter === f ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                boxShadow: filter === f ? '0 0 10px rgba(0, 194, 255, 0.2)' : 'none',
+                boxShadow: filter === f ? 'var(--shadow-glow)' : 'none',
                 transition: 'all 0.2s ease',
+                cursor: 'pointer',
               }}
             >
-              {f} Invoices
+              {f === 'all' 
+                ? (language === 'ar' ? 'كل الفواتير' : 'All Invoices') 
+                : f === 'paid' 
+                ? (language === 'ar' ? 'الفواتير المدفوعة' : 'Paid Invoices') 
+                : (language === 'ar' ? 'غير المدفوعة' : 'Unpaid Invoices')}
             </button>
           ))}
         </div>
         
-        <div style={{ marginLeft: 'auto', position: 'relative', minWidth: '260px' }}>
+        <div style={{ marginLeft: isRtl ? 'auto' : undefined, marginRight: isRtl ? undefined : 'auto', position: 'relative', minWidth: '260px' }}>
           <span 
             className="material-symbols-outlined" 
             style={{ 
               position: 'absolute', 
-              left: '12px', 
+              left: isRtl ? 'auto' : '12px', 
+              right: isRtl ? '12px' : 'auto',
               top: '50%', 
               transform: 'translateY(-50%)', 
               color: 'var(--text-muted)', 
@@ -166,30 +178,36 @@ export default function BillingPage() {
           <input
             type="text"
             className="ccms-input"
-            placeholder="Search Invoices..."
+            placeholder={language === 'ar' ? 'بحث في الفواتير...' : 'Search Invoices...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
-              paddingLeft: '40px',
-              background: '#0A0A0A',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              paddingLeft: isRtl ? '12px' : '40px',
+              paddingRight: isRtl ? '40px' : '12px',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-default)',
               borderRadius: '8px',
-              color: '#FFFFFF',
+              color: 'var(--text-primary)',
               fontSize: '14px',
               width: '100%',
+              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
             }}
           />
         </div>
       </div>
 
       {loading ? (
-        <LoadingSpinner label="Loading invoices…" />
+        <LoadingSpinner label={t('loading')} />
       ) : filtered.length === 0 ? (
         <div className="ccms-card">
           <EmptyState
-            icon="💳"
-            title={filter === 'all' ? 'No invoices yet' : `No ${filter} invoices`}
-            description="Invoices are generated automatically when a session ends."
+            icon="credit_card"
+            title={
+              filter === 'all' 
+                ? (language === 'ar' ? 'لا توجد فواتير بعد' : 'No invoices yet') 
+                : (language === 'ar' ? `لا توجد فواتير ${filter}` : `No ${filter} invoices`)
+            }
+            description={language === 'ar' ? 'تُنشأ الفواتير تلقائياً عند إنهاء الجلسات.' : 'Invoices are generated automatically when a session ends.'}
           />
         </div>
       ) : (
@@ -198,14 +216,14 @@ export default function BillingPage() {
             columns={[
               {
                 key: 'invoice',
-                header: 'Invoice ID',
+                header: language === 'ar' ? 'رقم الفاتورة' : 'Invoice ID',
                 render: (i: Invoice) => `#INV-${i.id.slice(0, 4).toUpperCase()}`,
               },
               {
                 key: 'customer',
-                header: 'Customer',
+                header: language === 'ar' ? 'العميل' : 'Customer',
                 render: (i: Invoice) => {
-                  const name = i.session?.customer?.name ?? 'Walk-in';
+                  const name = i.session?.customer?.name ?? (language === 'ar' ? 'مستغل خارجي' : 'Walk-in');
                   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -214,47 +232,47 @@ export default function BillingPage() {
                           width: '32px', 
                           height: '32px', 
                           borderRadius: '50%', 
-                          background: 'rgba(255, 255, 255, 0.05)', 
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          background: 'var(--accent-cyan-dim)', 
+                          border: '1px solid var(--border-glow)',
                           display: 'flex', 
                           alignItems: 'center', 
                           justifyContent: 'center',
                           fontSize: '11px',
                           fontWeight: 'bold',
-                          color: '#FFFFFF',
+                          color: 'var(--accent-cyan)',
                           fontFamily: 'JetBrains Mono, monospace'
                         }}
                       >
                         {initials}
                       </div>
-                      <span style={{ fontWeight: 500, color: '#FFFFFF' }}>{name}</span>
+                      <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{name}</span>
                     </div>
                   );
                 },
               },
               {
                 key: 'device',
-                header: 'Terminal',
+                header: language === 'ar' ? 'الجهاز' : 'Terminal',
                 render: (i: Invoice) => i.session?.device?.name ?? '—',
               },
               {
                 key: 'duration',
-                header: 'Duration',
+                header: language === 'ar' ? 'المدة' : 'Duration',
                 render: (i: Invoice) => formatDuration(i.session?.duration_minutes),
               },
               {
                 key: 'status',
-                header: 'Status',
+                header: language === 'ar' ? 'الحالة' : 'Status',
                 render: (i: Invoice) =>
                   i.paid ? (
-                    <Badge label="Paid" color="var(--accent-green)" bg="rgba(34, 197, 94, 0.1)" />
+                    <Badge label={language === 'ar' ? 'مدفوعة' : 'Paid'} color="var(--accent-green)" bg="rgba(34, 197, 94, 0.1)" />
                   ) : (
-                    <Badge label="Pending" color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />
+                    <Badge label={language === 'ar' ? 'انتظار الدفع' : 'Pending'} color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />
                   ),
               },
               {
                 key: 'amount',
-                header: 'Amount',
+                header: language === 'ar' ? 'القيمة' : 'Amount',
                 align: 'right',
                 render: (i: Invoice) => formatCurrency(i.amount),
               },
@@ -265,7 +283,7 @@ export default function BillingPage() {
                 render: (i: Invoice) => (
                   <div style={{ position: 'relative', display: 'inline-block' }}>
                     <button 
-                      style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                      style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveMenuId(activeMenuId === i.id ? null : i.id);
@@ -284,14 +302,15 @@ export default function BillingPage() {
                         <div 
                           style={{ 
                             position: 'absolute', 
-                            right: 0, 
+                            right: isRtl ? 'auto' : 0, 
+                            left: isRtl ? 0 : 'auto', 
                             top: '24px', 
-                            background: '#181818', 
-                            border: '1px solid rgba(255, 255, 255, 0.1)', 
+                            background: 'var(--bg-elevated)', 
+                            border: '1px solid var(--border-default)', 
                             borderRadius: '8px', 
                             boxShadow: 'var(--shadow-glow-strong)', 
                             zIndex: 100, 
-                            minWidth: '130px',
+                            minWidth: '150px',
                             overflow: 'hidden'
                           }}
                         >
@@ -302,20 +321,25 @@ export default function BillingPage() {
                               style={{ 
                                 width: '100%', 
                                 padding: '10px 16px', 
-                                textAlign: 'left', 
+                                textAlign: isRtl ? 'right' : 'left', 
                                 color: 'var(--accent-green)', 
-                                fontFamily: 'Inter, sans-serif',
+                                fontFamily: isRtl ? 'Cairo, sans-serif' : 'Inter, sans-serif',
                                 fontSize: '13px',
-                                fontWeight: 500
+                                fontWeight: 500,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
                               }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-surface)'}
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                              {payingId === i.id ? 'Processing...' : 'Mark as Paid'}
+                              {payingId === i.id 
+                                ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...') 
+                                : (language === 'ar' ? 'تأكيد السداد' : 'Mark as Paid')}
                             </button>
                           ) : (
-                            <div style={{ padding: '10px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                              No Actions
+                            <div style={{ padding: '10px 16px', color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center' }}>
+                              {language === 'ar' ? 'لا توجد إجراءات' : 'No Actions'}
                             </div>
                           )}
                         </div>
@@ -333,7 +357,7 @@ export default function BillingPage() {
           <div 
             style={{ 
               padding: '16px 24px', 
-              borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+              borderTop: '1px solid var(--border-default)', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between' 
@@ -350,7 +374,9 @@ export default function BillingPage() {
                 margin: 0
               }}
             >
-              Displaying {paginatedInvoices.length} of {filtered.length} transactions
+              {language === 'ar' 
+                ? `عرض ${paginatedInvoices.length} من أصل ${filtered.length} معاملة مالية`
+                : `Displaying ${paginatedInvoices.length} of ${filtered.length} transactions`}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <button 
@@ -358,17 +384,19 @@ export default function BillingPage() {
                 disabled={currentPage === 1}
                 style={{ 
                   padding: '8px', 
-                  border: '1px solid rgba(255, 255, 255, 0.1)', 
+                  border: '1px solid var(--border-default)', 
                   borderRadius: '8px',
-                  color: currentPage === 1 ? 'var(--text-muted)' : '#FFFFFF',
+                  color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
                   opacity: currentPage === 1 ? 0.5 : 1,
                   display: 'flex',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  background: 'none',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{isRtl ? 'chevron_right' : 'chevron_left'}</span>
               </button>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#FFFFFF', fontSize: '14px', fontWeight: 500 }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-primary)', fontSize: '14px', fontWeight: 500 }}>
                 {currentPage} / {totalPages}
               </span>
               <button 
@@ -376,22 +404,24 @@ export default function BillingPage() {
                 disabled={currentPage === totalPages}
                 style={{ 
                   padding: '8px', 
-                  border: '1px solid rgba(255, 255, 255, 0.1)', 
+                  border: '1px solid var(--border-default)', 
                   borderRadius: '8px',
-                  color: currentPage === totalPages ? 'var(--text-muted)' : '#FFFFFF',
+                  color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
                   opacity: currentPage === totalPages ? 0.5 : 1,
                   display: 'flex',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  background: 'none',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{isRtl ? 'chevron_left' : 'chevron_right'}</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bottom Visualization Section matching screenshot */}
+      {/* Bottom Visualization Section */}
       <div 
         style={{ 
           display: 'grid', 
@@ -403,13 +433,13 @@ export default function BillingPage() {
         {/* Peak utilization card */}
         <div className="ccms-card" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
-            <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
-              Peak Utilization Hours
+            <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+              {language === 'ar' ? 'ساعات ذروة التشغيل والضغط' : 'Peak Utilization Hours'}
             </h3>
             <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '24px' }}>equalizer</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'end', gap: '8px', height: '192px' }}>
+          <div style={{ display: 'flex', alignItems: 'end', gap: '8px', height: '192px', direction: 'ltr' }}>
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '40%' }} />
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '60%' }} />
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '85%' }} />
@@ -440,7 +470,7 @@ export default function BillingPage() {
                   fontFamily: 'JetBrains Mono, monospace'
                 }}
               >
-                PEAK - 98%
+                {language === 'ar' ? 'الذروة - 98%' : 'PEAK - 98%'}
               </div>
             </div>
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '75%' }} />
@@ -455,7 +485,8 @@ export default function BillingPage() {
               justifyContent: 'space-between', 
               color: 'var(--text-muted)', 
               fontFamily: 'JetBrains Mono, monospace', 
-              fontSize: '10px' 
+              fontSize: '10px',
+              direction: 'ltr'
             }}
           >
             <span>08:00</span>
@@ -480,11 +511,13 @@ export default function BillingPage() {
               }} 
             />
             <div>
-              <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: '#FFFFFF', margin: '0 0 4px 0' }}>
-                Real-time Syncing...
+              <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
+                {language === 'ar' ? 'المزامنة الحية نشطة...' : 'Real-time Syncing...'}
               </h3>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                Connected to central payment gateway. All transactions are verifiable via blockchain hash.
+                {language === 'ar' 
+                  ? 'تم ربط بوابة الدفع المركزية. المعاملات مسجلة ومؤمنة بالكامل.'
+                  : 'Connected to central payment gateway. All transactions are verifiable via blockchain hash.'}
               </p>
             </div>
           </div>
@@ -504,12 +537,14 @@ export default function BillingPage() {
                 fontSize: '11px', 
                 color: 'rgba(0, 194, 255, 0.7)', 
                 display: 'block', 
-                lineHeight: '1.6' 
+                lineHeight: '1.6',
+                direction: 'ltr',
+                textAlign: 'left',
               }}
             >
               HASH: 0x8a1c92f...e7d2 <br />
               STATUS: NODE_CONFIRMED <br />
-              TIMESTAMP: 2024-07-15T09:42:11.002Z
+              TIMESTAMP: {new Date().toISOString()}
             </code>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { 
@@ -18,6 +19,7 @@ import type { Device, Session } from '../types';
 export default function DevicesPage() {
   const now = useNow(1000);
   const { toast } = useToast();
+  const { t, language } = useLanguage();
 
   const { data, loading, refetch } = useAsync(async () => {
     const [devices, sessions] = await Promise.all([
@@ -52,7 +54,7 @@ export default function DevicesPage() {
   const handleExtendSession = async (session: Session) => {
     try {
       await dataService.extendSession(session.id, 30);
-      toast('Session extended by 30 minutes', 'success');
+      toast(language === 'ar' ? 'تم تمديد الجلسة بمقدار 30 دقيقة' : 'Session extended by 30 minutes', 'success');
       refetch();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not extend session'), 'error');
@@ -61,16 +63,20 @@ export default function DevicesPage() {
 
   if (loading || !data) {
     return (
-      <Layout title="Device Fleet" subtitle="Real-time status of all stations">
-        <LoadingSpinner label="Loading device fleet…" />
+      <Layout title={t('devices')} subtitle={t('loading')}>
+        <LoadingSpinner label={t('loading')} />
       </Layout>
     );
   }
 
   return (
     <Layout
-      title="Device Fleet"
-      subtitle={`${data.devices.length} stations · ${data.devices.filter((d) => d.status === 'available').length} available`}
+      title={t('devices')}
+      subtitle={
+        language === 'ar'
+          ? `${data.devices.length} محطات أجهزة · ${data.devices.filter((d) => d.status === 'available').length} متاح حالياً`
+          : `${data.devices.length} stations · ${data.devices.filter((d) => d.status === 'available').length} available`
+      }
       actions={
         <button 
           className="ccms-btn ccms-btn-ghost" 
@@ -78,16 +84,16 @@ export default function DevicesPage() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
-          Refresh
+          {language === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
       }
     >
       {data.devices.length === 0 ? (
         <div className="ccms-card">
           <EmptyState
-            icon="🖥"
-            title="No devices yet"
-            description="Add devices from the Settings page (admin) to get started."
+            icon="devices"
+            title={language === 'ar' ? 'لا توجد أجهزة مسجلة' : 'No devices yet'}
+            description={language === 'ar' ? 'أضف أجهزة من صفحة إعدادات الأمان (المدير) للبدء.' : 'Add devices from the Settings page (admin) to get started.'}
           />
         </div>
       ) : (
@@ -120,7 +126,7 @@ export default function DevicesPage() {
           onClose={() => setStartTarget(null)}
           onDone={() => {
             setStartTarget(null);
-            toast('Session started', 'success');
+            toast(language === 'ar' ? 'تم بدء اللعب وتنشيط الجهاز' : 'Session started', 'success');
             refetch();
           }}
         />
@@ -133,7 +139,7 @@ export default function DevicesPage() {
           onClose={() => setEndTarget(null)}
           onDone={() => {
             setEndTarget(null);
-            toast('Session ended — invoice generated', 'success');
+            toast(language === 'ar' ? 'تم إنهاء الجلسة وحساب الفاتورة' : 'Session ended — invoice generated', 'success');
             refetch();
           }}
         />
@@ -146,7 +152,7 @@ export default function DevicesPage() {
           onClose={() => setEditTarget(null)}
           onDone={() => {
             setEditTarget(null);
-            toast('Session details updated', 'success');
+            toast(language === 'ar' ? 'تم تحديث بيانات الجلسة' : 'Session details updated', 'success');
             refetch();
           }}
         />

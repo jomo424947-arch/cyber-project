@@ -7,7 +7,8 @@
 /* ============================================================================
    CCMS Design Tokens — every value defined in the spec, used everywhere.
    ============================================================================ */
-:root {
+:root,
+[data-theme="dark"] {
   --bg-base: #0A0A0A; /* Deepest background — page canvas */
   --bg-surface: #111111; /* Cards, panels, sidebars */
   --bg-elevated: #181818; /* Hover states, modals, dropdowns */
@@ -18,7 +19,7 @@
   --accent-green: #22C55E; /* Success, available status */
   --accent-yellow: #F59E0B; /* Warning, reserved status */
   --accent-red: #EF4444; /* Danger, in-use / error states */
-  --accent-purple: #3626ce; /* Secondary accent — graphs, tags (Secondary Indigo) */
+  --accent-purple: #8B5CF6; /* Secondary accent — graphs, tags */
 
   --text-primary: #FFFFFF; /* Main readable text (text-high) */
   --text-secondary: #A1A1AA; /* Subtitles, labels, timestamps (text-medium) */
@@ -31,6 +32,44 @@
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 15px rgba(0, 194, 255, 0.2);
   --shadow-glow-strong: 0 0 25px rgba(0, 194, 255, 0.4);
+
+  --header-bg: rgba(19, 19, 19, 0.85);
+
+  --sidebar-width: 240px;
+
+  /* Safe Area variables for mobile devices wrapped in Capacitor */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+[data-theme="light"] {
+  --bg-base: #F3F4F6; /* Crisp clean background canvas */
+  --bg-surface: #FFFFFF; /* Pure white cards & panels */
+  --bg-elevated: #F8FAFC; /* Light gray for hover/dropdowns */
+  --bg-input: #F1F5F9; /* Light slate form fields */
+
+  --accent-cyan: #0284C7; /* Primary vibrant cyan/blue */
+  --accent-cyan-dim: rgba(2, 132, 199, 0.12); /* Light cyan tint */
+  --accent-green: #16A34A; /* Success green */
+  --accent-yellow: #D97706; /* Warning yellow */
+  --accent-red: #DC2626; /* Danger red */
+  --accent-purple: #7C3AED;
+
+  --text-primary: #0F172A; /* Deep dark slate for maximum readability */
+  --text-secondary: #475569; /* Medium slate subtitles */
+  --text-muted: #94A3B8; /* Muted text & placeholders */
+  --text-accent: #0284C7; /* Accent link text */
+
+  --border-default: rgba(0, 0, 0, 0.08); /* Clean light border */
+  --border-glow: rgba(2, 132, 199, 0.3);
+
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 15px rgba(2, 132, 199, 0.15);
+  --shadow-glow-strong: 0 0 25px rgba(2, 132, 199, 0.25);
+
+  --header-bg: rgba(255, 255, 255, 0.85);
 
   --sidebar-width: 240px;
 
@@ -61,11 +100,59 @@ body,
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Alexandria', 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Enforce Alexandria & Cairo font stack across all text elements in Arabic RTL mode */
+html[dir="rtl"],
+html[dir="rtl"] body,
+html[dir="rtl"] button,
+html[dir="rtl"] input,
+html[dir="rtl"] select,
+html[dir="rtl"] textarea,
+html[dir="rtl"] h1,
+html[dir="rtl"] h2,
+html[dir="rtl"] h3,
+html[dir="rtl"] h4,
+html[dir="rtl"] h5,
+html[dir="rtl"] h6,
+html[dir="rtl"] p,
+html[dir="rtl"] span:not([class*="material-symbols"]):not([class*="material-icons"]),
+html[dir="rtl"] div:not([class*="material-symbols"]),
+html[dir="rtl"] strong,
+html[dir="rtl"] td,
+html[dir="rtl"] th,
+html[dir="rtl"] a,
+html[dir="rtl"] label,
+html[dir="rtl"] .ccms-page-title,
+html[dir="rtl"] .ccms-title-main,
+html[dir="rtl"] .ccms-title-section,
+html[dir="rtl"] .ccms-eyebrow {
+  font-family: 'Alexandria', 'Cairo', 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif !important;
+  letter-spacing: normal !important;
+}
+
+/* Ensure Material Symbols icon font is never overridden */
+.material-symbols-outlined,
+.material-symbols-sharp,
+.material-symbols-rounded,
+[class*="material-symbols"] {
+  font-family: 'Material Symbols Outlined' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr !important;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -222,22 +309,23 @@ textarea {
 
   /* Card variations */
   .ccms-card {
-    background: #111111;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
     border-radius: 12px;
     backdrop-filter: blur(4px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
   .ccms-card-hover:hover {
-    border-color: rgba(255, 255, 255, 0.3);
-    background: #181818;
+    border-color: var(--border-glow);
+    background: var(--bg-elevated);
   }
   
   .ccms-card-primary {
-    background: #111111;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
     border-radius: 12px;
     backdrop-filter: blur(4px);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
 
   .ccms-card-secondary {
@@ -245,21 +333,22 @@ textarea {
     border: 1px solid var(--border-default);
     border-radius: 8px;
     box-shadow: none;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
 
   .ccms-card-stat {
-    background: #111111;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
     border-radius: 12px;
     backdrop-filter: blur(4px);
     padding: 24px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
     position: relative;
     overflow: hidden;
   }
   .ccms-card-stat-hover:hover {
-    border-color: rgba(255, 255, 255, 0.3);
-    background: #181818;
+    border-color: var(--border-glow);
+    background: var(--bg-elevated);
   }
 
   /* Layout and alignment helper classes to reduce inline styles noise */
@@ -318,12 +407,15 @@ textarea {
     transform: scale(0.97);
   }
   .ccms-btn-primary {
-    background: linear-gradient(135deg, #00c2ff 0%, #3626ce 100%);
+    background-color: #0066CC;
+    background: #0066CC;
     color: #FFFFFF;
-    box-shadow: 0 0 15px rgba(0, 194, 255, 0.2);
+    box-shadow: 0 0 15px rgba(0, 102, 204, 0.3);
   }
   .ccms-btn-primary:hover {
-    box-shadow: 0 0 25px rgba(0, 194, 255, 0.4);
+    background-color: #0055B3;
+    background: #0055B3;
+    box-shadow: 0 0 25px rgba(0, 102, 204, 0.5);
     transform: translateY(-1px);
   }
   .ccms-btn-danger {
@@ -337,12 +429,12 @@ textarea {
   }
   .ccms-btn-ghost {
     background-color: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-default);
     color: var(--text-primary);
   }
   .ccms-btn-ghost:hover {
-    border-color: rgba(255, 255, 255, 0.3);
-    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-glow);
+    background-color: var(--accent-cyan-dim);
   }
   .ccms-btn:disabled {
     opacity: 0.5;
@@ -356,7 +448,7 @@ textarea {
   .ccms-input {
     width: 100%;
     background-color: var(--bg-input);
-    border: 1px solid var(--text-muted);
+    border: 1px solid var(--border-default);
     border-radius: 8px;
     padding: 10px 14px;
     color: var(--text-primary);
@@ -370,7 +462,11 @@ textarea {
   .ccms-input:focus {
     outline: none;
     border-color: var(--accent-cyan);
-    box-shadow: 0 0 8px rgba(0, 194, 255, 0.3);
+    box-shadow: var(--shadow-glow);
+  }
+  select option {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
   }
 
   /* Page heading */

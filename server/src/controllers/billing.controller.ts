@@ -15,6 +15,7 @@ export async function listInvoices(req: Request, res: Response) {
          device:devices(id, name, type),
          customer:customers(id, name))`
     )
+    .eq('tenant_id', req.user!.tenant_id)
     .order('issued_at', { ascending: false });
 
   if (paid === 'true') query = query.eq('paid', true);
@@ -40,6 +41,7 @@ export async function payInvoice(req: Request, res: Response) {
     .from('invoices')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select(
       `*,
        session:sessions(id, started_at, ended_at, duration_minutes, device_id,

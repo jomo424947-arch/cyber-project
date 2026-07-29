@@ -20,6 +20,7 @@ export async function listSessions(req: Request, res: Response) {
     .select(
       '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,email,username)'
     )
+    .eq('tenant_id', req.user!.tenant_id)
     .order('started_at', { ascending: false });
 
   if (status === 'active' || status === 'ended') {
@@ -71,6 +72,7 @@ export async function startSession(req: Request, res: Response) {
       .from('customers')
       .select('id')
       .eq('username', customer_username)
+      .eq('tenant_id', req.user!.tenant_id)
       .maybeSingle();
 
     if (cFetchErr) throw cFetchErr;
@@ -125,6 +127,7 @@ export async function startSession(req: Request, res: Response) {
     .from('devices')
     .select('id, status, hourly_rate, hourly_rate_multi')
     .eq('id', device_id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
   if (dErr) throw dErr;
   if (!device) throw notFound('Device not found');
@@ -150,6 +153,7 @@ export async function startSession(req: Request, res: Response) {
     .select('id')
     .eq('device_id', device_id)
     .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
   if (existing) throw conflict('Device already has an active session', 'SESSION_ACTIVE');
 
@@ -468,7 +472,7 @@ export async function endSession(req: Request, res: Response) {
       throw oErr;
     }
   } else {
-    cafeTotalCost = (orders ?? []).reduce((sum, ord) => sum + Number(ord.total_price), 0);
+    cafeTotalCost = (orders ?? []).reduce((sum: number, ord: any) => sum + Number(ord.total_price), 0);
   }
   const finalTotalCost = Number((totalCost + cafeTotalCost).toFixed(2));
 

@@ -7,6 +7,7 @@ export async function listProducts(req: Request, res: Response) {
   const { data, error } = await supabase
     .from('products')
     .select('*')
+    .eq('tenant_id', req.user!.tenant_id)
     .order('name', { ascending: true });
 
   if (error) {
@@ -25,7 +26,7 @@ export async function createProduct(req: Request, res: Response) {
 
   const { data, error } = await supabase
     .from('products')
-    .insert({ name, price })
+    .insert({ name, price, tenant_id: req.user!.tenant_id })
     .select('*')
     .single();
 
@@ -49,6 +50,7 @@ export async function updateProduct(req: Request, res: Response) {
     .from('products')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select('*')
     .single();
 
@@ -64,7 +66,8 @@ export async function deleteProduct(req: Request, res: Response) {
   const { error } = await supabase
     .from('products')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id);
 
   if (error) throw error;
   res.json({ success: true });

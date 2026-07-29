@@ -8,12 +8,14 @@ import { BarChart } from '../components/charts/BarChart';
 import { UsageBars } from '../components/charts/UsageBars';
 import { HeatStrip } from '../components/charts/HeatStrip';
 import { useAsync } from '../hooks/useAsync';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { formatCurrency } from '../utils/format';
 import { DEVICE_TYPE_META } from '../utils/constants';
 import type { RevenueReport, UsageReport, LeaderboardEntry } from '../types';
 
 export default function ReportsPage() {
+  const { t, language } = useLanguage();
   const { data, loading } = useAsync(async () => {
     const [revenue, usage] = await Promise.all([
       dataService.revenueReport(),
@@ -24,8 +26,8 @@ export default function ReportsPage() {
 
   if (loading || !data) {
     return (
-      <Layout title="Intelligence Reports" subtitle="Revenue and usage analytics">
-        <LoadingSpinner label="Loading reports…" />
+      <Layout title={t('reports')} subtitle={t('loading')}>
+        <LoadingSpinner label={t('loading')} />
       </Layout>
     );
   }
@@ -41,19 +43,27 @@ export default function ReportsPage() {
   // Usage rows sorted by utilization desc.
   const usageRows = [...usage.devices]
     .sort((a, b) => b.minutes_used - a.minutes_used)
-    .map((d) => ({
-      label: d.name,
-      type: DEVICE_TYPE_META[d.type].label,
-      icon: DEVICE_TYPE_META[d.type].icon,
-      minutes: d.minutes_used,
-      utilization: d.utilization,
-    }));
+    .map((d) => {
+      let localizedType = DEVICE_TYPE_META[d.type].label;
+      if (language === 'ar') {
+        if (d.type === 'pc') localizedType = 'جهاز كمبيوتر';
+        else if (d.type === 'console') localizedType = 'جهاز كونسول';
+        else localizedType = 'شاشة ذكية';
+      }
+      return {
+        label: d.name,
+        type: localizedType,
+        icon: DEVICE_TYPE_META[d.type].icon,
+        minutes: d.minutes_used,
+        utilization: d.utilization,
+      };
+    });
 
   const peakHourCounts = usage.peak_hours.map((h) => h.count);
   const peakHour = usage.peak_hours.reduce((a, b) => (b.count > a.count ? b : a), usage.peak_hours[0]);
 
   return (
-    <Layout title="Intelligence Reports" subtitle="Comprehensive device fleet metrics, peak monitoring, and billing analytics">
+    <Layout title={t('reports')} subtitle={language === 'ar' ? 'إحصائيات شاملة ومقاييس استخدام الأجهزة وسجلات الإيرادات والمبيعات.' : 'Comprehensive device fleet metrics, peak monitoring, and billing analytics'}>
       {/* Revenue totals */}
       <div
         style={{
@@ -63,11 +73,11 @@ export default function ReportsPage() {
           marginBottom: '32px',
         }}
       >
-        <RevenueTile label="Today" value={formatCurrency(revenue.totals.today)} accent="var(--accent-cyan)" />
-        <RevenueTile label="This Week" value={formatCurrency(revenue.totals.week)} accent="var(--accent-green)" />
-        <RevenueTile label="This Month" value={formatCurrency(revenue.totals.month)} accent="var(--accent-purple)" />
+        <RevenueTile label={language === 'ar' ? 'اليوم' : 'Today'} value={formatCurrency(revenue.totals.today)} accent="var(--accent-cyan)" />
+        <RevenueTile label={language === 'ar' ? 'هذا الأسبوع' : 'This Week'} value={formatCurrency(revenue.totals.week)} accent="var(--accent-green)" />
+        <RevenueTile label={language === 'ar' ? 'هذا الشهر' : 'This Month'} value={formatCurrency(revenue.totals.month)} accent="var(--accent-purple)" />
         <RevenueTile
-          label="Peak Hour"
+          label={language === 'ar' ? 'ساعة الذروة' : 'Peak Hour'}
           value={peakHour ? `${peakHour.hour}:00` : '—'}
           accent="var(--accent-yellow)"
         />
@@ -76,10 +86,10 @@ export default function ReportsPage() {
       {/* Revenue chart */}
       <div className="ccms-card ccms-stagger" style={{ padding: '24px', marginBottom: '32px' }}>
         <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
-          Revenue — Last 14 Days
+          {language === 'ar' ? 'الإيرادات — آخر 14 يوماً' : 'Revenue — Last 14 Days'}
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', margin: 0 }}>
-          Daily collected revenue across all devices
+          {language === 'ar' ? 'الإيرادات اليومية المحصلة لجميع الأجهزة والأغذية' : 'Daily collected revenue across all devices'}
         </p>
         <BarChart data={revenueBars} height={240} />
       </div>
@@ -88,14 +98,14 @@ export default function ReportsPage() {
         {/* Device usage */}
         <div className="ccms-card ccms-stagger" style={{ padding: '24px' }}>
           <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
-            Device Fleet Usage — 30 Days
+            {language === 'ar' ? 'استخدام أجهزة الصالة — 30 يوماً' : 'Device Fleet Usage — 30 Days'}
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', margin: 0 }}>
-            Total active time per device
+            {language === 'ar' ? 'إجمالي وقت النشاط لكل جهاز بالدقائق' : 'Total active time per device'}
           </p>
           {usageRows.every((r) => r.minutes === 0) ? (
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', padding: '24px 0', textAlign: 'center' }}>
-              No usage recorded in this period.
+              {language === 'ar' ? 'لا توجد سجلات استخدام في هذه الفترة.' : 'No usage recorded in this period.'}
             </p>
           ) : (
             <UsageBars rows={usageRows} />
@@ -105,20 +115,20 @@ export default function ReportsPage() {
         {/* Peak hours */}
         <div className="ccms-card ccms-stagger" style={{ padding: '24px' }}>
           <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
-            Peak Operating Hours
+            {language === 'ar' ? 'ساعات النشاط والتشغيل العالية' : 'Peak Operating Hours'}
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', margin: 0 }}>
-            Session starts by hour of day (0–23)
+            {language === 'ar' ? 'جلسات اللعب المفتوحة بحسب الساعة (0–23)' : 'Session starts by hour of day (0–23)'}
           </p>
           <HeatStrip counts={peakHourCounts} />
           <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.1)' }} />
-              Quiet
+              {language === 'ar' ? 'هادئ' : 'Quiet'}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-cyan)' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cyan)' }} />
-              Busy Peak
+              {language === 'ar' ? 'ذروة وضغط' : 'Busy Peak'}
             </span>
           </div>
         </div>
@@ -145,21 +155,23 @@ function RevenueTile({
   value: string;
   accent: string;
 }) {
+  const { isRtl } = useLanguage();
   return (
     <div 
       className="ccms-card" 
       style={{ 
         padding: '24px', 
-        borderTop: `1px solid ${accent}` // Redesign spec inner glow
+        borderTop: `1px solid ${accent}`
       }}
     >
-      <div className="ccms-eyebrow" style={{ marginBottom: '12px' }}>{label}</div>
+      <div className="ccms-eyebrow" style={{ marginBottom: '12px', textAlign: isRtl ? 'right' : 'left' }}>{label}</div>
       <div
         style={{
           fontFamily: 'JetBrains Mono, monospace',
           fontSize: '32px',
           fontWeight: 700,
           color: 'var(--text-primary)',
+          textAlign: isRtl ? 'right' : 'left',
         }}
       >
         {value}
@@ -169,17 +181,18 @@ function RevenueTile({
 }
 
 function LeaderboardWidget() {
+  const { language } = useLanguage();
   const monthOptions = useMemo(() => {
     const options = [];
     const now = new Date();
     for (let i = 0; i < 6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const label = d.toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
       const value = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
       options.push({ label, value });
     }
     return options;
-  }, []);
+  }, [language]);
 
   const [month, setMonth] = useState(monthOptions[0].value);
 
@@ -193,10 +206,10 @@ function LeaderboardWidget() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', margin: 0 }}>
-            Top Customers Leaderboard
+            {language === 'ar' ? 'قائمة العملاء الأكثر لعباً ونشاطاً' : 'Top Customers Leaderboard'}
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-            Ranked by session count and total hours played
+            {language === 'ar' ? 'مرتبين بحسب عدد الجلسات وإجمالي الساعات التي قضوها باللعب' : 'Ranked by session count and total hours played'}
           </p>
         </div>
         <div style={{ minWidth: '180px' }}>
@@ -212,20 +225,20 @@ function LeaderboardWidget() {
       </div>
 
       {loading ? (
-        <LoadingSpinner label="Fetching leaderboard..." />
+        <LoadingSpinner label={language === 'ar' ? 'جاري جلب القائمة...' : 'Fetching leaderboard...'} />
       ) : error ? (
         <p style={{ color: 'var(--accent-red)', fontSize: '13px', textAlign: 'center', padding: '16px' }}>{error}</p>
       ) : !leaderboard || leaderboard.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'center', padding: '24px' }}>
-          No data recorded for this month.
+          {language === 'ar' ? 'لا توجد بيانات مسجلة لهذا الشهر.' : 'No data recorded for this month.'}
         </p>
       ) : (
         <Table<LeaderboardEntry>
           columns={[
             {
               key: 'rank',
-              header: 'Rank',
-              width: '60px',
+              header: language === 'ar' ? 'الترتيب' : 'Rank',
+              width: '80px',
               render: (_, index) => (
                 <strong 
                   style={{ 
@@ -244,7 +257,7 @@ function LeaderboardWidget() {
             },
             {
               key: 'username',
-              header: 'Username',
+              header: language === 'ar' ? 'اسم المستخدم' : 'Username',
               render: (row) => (
                 <Link 
                   to={`/customers/${row.customer_id}`} 
@@ -256,24 +269,24 @@ function LeaderboardWidget() {
             },
             {
               key: 'name',
-              header: 'Display Name',
+              header: language === 'ar' ? 'الاسم الظاهر' : 'Display Name',
               render: (row) => row.name
             },
             {
               key: 'sessions',
-              header: 'Sessions Played',
+              header: language === 'ar' ? 'الجلسات الملعوبة' : 'Sessions Played',
               align: 'right' as const,
               render: (row) => <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{row.session_count}</strong>
             },
             {
               key: 'hours',
-              header: 'Total Playtime',
+              header: language === 'ar' ? 'إجمالي الساعات' : 'Total Playtime',
               align: 'right' as const,
-              render: (row) => <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{row.total_hours} hrs</span>
+              render: (row) => <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{row.total_hours} {language === 'ar' ? 'ساعة' : 'hrs'}</span>
             },
             {
               key: 'spend',
-              header: 'Total Spend',
+              header: language === 'ar' ? 'إجمالي الصرف' : 'Total Spend',
               align: 'right' as const,
               render: (row) => (
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-green)', fontWeight: 600 }}>

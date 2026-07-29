@@ -162,7 +162,7 @@ export function Table<T>({ columns, data, rowKey, onRowClick, empty, renderExpan
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ background: '#2a2a2a', borderBottom: '1px solid var(--border-default)' }}>
+          <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-default)' }}>
             {columns.map((col) => (
               <Th key={col.key} width={col.width} align={col.align}>
                 {col.header}
@@ -190,7 +190,7 @@ export function Table<T>({ columns, data, rowKey, onRowClick, empty, renderExpan
                       : 'var(--bg-surface)',
                     borderBottom: isExpanded
                       ? 'none'
-                      : '1px solid rgba(255, 255, 255, 0.05)',
+                      : '1px solid var(--border-default)',
                     cursor: onRowClick || renderExpandedRow ? 'pointer' : 'default',
                     transition: 'all 0.15s ease',
                   }}

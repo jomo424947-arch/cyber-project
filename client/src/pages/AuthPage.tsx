@@ -3,23 +3,37 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
+import { useLanguage } from '../context/LanguageContext';
+import { useSystemSettings } from '../context/SystemSettingsContext';
 import type { User } from '../types';
 
 // ─── View Types ──────────────────────────────────────────────────────────────
-type View = 'login' | 'signup' | 'forgot' | 'reset' | 'verify';
+type View = 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'activate' | 'suspended';
+
+interface AuthPageProps {
+  forceView?: 'activate' | 'suspended';
+}
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-export default function AuthPage() {
-  const { setUser } = useAuth();
+export default function AuthPage({ forceView }: AuthPageProps = {}) {
+  const { setUser, activate } = useAuth();
+  const { systemName, systemLogoUrl } = useSystemSettings();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
 
   // Determine initial view from URL search params (e.g. ?view=reset&token=…)
   const initialView = (searchParams.get('view') as View | null) ?? 'login';
   const urlToken = searchParams.get('token') ?? '';
   const oauthError = searchParams.get('error');
 
-  const [view, setView] = useState<View>(initialView);
+  const [view, setView] = useState<View>(forceView || initialView);
+
+  useEffect(() => {
+    if (forceView) {
+      setView(forceView);
+    }
+  }, [forceView]);
 
   // Form state
   const [email, setEmail] = useState('');
@@ -47,6 +61,25 @@ export default function AuthPage() {
   }, [resetForm]);
 
   // Auto-detect reset password token from URL hash (Supabase email links)
+  const [employees, setEmployees] = useState<User[]>([]);
+
+  useEffect(() => {
+    if (view === 'login') {
+      async function fetchEmployees() {
+        try {
+          const list = await dataService.listPublicEmployees();
+          setEmployees(list);
+          if (list.length > 0) {
+            setEmail(list[0].email);
+          }
+        } catch (err) {
+          console.warn('Failed to load employees list:', err);
+        }
+      }
+      fetchEmployees();
+    }
+  }, [view]);
+
   useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
@@ -176,83 +209,92 @@ export default function AuthPage() {
     }
   };
 
+  // ─── License Activation ───────────────────────────────────────────────────
+  const handleActivate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    resetForm();
+    if (!email.trim() || !password) {
+      setError('Owner email and cloud password are required.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await activate(email.trim(), password);
+      setSuccess('Application activated successfully! Redirecting...');
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 1500);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Activation failed. Check your cloud credentials and internet connection.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="auth-page">
       <div className="auth-card">
-        {/* ─── Left Panel ──────────────────────────────────────── */}
-        <aside className="auth-left">
-          <div className="auth-brand">
-            <span className="auth-logo-mark">⬡</span>
-            <span className="auth-logo-text">CCMS</span>
-          </div>
-          <p className="auth-eyebrow">CYBER CAFÉ MANAGEMENT</p>
-
-          <div className="auth-left-content">
-            {view === 'signup' ? (
-              <>
-                <h1 className="auth-headline">Join the network.</h1>
-                <p className="auth-subline">Create your account and manage sessions, billing, and reservations.</p>
-              </>
-            ) : view === 'forgot' || view === 'reset' ? (
-              <>
-                <h1 className="auth-headline">Recover access.</h1>
-                <p className="auth-subline">We'll send you a secure link to reset your password.</p>
-              </>
-            ) : view === 'verify' ? (
-              <>
-                <h1 className="auth-headline">Verify your email.</h1>
-                <p className="auth-subline">One quick step to activate your account.</p>
-              </>
-            ) : (
-              <>
-                <h1 className="auth-headline">Welcome back.</h1>
-                <p className="auth-subline">Sign in to run your café operations in real time.</p>
-              </>
-            )}
-          </div>
-
-          <div className="auth-left-switch">
-            {(view === 'login' || view === 'forgot' || view === 'reset') && (
-              <>
-                <span>Don't have an account?</span>
-                <button className="auth-link-btn" onClick={() => switchView('signup')}>Sign up</button>
-              </>
-            )}
-            {view === 'signup' && (
-              <>
-                <span>Already have an account?</span>
-                <button className="auth-link-btn" onClick={() => switchView('login')}>Sign in</button>
-              </>
-            )}
-          </div>
-        </aside>
-
         {/* ─── Right Panel ─────────────────────────────────────── */}
-        <section className="auth-right">
+        <section className="auth-right" style={{ flex: 1 }}>
           <div className="auth-form-wrapper">
 
             {/* ── Login ── */}
             {view === 'login' && (
               <>
-                <h2 className="auth-form-title">Sign in to CCMS</h2>
-                <p className="auth-form-subtitle">Enter your credentials to access the dashboard.</p>
+                {systemLogoUrl || (systemName && systemName !== 'CCMS') ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '16px' }}>
+                    {systemLogoUrl && (
+                      <img src={systemLogoUrl} alt="Logo" style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'contain' }} />
+                    )}
+                    {systemName && systemName !== 'CCMS' && (
+                      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent-cyan)', fontFamily: 'Space Grotesk, sans-serif' }}>
+                        {systemName}
+                      </span>
+                    )}
+                  </div>
+                ) : null}
+
+                <h2 className="auth-form-title">{t('sign_in_title')}</h2>
+                <p className="auth-form-subtitle">{t('sign_in_subtitle')}</p>
 
                 <form onSubmit={handleLogin} className="auth-form" noValidate>
-                  <Field label="Email">
-                    <input
-                      id="auth-email"
-                      type="email"
-                      className="ccms-input"
-                      placeholder="you@cafe.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="email"
-                      autoFocus
-                    />
+                  <Field label={t('employee_email')}>
+                    {employees.length > 0 ? (
+                      <select
+                        id="auth-email"
+                        className="ccms-input"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoFocus
+                        style={{
+                          background: 'var(--bg-input)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--text-muted)'
+                        }}
+                      >
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.email} style={{ background: 'var(--bg-surface)' }}>
+                            {emp.full_name} ({emp.email})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        id="auth-email"
+                        type="email"
+                        className="ccms-input"
+                        placeholder="you@cafe.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="email"
+                        autoFocus
+                      />
+                    )}
                   </Field>
 
-                  <Field label="Password">
+                  <Field label={t('password')}>
                     <div className="password-wrapper">
                       <input
                         id="auth-password"
@@ -277,11 +319,8 @@ export default function AuthPage() {
                         onChange={(e) => setRememberMe(e.target.checked)}
                         className="remember-checkbox"
                       />
-                      <span>Remember me</span>
+                      <span>{t('remember_me')}</span>
                     </label>
-                    <button type="button" className="auth-link-btn forgot-link" onClick={() => switchView('forgot')}>
-                      Forgot password?
-                    </button>
                   </div>
 
                   {error && <AlertBox type="error" message={error} />}
@@ -289,21 +328,9 @@ export default function AuthPage() {
 
                   <button type="submit" className="ccms-btn ccms-btn-primary auth-submit" disabled={loading}>
                     {loading ? <Spinner /> : null}
-                    Sign In
+                    {t('sign_in')}
                   </button>
                 </form>
-
-                <Divider />
-
-                <button className="auth-google-btn" onClick={handleGoogle} disabled={loading}>
-                  <GoogleIcon />
-                  Sign in with Google
-                </button>
-
-                <p className="auth-foot">
-                  Don't have an account?{' '}
-                  <button className="auth-link-btn" onClick={() => switchView('signup')}>Sign up</button>
-                </p>
               </>
             )}
 
@@ -470,20 +497,20 @@ export default function AuthPage() {
               <div className="auth-verify-box">
                 {loading ? (
                   <>
-                    <div className="auth-verify-icon pulse">✉</div>
+                    <div className="auth-verify-icon pulse"><span className="material-symbols-outlined" style={{ fontSize: '32px' }}>mail</span></div>
                     <h2 className="auth-form-title">Verifying your email…</h2>
                     <Spinner />
                   </>
                 ) : success ? (
                   <>
-                    <div className="auth-verify-icon success-icon">✓</div>
+                    <div className="auth-verify-icon success-icon"><span className="material-symbols-outlined" style={{ fontSize: '32px' }}>check</span></div>
                     <h2 className="auth-form-title">Email Verified!</h2>
                     <p className="auth-form-subtitle">{success}</p>
                     <p className="auth-form-subtitle" style={{ opacity: 0.6 }}>Redirecting you…</p>
                   </>
                 ) : (
                   <>
-                    <div className="auth-verify-icon error-icon">✕</div>
+                    <div className="auth-verify-icon error-icon"><span className="material-symbols-outlined" style={{ fontSize: '32px' }}>close</span></div>
                     <h2 className="auth-form-title">Verification Failed</h2>
                     {error && <AlertBox type="error" message={error} />}
                     <button className="ccms-btn ccms-btn-primary auth-submit" onClick={() => switchView('login')}>
@@ -491,6 +518,71 @@ export default function AuthPage() {
                     </button>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* ── License Activation ── */}
+            {view === 'activate' && (
+              <>
+                <h2 className="auth-form-title">Activate CCMS License</h2>
+                <p className="auth-form-subtitle">Enter your cloud owner credentials to link and activate this cyber café device.</p>
+
+                <form onSubmit={handleActivate} className="auth-form" noValidate>
+                  <Field label="Owner Email">
+                    <input
+                      id="auth-activate-email"
+                      type="email"
+                      className="ccms-input"
+                      placeholder="owner@cafe.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      autoFocus
+                    />
+                  </Field>
+
+                  <Field label="Cloud Password">
+                    <div className="password-wrapper">
+                      <input
+                        id="auth-activate-password"
+                        type={showPassword ? 'text' : 'password'}
+                        className="ccms-input"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                      />
+                      <button type="button" className="pw-toggle" onClick={() => setShowPassword(v => !v)} tabIndex={-1} aria-label="Toggle password visibility">
+                        {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                  </Field>
+
+                  {error && <AlertBox type="error" message={error} />}
+                  {success && <AlertBox type="success" message={success} />}
+
+                  <button type="submit" className="ccms-btn ccms-btn-primary auth-submit" disabled={loading}>
+                    {loading ? <Spinner /> : null}
+                    Activate Software
+                  </button>
+                </form>
+              </>
+            )}
+
+            {/* ── License Suspended ── */}
+            {view === 'suspended' && (
+              <div className="auth-verify-box">
+                <div className="auth-verify-icon error-icon" style={{ borderColor: '#ef4444', color: '#ef4444' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>block</span>
+                </div>
+                <h2 className="auth-form-title" style={{ color: '#ef4444', marginTop: '16px' }}>Subscription Suspended</h2>
+                <p className="auth-form-subtitle" style={{ textAlign: 'center', marginTop: '10px' }}>
+                  Your subscription for this cyber café is currently suspended or expired.
+                  Please contact CCMS support to renew your license and unlock the application.
+                </p>
+                <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '12px', width: '100%', textAlign: 'center' }}>
+                  <strong>Owner email:</strong> {email || 'N/A'}
+                </div>
               </div>
             )}
 
@@ -518,7 +610,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function AlertBox({ type, message }: { type: 'error' | 'success'; message: string }) {
   return (
     <div className={`auth-alert auth-alert-${type}`} role="alert">
-      <span className="auth-alert-icon">{type === 'error' ? '⚠' : '✓'}</span>
+      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{type === 'error' ? 'warning' : 'check'}</span>
       {message}
     </div>
   );
@@ -612,8 +704,8 @@ const authStyles = `
 .auth-card {
   display: flex;
   width: 100%;
-  max-width: 900px;
-  min-height: 560px;
+  max-width: 460px;
+  min-height: auto;
   border-radius: 24px;
   overflow: hidden;
   box-shadow:

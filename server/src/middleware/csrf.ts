@@ -23,9 +23,30 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     });
   }
 
-  // 2. Skip verification for safe methods
+  // 2. Skip verification for safe methods and auth entry points
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
-  if (safeMethods.includes(req.method)) {
+  const exemptPaths = [
+    '/api/auth/login',
+    '/api/auth/signup',
+    '/api/auth/refresh',
+    '/api/auth/logout',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
+    '/health',
+  ];
+
+  const userAgent = req.headers['user-agent'] || '';
+  const isSuperAdminExempt = 
+    req.path === '/api/auth/register-tenant' || 
+    (req.path.startsWith('/api/auth/tenants/') && req.path.endsWith('/status'));
+
+  if (
+    safeMethods.includes(req.method) ||
+    exemptPaths.includes(req.path) ||
+    exemptPaths.includes(req.originalUrl) ||
+    userAgent.includes('Electron') ||
+    isSuperAdminExempt
+  ) {
     return next();
   }
 

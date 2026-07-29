@@ -1,13 +1,11 @@
 import type { DataService } from './api';
-import { realService } from './real/realService';
+import { offlineFirstService } from './offlineFirstService';
 
 /**
  * The single data service used across the app.
- *
- * It always talks to the real Express API, which reads live data from Supabase.
- * (The old in-memory mock store has been removed — the app now shows only real
- * data.)
+ * Offline-first DB layer with local IndexedDB persistence + background sync.
  */
-export const dataService: DataService = realService;
+export const dataService: DataService = offlineFirstService;
 
 export type { DataService };
+

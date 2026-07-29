@@ -88,6 +88,59 @@ export const realService: DataService = {
     return data;
   },
 
+  async getActivationStatus() {
+    const { data } = await http.get<{ status: string; tenant: { tenant_id: string; name: string; owner_email: string } | null }>('/api/auth/status');
+    return data;
+  },
+
+  async activateTenant(email, password) {
+    const { data } = await http.post<{ success: boolean; tenant: { id: string; name: string; status: string } }>('/api/auth/activate', { email, password });
+    return data;
+  },
+
+  async registerTenant(payload) {
+    const { data } = await http.post<{ success: boolean; tenant: { id: string; name: string; owner_email: string } }>('/api/auth/register-tenant', payload);
+    return data;
+  },
+
+  async getTenants(secretKey: string) {
+    const { data } = await http.get<{ success: boolean; tenants: any[] }>('/api/auth/tenants', {
+      headers: { 'x-super-admin-key': secretKey },
+    });
+    return data;
+  },
+
+  async updateTenantStatus(id: string, status: string, secretKey: string) {
+    const { data } = await http.patch<{ success: boolean }>(`/api/auth/tenants/${id}/status`, { status }, {
+      headers: { 'x-super-admin-key': secretKey },
+    });
+    return data;
+  },
+
+  async listPublicEmployees() {
+    const { data } = await http.get<{ users: User[] }>('/api/auth/employees-public');
+    return data.users;
+  },
+
+  async listEmployees() {
+    const { data } = await http.get<User[]>('/api/employees');
+    return data;
+  },
+
+  async createEmployee(payload) {
+    const { data } = await http.post<User>('/api/employees', payload);
+    return data;
+  },
+
+  async updateEmployee(id, payload) {
+    const { data } = await http.patch<User>(`/api/employees/${id}`, payload);
+    return data;
+  },
+
+  async deleteEmployee(id) {
+    await http.delete(`/api/employees/${id}`);
+  },
+
   // ─── Devices ─────────────────────────────────────────────────────────────
 
   async listDevices() {

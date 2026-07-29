@@ -34,6 +34,18 @@ export interface DataService {
   resetPassword(token: string, newPassword: string): Promise<{ message: string }>;
   verifyEmail(token: string): Promise<{ user: User; message: string }>;
   getGoogleOAuthUrl(): Promise<{ url: string }>;
+  getActivationStatus(): Promise<{ status: string; tenant: { tenant_id: string; name: string; owner_email: string } | null }>;
+  activateTenant(email: string, password: string): Promise<{ success: boolean; tenant: { id: string; name: string; status: string } }>;
+  registerTenant(payload: { tenantName: string; ownerFullName: string; ownerEmail: string; ownerPassword: string; status?: string; secretKey: string }): Promise<{ success: boolean; tenant: { id: string; name: string; owner_email: string } }>;
+  getTenants(secretKey: string): Promise<{ success: boolean; tenants: any[] }>;
+  updateTenantStatus(id: string, status: string, secretKey: string): Promise<{ success: boolean }>;
+  listPublicEmployees(): Promise<User[]>;
+
+  // employees management
+  listEmployees(): Promise<User[]>;
+  createEmployee(payload: any): Promise<User>;
+  updateEmployee(id: string, payload: any): Promise<User>;
+  deleteEmployee(id: string): Promise<void>;
 
 
   // devices

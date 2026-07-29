@@ -2,10 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../lib/supabase';
 import { unauthorized, forbidden } from '../lib/errors';
 import type { Role } from '../lib/types';
+import { verifyToken } from '../lib/local-auth';
 
 /**
- * Verifies the `Authorization: Bearer <token>` header against Supabase Auth,
- * then loads the user's role from the public.users table.
+ * Verifies the `Authorization: Bearer <token>` header or `sb-access-token` cookie
+ * against local JWT signing, then loads the user's role from the local users table.
  * Attaches { id, email, role } to req.user.
  */
 export async function verifyJWT(req: Request, _res: Response, next: NextFunction) {
@@ -24,17 +25,31 @@ export async function verifyJWT(req: Request, _res: Response, next: NextFunction
       throw unauthorized('Missing session token');
     }
 
-    // Validate the JWT against Supabase.
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user) {
-      throw unauthorized('Invalid or expired token');
+    const isOffline = process.env.OFFLINE_MODE === 'true';
+    let userId = '';
+
+    if (isOffline) {
+      // Validate the local JWT.
+      try {
+        const decoded = verifyToken(token);
+        userId = decoded.id;
+      } catch (err) {
+        throw unauthorized('Invalid or expired token');
+      }
+    } else {
+      // Validate the JWT against Supabase Cloud.
+      const { data, error } = await (supabase as any).auth.getUser(token);
+      if (error || !data.user) {
+        throw unauthorized('Invalid or expired token');
+      }
+      userId = data.user.id;
     }
 
-    // Look up the role from our users table.
+    // Look up the role and tenant_id from our users table.
     const { data: userRow, error: userErr } = await supabase
       .from('users')
-      .select('id, email, role')
-      .eq('id', data.user.id)
+      .select('id, email, role, tenant_id')
+      .eq('id', userId)
       .maybeSingle();
 
     // Fail closed on a genuine query error — do NOT default to 'staff'.
@@ -43,11 +58,23 @@ export async function verifyJWT(req: Request, _res: Response, next: NextFunction
       throw unauthorized('Authentication failed — please try again');
     }
 
-    // Fall back to 'staff' only if the row doesn't exist yet (e.g. signup race).
+    if (!userRow) {
+      throw unauthorized('User not found');
+    }
+
+    let effectiveTenantId = userRow.tenant_id;
+    if (!effectiveTenantId) {
+      const { data: tenantConfig } = await supabase.from('tenant_config').select('tenant_id').maybeSingle();
+      if (tenantConfig?.tenant_id) {
+        effectiveTenantId = tenantConfig.tenant_id;
+      }
+    }
+
     req.user = {
-      id: data.user.id,
-      email: data.user.email ?? userRow?.email ?? '',
-      role: (userRow?.role ?? 'staff') as Role,
+      id: userRow.id,
+      email: userRow.email,
+      role: userRow.role as Role,
+      tenant_id: effectiveTenantId,
     };
 
     next();

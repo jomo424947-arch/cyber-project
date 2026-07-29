@@ -1,9 +1,14 @@
-import { ReactNode, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { ReactNode, useState, useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { useSystemSettings } from '../context/SystemSettingsContext';
+import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
 
 interface LayoutProps {
   title: string;
@@ -17,20 +22,32 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
   const { user, isAdmin, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const { language, setLanguage, t, isRtl } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
+  const { hasConfiguredSettings } = useSystemSettings();
+  const [showFirstTimeModal, setShowFirstTimeModal] = useState(false);
+
+  useEffect(() => {
+    if (!hasConfiguredSettings && location.pathname !== '/settings') {
+      navigate('/settings', { replace: true });
+      setShowFirstTimeModal(true);
+    }
+  }, [hasConfiguredSettings, location.pathname, navigate]);
 
   const handleLogout = async () => {
     setShowMoreMenu(false);
     await logout();
-    toast('Signed out', 'info');
+    toast(t('success'), 'info');
     navigate('/login');
   };
 
   const mobileMainItems = [
-    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/rooms', label: 'Rooms', icon: 'meeting_room' },
-    { to: '/devices', label: 'Devices', icon: 'devices' },
-    { to: '/sessions', label: 'Active', icon: 'p2p' },
+    { to: '/dashboard', label: t('dashboard'), icon: 'dashboard' },
+    { to: '/rooms', label: t('rooms'), icon: 'meeting_room' },
+    { to: '/devices', label: t('devices'), icon: 'devices' },
+    { to: '/sessions', label: t('sessions'), icon: 'p2p' },
   ];
 
   return (
@@ -52,17 +69,18 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
             height: '64px',
             position: 'fixed',
             top: 0,
-            right: 0,
+            left: isRtl ? 0 : 'auto',
+            right: isRtl ? 'auto' : 0,
             width: 'calc(100% - var(--sidebar-width))',
             zIndex: 50,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 32px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            borderBottom: '1px solid var(--border-default)',
             backdropFilter: 'blur(16px)',
-            background: 'rgba(19, 19, 19, 0.8)',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            background: 'var(--header-bg)',
+            boxShadow: 'var(--shadow-card)',
           }}
         >
           {/* Left panel: connection status */}
@@ -82,24 +100,64 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 style={{ 
                   color: 'var(--accent-cyan)', 
                   fontWeight: 700, 
-                  fontFamily: 'JetBrains Mono, monospace', 
                   fontSize: '10px', 
                   textTransform: 'uppercase', 
                   letterSpacing: '0.15em' 
                 }}
               >
-                Network: Latency 24ms
+                {t('network_latency')}
               </span>
             </div>
           </div>
 
           {/* Right panel: User controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button 
-                onClick={() => toast('No new notifications.', 'info')} 
+                onClick={toggleTheme}
+                style={{ 
+                  color: theme === 'dark' ? '#F59E0B' : 'var(--accent-cyan)', 
+                  padding: '8px', 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: theme === 'dark' ? 'rgba(245, 158, 11, 0.12)' : 'var(--accent-cyan-dim)',
+                  border: theme === 'dark' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-glow)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                title={t('toggle_theme')}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+                </span>
+              </button>
+
+              <button 
+                onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+                style={{ 
+                  color: 'var(--accent-cyan)', 
+                  padding: '6px 10px', 
+                  display: 'flex', 
+                  background: 'var(--accent-cyan-dim)',
+                  border: '1px solid var(--border-glow)',
+                  borderRadius: '6px',
+                  fontWeight: 700, 
+                  fontSize: '11px', 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif'
+                }}
+                title={language === 'en' ? 'Arabic' : 'English'}
+              >
+                {language === 'en' ? 'العربية' : 'English'}
+              </button>
+
+              <button 
+                onClick={() => toast(t('no_notifications'), 'info')} 
                 style={{ color: 'var(--text-secondary)', padding: '8px', display: 'flex', transition: 'color 0.2s' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#00C2FF'}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-cyan)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>notifications</span>
@@ -107,7 +165,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
               <button 
                 onClick={() => navigate('/settings')} 
                 style={{ color: 'var(--text-secondary)', padding: '8px', display: 'flex', transition: 'color 0.2s' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#00C2FF'}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-cyan)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>settings</span>
@@ -115,51 +173,41 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ textAlign: 'right' }}>
+              <div 
+                style={{ 
+                  textAlign: isRtl ? 'left' : 'right',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                }}
+              >
                 <p 
                   style={{ 
-                    fontFamily: 'JetBrains Mono, monospace', 
-                    fontSize: '12px', 
-                    fontWeight: 600, 
-                    color: '#FFFFFF', 
-                    lineHeight: '1.1', 
+                    fontSize: '13px', 
+                    fontWeight: 700, 
+                    color: 'var(--text-primary)', 
+                    lineHeight: '1.2', 
                     margin: 0,
-                    textTransform: 'uppercase'
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
                   }}
                 >
-                  {user?.full_name ? user.full_name.replace(' ', '_') : 'Admin_X01'}
+                  {user?.full_name ? user.full_name : 'Admin'}
                 </p>
                 <p 
                   style={{ 
                     fontSize: '10px', 
                     color: 'var(--accent-cyan)', 
                     textTransform: 'uppercase', 
-                    letterSpacing: '0.05em', 
+                    letterSpacing: '0.08em', 
                     margin: 0,
-                    fontWeight: 600
+                    fontWeight: 600,
+                    marginTop: '2px',
                   }}
                 >
-                  {isAdmin ? 'System Secured' : 'Operator Secured'}
+                  {isAdmin ? t('system_secured') : t('operator_secured')}
                 </p>
-              </div>
-              <div 
-                style={{ 
-                  width: '40px', 
-                  height: '40px', 
-                  borderRadius: '8px', 
-                  background: '#2a2a2a', 
-                  border: '1px solid rgba(255,255,255,0.1)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  overflow: 'hidden' 
-                }}
-              >
-                <img 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBp_v8qgfulFoXebIOzh8QHF_DH_5pn0eOQ9Z18VGEJma03jbwJfgTgYrOZEChowlZ4G1NwaEXsuxtYP_3jVbXXpRIdFYg1x3S-QRGgb7D-73pj7UjAzS98WC6EAh172ghsEmvNO-uBtlDpQlBWU2BX0Fbg8yoDlMm1gRNR4FGiSWvWScjzLkM4cmUQvUjVrZ44EVOjB6V9BoDxROqVcmy966a-LKEFin1irVpEOt_G2YF7XB0tEh4a0oKsibNYApqcPkJu0x9SsMo"
-                  alt="Avatar"
-                />
               </div>
             </div>
           </div>
@@ -168,7 +216,8 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
       
       <main
         style={{
-          marginLeft: isMobile ? 0 : 'var(--sidebar-width)',
+          marginLeft: isRtl ? 0 : (isMobile ? 0 : 'var(--sidebar-width)'),
+          marginRight: isRtl ? (isMobile ? 0 : 'var(--sidebar-width)') : 0,
           padding: isMobile ? '16px' : '32px',
           paddingTop: isMobile ? 'calc(16px + var(--safe-top))' : '96px', // offset fixed top app bar (64px + 32px padding)
           paddingBottom: isMobile ? 'calc(80px + var(--safe-bottom))' : '32px',
@@ -407,25 +456,46 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 </NavLink>
 
                 {isAdmin && (
-                  <NavLink
-                    to="/settings"
-                    onClick={() => setShowMoreMenu(false)}
-                    style={({ isActive }) => ({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                      background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
-                      textDecoration: 'none',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      minHeight: '44px',
-                    })}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>security</span> Security Settings
-                  </NavLink>
+                  <>
+                    <NavLink
+                      to="/employees"
+                      onClick={() => setShowMoreMenu(false)}
+                      style={({ isActive }) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                        background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                        textDecoration: 'none',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        minHeight: '44px',
+                      })}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>badge</span> Employees
+                    </NavLink>
+                    <NavLink
+                      to="/settings"
+                      onClick={() => setShowMoreMenu(false)}
+                      style={({ isActive }) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                        background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                        textDecoration: 'none',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        minHeight: '44px',
+                      })}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>security</span> Security Settings
+                    </NavLink>
+                  </>
                 )}
 
                 <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '8px 0' }} />
@@ -452,6 +522,49 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
             </>
           )}
         </>
+      )}
+
+      {/* First-time Setup Prompt Modal */}
+      {showFirstTimeModal && (
+        <Modal
+          open
+          title={language === 'ar' ? 'تنبيه: ضبط إعدادات النظام واسم السايبر' : 'System Setup Required'}
+          onClose={() => setShowFirstTimeModal(false)}
+          width={480}
+          footer={
+            <Button onClick={() => setShowFirstTimeModal(false)} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+              {language === 'ar' ? 'حسناً، البدء الآن' : 'Got it, let\'s configure'}
+            </Button>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center', padding: '12px 6px' }}>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'var(--accent-cyan-dim)',
+                border: '1px solid var(--accent-cyan)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-cyan)',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>settings</span>
+            </div>
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0', fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif' }}>
+                {language === 'ar' ? 'مرحباً بك في النظام! 👋' : 'Welcome to CCMS! 👋'}
+              </h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                {language === 'ar'
+                  ? 'برجاء إدخال اسم السايبر الخاص بك وشعار الواجهة وإعدادات النظام أولاً لبدء استخدام النظام.'
+                  : 'Please configure your cyber cafe name, brand logo, and system parameters to complete setup.'}
+              </p>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

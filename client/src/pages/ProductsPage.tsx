@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
@@ -14,6 +15,7 @@ import type { Product } from '../types';
 
 export default function ProductsPage() {
   const { toast } = useToast();
+  const { t, language } = useLanguage();
 
   const { data: products, loading, refetch } = useAsync(() => dataService.listProducts(), []);
   const [search, setSearch] = useState('');
@@ -28,27 +30,31 @@ export default function ProductsPage() {
 
   return (
     <Layout
-      title="Product Catalog"
-      subtitle={`${allProducts.length} café product${allProducts.length === 1 ? '' : 's'} available`}
+      title={t('products')}
+      subtitle={
+        language === 'ar'
+          ? `${allProducts.length} منتجات بوفيه متاحة حالياً`
+          : `${allProducts.length} café product${allProducts.length === 1 ? '' : 's'} available`
+      }
       actions={
         <Button
           onClick={() => setCreating(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-          Add Product
+          {language === 'ar' ? 'إضافة منتج' : 'Add Product'}
         </Button>
       }
     >
       {loading ? (
-        <LoadingSpinner label="Loading product catalog…" />
+        <LoadingSpinner label={t('loading')} />
       ) : allProducts.length === 0 ? (
         <div className="ccms-card">
           <EmptyState
-            icon="☕"
-            title="No products yet"
-            description="Add your first café product to start selling."
-            action={<Button onClick={() => setCreating(true)}>Add Product</Button>}
+            icon="local_cafe"
+            title={language === 'ar' ? 'لا توجد منتجات' : 'No products yet'}
+            description={language === 'ar' ? 'أضف أول منتج كافيه لبدء البيع.' : 'Add your first café product to start selling.'}
+            action={<Button onClick={() => setCreating(true)}>{language === 'ar' ? 'إضافة منتج' : 'Add Product'}</Button>}
           />
         </div>
       ) : (
@@ -56,7 +62,7 @@ export default function ProductsPage() {
           {/* Search bar */}
           <div style={{ marginBottom: '24px', maxWidth: '400px' }}>
             <Input
-              placeholder="Search products…"
+              placeholder={language === 'ar' ? 'بحث عن منتجات...' : 'Search products…'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -64,7 +70,7 @@ export default function ProductsPage() {
 
           {filtered.length === 0 ? (
             <div className="ccms-card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-              No products matching "{search}"
+              {language === 'ar' ? `لا توجد منتجات تطابق "${search}"` : `No products matching "${search}"`}
             </div>
           ) : (
             <div
@@ -91,13 +97,13 @@ export default function ProductsPage() {
       {/* Create modal */}
       {creating && (
         <ProductFormModal
-          title="Add New Product"
+          title={language === 'ar' ? 'إضافة منتج جديد' : 'Add New Product'}
           initial={null}
           onClose={() => setCreating(false)}
           onDone={async (payload) => {
             try {
               await dataService.createProduct(payload as { name: string; price: number });
-              toast('Product added', 'success');
+              toast(language === 'ar' ? 'تم إضافة المنتج' : 'Product added', 'success');
               refetch();
               setCreating(false);
             } catch (err) {
@@ -110,13 +116,13 @@ export default function ProductsPage() {
       {/* Edit modal */}
       {editing && (
         <ProductFormModal
-          title={`Edit · ${editing.name}`}
+          title={language === 'ar' ? `تعديل · ${editing.name}` : `Edit · ${editing.name}`}
           initial={editing}
           onClose={() => setEditing(null)}
           onDone={async (payload) => {
             try {
               await dataService.updateProduct(editing.id, payload);
-              toast('Product updated', 'success');
+              toast(language === 'ar' ? 'تم تحديث المنتج' : 'Product updated', 'success');
               refetch();
               setEditing(null);
             } catch (err) {
@@ -130,17 +136,17 @@ export default function ProductsPage() {
       {deleting && (
         <Modal
           open
-          title="Remove Product"
+          title={language === 'ar' ? 'إزالة منتج' : 'Remove Product'}
           onClose={() => setDeleting(null)}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDeleting(null)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setDeleting(null)}>{t('cancel')}</Button>
               <Button
                 variant="danger"
                 onClick={async () => {
                   try {
                     await dataService.deleteProduct(deleting.id);
-                    toast('Product removed', 'success');
+                    toast(language === 'ar' ? 'تم إزالة المنتج' : 'Product removed', 'success');
                     refetch();
                     setDeleting(null);
                   } catch (err) {
@@ -148,14 +154,15 @@ export default function ProductsPage() {
                   }
                 }}
               >
-                Delete
+                {t('delete')}
               </Button>
             </>
           }
         >
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-            Are you sure you want to remove <strong>{deleting.name}</strong>? This product will be
-            permanently deleted. Existing session orders referencing this product will be preserved.
+            {language === 'ar'
+              ? `هل أنت متأكد من حذف المنتج ${deleting.name} نهائياً؟`
+              : `Are you sure you want to remove ${deleting.name}? This product will be permanently deleted.`}
           </p>
         </Modal>
       )}
@@ -200,6 +207,7 @@ function ProductCard({
   onDelete: () => void;
 }) {
   const icon = getProductIcon(product.name);
+  const { language, isRtl } = useLanguage();
 
   return (
     <div
@@ -219,7 +227,8 @@ function ProductCard({
         style={{
           position: 'absolute',
           top: '-30px',
-          right: '-30px',
+          right: isRtl ? 'auto' : '-30px',
+          left: isRtl ? '-30px' : 'auto',
           width: '100px',
           height: '100px',
           borderRadius: '50%',
@@ -260,6 +269,7 @@ function ProductCard({
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
+              textAlign: isRtl ? 'right' : 'left',
             }}
           >
             {product.name}
@@ -270,9 +280,10 @@ function ProductCard({
               color: 'var(--text-secondary)',
               fontFamily: 'JetBrains Mono, monospace',
               marginTop: '2px',
+              textAlign: isRtl ? 'right' : 'left',
             }}
           >
-            Added {new Date(product.created_at).toLocaleDateString()}
+            {language === 'ar' ? 'تمت الإضافة في ' : 'Added '} {new Date(product.created_at).toLocaleDateString()}
           </div>
         </div>
       </div>
@@ -289,7 +300,7 @@ function ProductCard({
           alignItems: 'center',
         }}
       >
-        <span className="ccms-eyebrow">Price</span>
+        <span className="ccms-eyebrow">{language === 'ar' ? 'السعر' : 'Price'}</span>
         <span
           style={{
             fontFamily: 'JetBrains Mono, monospace',
@@ -307,18 +318,18 @@ function ProductCard({
         <Button
           variant="ghost"
           onClick={onEdit}
-          style={{ flex: 1, padding: '8px 12px', fontSize: '11px', minHeight: '34px' }}
+          style={{ flex: 1, padding: '8px 12px', fontSize: '11px', minHeight: '34px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px', marginRight: '6px', verticalAlign: 'middle' }}>edit</span>
-          Edit
+          <span className="material-symbols-outlined" style={{ fontSize: '14px', marginRight: isRtl ? 0 : '6px', marginLeft: isRtl ? '6px' : 0, verticalAlign: 'middle' }}>edit</span>
+          {language === 'ar' ? 'تعديل' : 'Edit'}
         </Button>
         <Button
           variant="danger"
           onClick={onDelete}
-          style={{ flex: 1, padding: '8px 12px', fontSize: '11px', minHeight: '34px' }}
+          style={{ flex: 1, padding: '8px 12px', fontSize: '11px', minHeight: '34px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px', marginRight: '6px', verticalAlign: 'middle' }}>delete</span>
-          Remove
+          <span className="material-symbols-outlined" style={{ fontSize: '14px', marginRight: isRtl ? 0 : '6px', marginLeft: isRtl ? '6px' : 0, verticalAlign: 'middle' }}>delete</span>
+          {language === 'ar' ? 'حذف' : 'Remove'}
         </Button>
       </div>
     </div>
@@ -341,6 +352,7 @@ function ProductFormModal({
   const [name, setName] = useState(initial?.name ?? '');
   const [price, setPrice] = useState(initial ? String(initial.price) : '');
   const [loading, setLoading] = useState(false);
+  const { t, language } = useLanguage();
 
   const isValid = name.trim() && price.trim() && !Number.isNaN(parseFloat(price)) && parseFloat(price) >= 0;
 
@@ -366,23 +378,23 @@ function ProductFormModal({
       width={420}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button loading={loading} disabled={!isValid} onClick={handleSubmit}>
-            {initial ? 'Save' : 'Add Product'}
+            {initial ? t('save') : (language === 'ar' ? 'إضافة منتج' : 'Add Product')}
           </Button>
         </>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <Input
-          label="Product Name"
-          placeholder="e.g. Turkish Coffee"
+          label={language === 'ar' ? 'اسم المنتج' : 'Product Name'}
+          placeholder={language === 'ar' ? 'مثال: قهوة تركي' : 'e.g. Turkish Coffee'}
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
         />
         <Input
-          label="Price ($)"
+          label={language === 'ar' ? 'السعر ($)' : 'Price ($)'}
           type="number"
           step="0.01"
           min="0"

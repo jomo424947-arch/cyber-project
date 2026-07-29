@@ -3,6 +3,7 @@ import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { LoadingSpinner } from './ui/LoadingSpinner';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
@@ -17,6 +18,7 @@ export function AddCafeModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { language, isRtl } = useLanguage();
   const [products, setProducts] = useState<Product[] | null>(null);
   const [existingOrders, setExistingOrders] = useState<SessionOrder[] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,14 +110,20 @@ export function AddCafeModal({
     return existingOrders.reduce((sum, ord) => sum + Number(ord.total_price), 0);
   }, [existingOrders]);
 
+  const clientName = session.customer?.name ?? (language === 'ar' ? 'مستغل خارجي' : 'Walk-in');
+
   return (
     <Modal
       open
-      title={`Add Café · ${session.device?.name ?? 'Device'} (${session.customer?.name ?? 'Walk-in'})`}
+      title={
+        language === 'ar' 
+          ? `إضافة طلبات بوفيه · ${session.device?.name ?? 'جهاز'} (${clientName})`
+          : `Add Café · ${session.device?.name ?? 'Device'} (${clientName})`
+      }
       onClose={onClose}
-      footer={<Button onClick={onClose}>Close</Button>}
+      footer={<Button onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{language === 'ar' ? 'إغلاق' : 'Close'}</Button>}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px', textAlign: isRtl ? 'right' : 'left' }}>
         
         {/* Error alert */}
         {errorMsg && (
@@ -126,10 +134,12 @@ export function AddCafeModal({
 
         {/* Catalog Section */}
         <div>
-          <h3 className="ccms-eyebrow" style={{ marginBottom: '10px' }}>Café Product Catalog</h3>
+          <h3 className="ccms-eyebrow" style={{ marginBottom: '10px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar' ? 'قائمة منتجات البوفيه والكافيه' : 'Café Product Catalog'}
+          </h3>
           <div style={{ marginBottom: '14px' }}>
             <Input
-              placeholder="Search products (e.g. Cola, Chips...)"
+              placeholder={language === 'ar' ? 'ابحث عن منتج (مثال: بيبسي، شيبسي...)' : 'Search products (e.g. Cola, Chips...)'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               disabled={loadingProducts}
@@ -137,10 +147,10 @@ export function AddCafeModal({
           </div>
 
           {loadingProducts ? (
-            <LoadingSpinner label="Loading catalog…" />
+            <LoadingSpinner label={language === 'ar' ? 'جاري تحميل قائمة المنتجات...' : 'Loading catalog…'} />
           ) : filteredProducts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-              No products found matching "{searchQuery}"
+              {language === 'ar' ? `لا توجد منتجات تطابق "${searchQuery}"` : `No products found matching "${searchQuery}"`}
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
@@ -165,7 +175,7 @@ export function AddCafeModal({
                     <div>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
                       <div style={{ fontSize: '12px', color: 'var(--accent-cyan)', fontFamily: 'JetBrains Mono, monospace', marginTop: '2px' }}>
-                        {formatCurrency(p.price)} each
+                        {formatCurrency(p.price)} {language === 'ar' ? 'للوحدة' : 'each'}
                       </div>
                     </div>
 
@@ -175,7 +185,7 @@ export function AddCafeModal({
                         <button
                           type="button"
                           onClick={() => handleDecrement(p.id)}
-                          style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s' }}
+                          style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s', border: 'none', background: 'transparent', cursor: 'pointer' }}
                           disabled={isSubmitting}
                         >
                           -
@@ -193,13 +203,14 @@ export function AddCafeModal({
                             fontWeight: 600,
                             outline: 'none',
                             MozAppearance: 'textfield',
+                            color: '#fff',
                           }}
                           disabled={isSubmitting}
                         />
                         <button
                           type="button"
                           onClick={() => handleIncrement(p.id)}
-                          style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s' }}
+                          style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s', border: 'none', background: 'transparent', cursor: 'pointer' }}
                           disabled={isSubmitting}
                         >
                           +
@@ -215,11 +226,15 @@ export function AddCafeModal({
                           padding: '6px 16px',
                           fontSize: '11px',
                           borderRadius: '6px',
+                          fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                          cursor: 'pointer',
                         }}
                         onClick={() => handleAddProduct(p)}
                         disabled={isSubmitting}
                       >
-                        {isSubmitting ? 'Adding...' : 'Add'}
+                        {isSubmitting 
+                          ? (language === 'ar' ? 'إضافة...' : 'Adding...') 
+                          : (language === 'ar' ? 'إضافة' : 'Add')}
                       </button>
                     </div>
                   </div>
@@ -233,13 +248,15 @@ export function AddCafeModal({
 
         {/* Existing Session Orders Section */}
         <div>
-          <h3 className="ccms-eyebrow" style={{ marginBottom: '10px' }}>Active Session Orders</h3>
+          <h3 className="ccms-eyebrow" style={{ marginBottom: '10px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar' ? 'طلبات البوفيه المضافة للجلسة الحالية' : 'Active Session Orders'}
+          </h3>
           
           {loadingOrders ? (
-            <LoadingSpinner label="Fetching session orders…" />
+            <LoadingSpinner label={language === 'ar' ? 'جاري جلب الطلبات...' : 'Fetching session orders…'} />
           ) : !existingOrders || existingOrders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)', fontSize: '13px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-              No orders added to this session yet.
+              {language === 'ar' ? 'لا توجد أي طلبات مضافة لهذه الجلسة بعد.' : 'No orders added to this session yet.'}
             </div>
           ) : (
             <div style={{ background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-default)', overflow: 'hidden' }}>
@@ -257,7 +274,7 @@ export function AddCafeModal({
                   >
                     <div>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ord.product?.name ?? 'Unknown item'}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: isRtl ? 0 : '8px', marginRight: isRtl ? '8px' : 0 }}>
                         x{ord.quantity}
                       </span>
                     </div>
@@ -278,7 +295,7 @@ export function AddCafeModal({
                     fontWeight: 'bold',
                   }}
                 >
-                  <span style={{ color: 'var(--text-secondary)' }}>Total Café Cost</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'إجمالي حساب البوفيه' : 'Total Café Cost'}</span>
                   <span style={{ color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
                     {formatCurrency(ordersTotal)}
                   </span>

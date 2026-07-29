@@ -168,7 +168,7 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
                     fontStyle: 'italic',
                   }}
                 >
-                  <span style={{ fontSize: '16px', opacity: 0.5 }}>☕</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', opacity: 0.5, color: 'var(--accent-cyan)' }}>local_cafe</span>
                   No café orders yet — click "+ Café" to add drinks & snacks
                 </div>
                 {onEndSession && (
@@ -247,15 +247,15 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
                         e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.06)';
                       }}
                     >
-                      {/* Product emoji/icon */}
+                      {/* Product icon */}
                       <span
+                        className="material-symbols-outlined"
                         style={{
                           fontSize: '18px',
-                          lineHeight: 1,
-                          filter: 'drop-shadow(0 0 4px rgba(0,194,255,0.2))',
+                          color: 'var(--accent-cyan)',
                         }}
                       >
-                        {getProductEmoji(order.product?.name ?? '')}
+                        {getProductMaterialIcon(order.product?.name ?? '')}
                       </span>
 
                       {/* Name & price details */}
@@ -382,19 +382,19 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
   );
 }
 
-/** Maps product name keywords to relevant emoji for visual flair. */
-function getProductEmoji(name: string): string {
+/** Maps product name keywords to relevant Material Symbols icon names. */
+function getProductMaterialIcon(name: string): string {
   const n = name.toLowerCase();
-  if (n.includes('coffee') || n.includes('قهو')) return '☕';
-  if (n.includes('tea') || n.includes('شاي') || n.includes('شاى')) return '🍵';
-  if (n.includes('pepsi') || n.includes('cola') || n.includes('بيبسي') || n.includes('كولا')) return '🥤';
-  if (n.includes('sprite') || n.includes('سبرايت')) return '🍋';
-  if (n.includes('water') || n.includes('مي') || n.includes('ماء')) return '💧';
-  if (n.includes('energy') || n.includes('طاقة') || n.includes('fury')) return '⚡';
-  if (n.includes('chip') || n.includes('شيبس')) return '🍟';
-  if (n.includes('juice') || n.includes('عصير')) return '🧃';
-  if (n.includes('sandwich') || n.includes('ساندوتش')) return '🥪';
-  if (n.includes('chocolate') || n.includes('شوكولا')) return '🍫';
-  if (n.includes('ice') || n.includes('ايس')) return '🧊';
-  return '🧋';
+  if (n.includes('coffee') || n.includes('قهو')) return 'coffee';
+  if (n.includes('tea') || n.includes('شاي') || n.includes('شاى')) return 'emoji_food_beverage';
+  if (n.includes('pepsi') || n.includes('cola') || n.includes('بيبسي') || n.includes('كولا')) return 'local_drink';
+  if (n.includes('sprite') || n.includes('سبرايت')) return 'local_drink';
+  if (n.includes('water') || n.includes('مي') || n.includes('ماء')) return 'water_drop';
+  if (n.includes('energy') || n.includes('طاقة') || n.includes('fury')) return 'bolt';
+  if (n.includes('chip') || n.includes('شيبس')) return 'fastfood';
+  if (n.includes('juice') || n.includes('عصير')) return 'local_drink';
+  if (n.includes('sandwich') || n.includes('ساندوتش')) return 'lunch_dining';
+  if (n.includes('chocolate') || n.includes('شوكولا')) return 'cookie';
+  if (n.includes('ice') || n.includes('ايس')) return 'ac_unit';
+  return 'local_cafe';
 }

@@ -299,10 +299,14 @@ export function DeviceCard({
                 marginTop: '4px',
                 border: '1px dashed var(--border-default)',
                 minHeight: 'auto',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
               }}
               onClick={() => onExtendSession(activeSession)}
             >
-              ➕ Extend 30 Min
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Extend 30 Min
             </button>
           )}
         </div>

@@ -10,6 +10,7 @@ export async function listDevices(req: Request, res: Response) {
   let query = supabase
     .from('devices')
     .select('*')
+    .eq('tenant_id', req.user!.tenant_id)
     .order('name', { ascending: true });
 
   if (!includeArchived) {
@@ -58,6 +59,7 @@ export async function createDevice(req: Request, res: Response) {
       hourly_rate_multi: hourly_rate_multi ?? hourly_rate,
       specs: specs ?? null,
       status: 'available',
+      tenant_id: req.user!.tenant_id,
     })
     .select()
     .single();
@@ -93,6 +95,7 @@ export async function updateDevice(req: Request, res: Response) {
     .from('devices')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select()
     .maybeSingle();
 
@@ -110,6 +113,7 @@ export async function deleteDevice(req: Request, res: Response) {
     .from('sessions')
     .select('id')
     .eq('device_id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .limit(1);
 
   if (sErr) throw sErr;
@@ -119,7 +123,8 @@ export async function deleteDevice(req: Request, res: Response) {
     const { error: updErr } = await supabase
       .from('devices')
       .update({ archived: true, status: 'offline' })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id);
     if (updErr) throw updErr;
     res.json({ message: 'Device archived', action: 'archived' });
   } else {
@@ -127,7 +132,8 @@ export async function deleteDevice(req: Request, res: Response) {
     const { error, count } = await supabase
       .from('devices')
       .delete({ count: 'exact' })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id);
 
     if (error) throw error;
     if (!count) throw notFound('Device not found');

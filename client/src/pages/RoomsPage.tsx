@@ -1,8 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Modal } from '../components/ui/Modal';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import { StatusBadge } from '../components/StatusBadge';
+import { AddCafeModal } from '../components/AddCafeModal';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
@@ -13,20 +18,24 @@ import {
   EndSessionModal,
   EditSessionModal,
 } from '../components/SessionModals';
+import { useLanguage } from '../context/LanguageContext';
 import type { Device, Session } from '../types';
 
-const ROOM_COUNT = 5;
+export interface GamingRoom {
+  id: string;
+  name: string;
+  icon: string;
+  deviceId: string;
+}
 
-// Unified Cyan Theme elements for CCMS aesthetics
-const ROOM_ACCENT_COLOR = 'var(--accent-cyan)';
-const ROOM_GRADIENT = 'linear-gradient(135deg, rgba(0, 194, 255, 0.15), rgba(0, 112, 255, 0.05))';
-
-const ROOM_ICONS = [
-  'sports_esports',
-  'videogame_asset',
-  'stadia_controller',
-  'gamepad',
-  'joystick',
+const AVAILABLE_ROOM_ICONS = [
+  { id: 'sports_esports', label: 'PlayStation / Console' },
+  { id: 'videogame_asset', label: 'Gamepad' },
+  { id: 'stadia_controller', label: 'Pro Controller' },
+  { id: 'desktop_windows', label: 'PC Station' },
+  { id: 'tv', label: 'TV Screen' },
+  { id: 'vrpano', label: 'VR Zone' },
+  { id: 'meeting_room', label: 'VIP Lounge' },
 ];
 
 type PlayMode = 'single' | 'multiplayer';
@@ -34,6 +43,7 @@ type PlayMode = 'single' | 'multiplayer';
 export default function RoomsPage() {
   const now = useNow(1000);
   const { toast } = useToast();
+  const { t, language, isRtl } = useLanguage();
 
   const { data, loading, refetch } = useAsync(async () => {
     const [devices, sessions] = await Promise.all([
@@ -49,43 +59,70 @@ export default function RoomsPage() {
     return map;
   }, [data]);
 
-  // Load custom room device assignments from localStorage
-  const [roomDeviceIds, setRoomDeviceIds] = useState<Record<number, string>>(() => {
+  // Load custom rooms from localStorage — Default is 0 rooms (empty array)
+  const [rooms, setRooms] = useState<GamingRoom[]>(() => {
     try {
-      const saved = localStorage.getItem('ccms_room_device_ids');
-      return saved ? JSON.parse(saved) : {};
+      const saved = localStorage.getItem('ccms_gaming_rooms');
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return {};
+      return [];
     }
   });
 
-  // Play mode per room (frontend-only state)
-  const [playModes, setPlayModes] = useState<Record<number, PlayMode>>({});
+  // Persist rooms to localStorage
+  useEffect(() => {
+    localStorage.setItem('ccms_gaming_rooms', JSON.stringify(rooms));
+  }, [rooms]);
 
+  // Play mode per room ID
+  const [playModes, setPlayModes] = useState<Record<string, PlayMode>>({});
+
+  // Modals state
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<GamingRoom | null>(null);
+  const [deletingRoom, setDeletingRoom] = useState<GamingRoom | null>(null);
+
+  // Session targets
   const [startTarget, setStartTarget] = useState<Device | null>(null);
   const [startPlayMode, setStartPlayMode] = useState<PlayMode>('single');
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
+  const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
 
-  // Initialize defaults if room assignment is empty
-  useMemo(() => {
-    if (!data?.devices) return;
-    let updated = false;
-    const nextIds = { ...roomDeviceIds };
-    for (let r = 1; r <= ROOM_COUNT; r++) {
-      if (!nextIds[r]) {
-        const dev = data.devices[r - 1];
-        if (dev) {
-          nextIds[r] = dev.id;
-          updated = true;
-        }
-      }
+  const handleCreateOrUpdateRoom = (roomData: Omit<GamingRoom, 'id'> & { id?: string }) => {
+    if (roomData.id) {
+      // Edit existing room
+      setRooms((prev) =>
+        prev.map((r) => (r.id === roomData.id ? { ...(roomData as GamingRoom) } : r))
+      );
+      toast(language === 'ar' ? 'تم تحديث بيانات الغرفة' : 'Room updated', 'success');
+    } else {
+      // Add new room
+      const newRoom: GamingRoom = {
+        id: 'room_' + Date.now(),
+        name: roomData.name,
+        icon: roomData.icon || 'sports_esports',
+        deviceId: roomData.deviceId || '',
+      };
+      setRooms((prev) => [...prev, newRoom]);
+      toast(language === 'ar' ? 'تم إضافة الغرفة الجديدة بنجاح' : 'New room added', 'success');
     }
-    if (updated) {
-      setRoomDeviceIds(nextIds);
-      localStorage.setItem('ccms_room_device_ids', JSON.stringify(nextIds));
-    }
-  }, [data?.devices]);
+    setShowRoomModal(false);
+    setEditingRoom(null);
+  };
+
+  const handleDeleteRoom = (roomId: string) => {
+    setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    toast(language === 'ar' ? 'تم حذف الغرفة' : 'Room deleted', 'success');
+    setDeletingRoom(null);
+  };
+
+  const handleDeviceChange = (roomId: string, deviceId: string) => {
+    setRooms((prev) =>
+      prev.map((r) => (r.id === roomId ? { ...r, deviceId } : r))
+    );
+    toast(language === 'ar' ? 'تم تغيير جهاز الغرفة' : 'Room device updated', 'success');
+  };
 
   const handleAction = async (device: Device) => {
     if (device.status === 'in_use') {
@@ -110,98 +147,125 @@ export default function RoomsPage() {
     }
   };
 
-  const handleDeviceChange = (roomNumber: number, deviceId: string) => {
-    // Check if this device is already selected in another room
-    const currentAssignments = { ...roomDeviceIds };
-    
-    // Update mapping
-    currentAssignments[roomNumber] = deviceId;
-    setRoomDeviceIds(currentAssignments);
-    localStorage.setItem('ccms_room_device_ids', JSON.stringify(currentAssignments));
-    
-    toast(`Room ${roomNumber} device updated`, 'success');
-  };
-
-  const rooms = useMemo(() => {
-    const devices = data?.devices ?? [];
-    return Array.from({ length: ROOM_COUNT }, (_, i) => {
-      const roomNumber = i + 1;
-      const assignedDeviceId = roomDeviceIds[roomNumber];
-      const device = devices.find((d) => d.id === assignedDeviceId) || null;
-      return {
-        number: roomNumber,
-        device,
-        session: device ? activeByDevice.get(device.id) : undefined,
-      };
-    });
-  }, [data, activeByDevice, roomDeviceIds]);
-
   if (loading || !data) {
     return (
-      <Layout title="Gaming Rooms" subtitle="Loading rooms…">
-        <LoadingSpinner label="Loading rooms…" />
+      <Layout title={t('rooms')} subtitle={t('loading')}>
+        <LoadingSpinner label={t('loading')} />
       </Layout>
     );
   }
 
+  const availableDevicesCount = (data.devices ?? []).filter((d) => d.status === 'available').length;
+
   return (
     <Layout
-      title="Gaming Rooms"
-      subtitle={`${ROOM_COUNT} rooms · ${rooms.filter((r) => r.device?.status === 'available').length} available`}
+      title={t('rooms')}
+      subtitle={
+        language === 'ar'
+          ? `${rooms.length} غرف مسجلة · ${availableDevicesCount} أجهزة متاحة`
+          : `${rooms.length} rooms · ${availableDevicesCount} available devices`
+      }
       actions={
-        <button
-          className="ccms-btn ccms-btn-ghost"
-          onClick={refetch}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
-          Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Button
+            onClick={() => {
+              setEditingRoom(null);
+              setShowRoomModal(true);
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+            {language === 'ar' ? 'إضافة غرفة جديدة' : 'Add New Room'}
+          </Button>
+
+          <button
+            className="ccms-btn ccms-btn-ghost"
+            onClick={refetch}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+            {language === 'ar' ? 'تحديث' : 'Refresh'}
+          </button>
+        </div>
       }
     >
-      {data.devices.length === 0 ? (
-        <div className="ccms-card">
+      {rooms.length === 0 ? (
+        <div className="ccms-card" style={{ padding: '64px 24px', textAlign: 'center' }}>
           <EmptyState
-            icon="🚪"
-            title="No devices available"
-            description="Add devices from the Settings page to assign rooms."
+            icon="meeting_room"
+            title={language === 'ar' ? 'لا توجد غرف أو صالات ألعاب مضافة' : 'No Gaming Rooms Added'}
+            description={
+              language === 'ar'
+                ? 'قم بإنشاء صالاتك وغرفك الخاصة لتسهيل إدارة أجهزة البلايستيشن والكمبيوتر والجلسات.'
+                : 'Create your custom gaming rooms to easily manage consoles, PCs, and gaming sessions.'
+            }
+            action={
+              <Button
+                onClick={() => {
+                  setEditingRoom(null);
+                  setShowRoomModal(true);
+                }}
+                style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>add</span>
+                {language === 'ar' ? 'إضافة غرفة جديدة' : 'Add New Room'}
+              </Button>
+            }
           />
         </div>
       ) : (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
             gap: '24px',
           }}
         >
           {rooms.map((room, i) => {
-            const isActive = room.device?.status === 'in_use';
-            const playMode = playModes[i] ?? 'single';
+            const device = data.devices.find((d) => d.id === room.deviceId) || null;
+            const session = device ? activeByDevice.get(device.id) : undefined;
+            const isActive = device?.status === 'in_use';
+            const playMode = playModes[room.id] ?? 'single';
 
             return (
               <div
-                key={i}
+                key={room.id}
                 className="ccms-card ccms-card-hover ccms-stagger"
                 style={{
                   padding: 0,
                   overflow: 'hidden',
-                  borderLeft: `3px solid ${ROOM_ACCENT_COLOR}`,
-                  animationDelay: `${i * 80}ms`,
+                  borderRadius: '16px',
+                  border: isActive ? '1px solid rgba(0, 194, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  animationDelay: `${i * 60}ms`,
                   boxShadow: isActive
-                    ? `0 4px 24px rgba(0,0,0,0.4), -2px 0 16px rgba(0, 194, 255, 0.15)`
-                    : undefined,
+                    ? '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 194, 255, 0.15)'
+                    : '0 4px 20px rgba(0, 0, 0, 0.3)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
                 }}
               >
+                {/* Accent top line */}
+                <div
+                  style={{
+                    height: '3px',
+                    width: '100%',
+                    background: isActive
+                      ? 'linear-gradient(90deg, var(--accent-cyan), var(--accent-purple))'
+                      : device?.status === 'available'
+                      ? 'var(--accent-green)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  }}
+                />
+
                 {/* Room header */}
                 <div
                   style={{
-                    background: ROOM_GRADIENT,
+                    background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.08) 0%, rgba(54, 38, 206, 0.04) 100%)',
                     padding: '20px 24px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    borderBottom: '1px solid var(--border-default)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -210,104 +274,149 @@ export default function RoomsPage() {
                         width: '48px',
                         height: '48px',
                         borderRadius: '12px',
-                        background: 'rgba(0, 194, 255, 0.1)',
-                        border: '1px solid rgba(0, 194, 255, 0.25)',
+                        background: 'rgba(0, 194, 255, 0.12)',
+                        border: '1px solid rgba(0, 194, 255, 0.3)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        boxShadow: '0 0 12px rgba(0, 194, 255, 0.15)',
                       }}
                     >
                       <span
                         className="material-symbols-outlined"
-                        style={{ fontSize: '24px', color: ROOM_ACCENT_COLOR }}
+                        style={{ fontSize: '26px', color: 'var(--accent-cyan)' }}
                       >
-                        {ROOM_ICONS[i]}
+                        {room.icon || 'sports_esports'}
                       </span>
                     </div>
                     <div>
-                      <div
+                      <h3
                         style={{
                           fontFamily: 'Space Grotesk, sans-serif',
-                          fontSize: '22px',
+                          fontSize: '20px',
                           fontWeight: 700,
                           color: 'var(--text-primary)',
+                          margin: 0,
+                          lineHeight: 1.2,
                         }}
                       >
-                        Room {room.number}
-                      </div>
+                        {room.name}
+                      </h3>
                       <div
                         style={{
                           fontFamily: 'JetBrains Mono, monospace',
                           fontSize: '11px',
                           color: 'var(--text-secondary)',
-                          letterSpacing: '0.05em',
-                          marginTop: '2px',
+                          marginTop: '4px',
+                          fontWeight: 600,
                         }}
                       >
-                        {room.device ? room.device.name : 'UNASSIGNED'}
+                        {device ? device.name : (language === 'ar' ? 'غير معين' : 'UNASSIGNED')}
                       </div>
                     </div>
                   </div>
-                  {room.device && <StatusBadge status={room.device.status} />}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {device && <StatusBadge status={device.status} />}
+                    
+                    {/* Room actions menu */}
+                    <button
+                      onClick={() => {
+                        setEditingRoom(room);
+                        setShowRoomModal(true);
+                      }}
+                      title={language === 'ar' ? 'تعديل الغرفة' : 'Edit Room'}
+                      style={{
+                        padding: '6px',
+                        color: 'var(--text-muted)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'color 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-cyan)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
+                    </button>
+
+                    <button
+                      onClick={() => setDeletingRoom(room)}
+                      title={language === 'ar' ? 'حذف الغرفة' : 'Delete Room'}
+                      style={{
+                        padding: '6px',
+                        color: 'var(--text-muted)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'color 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-red)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Room body */}
                 <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Device Assignment Selector */}
+                  {/* Device Selector */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <span className="ccms-eyebrow">Room Device</span>
+                    <label className="ccms-eyebrow">{language === 'ar' ? 'جهاز الغرفة' : 'Room Device'}</label>
                     <select
-                      value={room.device?.id ?? ''}
-                      onChange={(e) => handleDeviceChange(room.number, e.target.value)}
+                      value={room.deviceId}
+                      onChange={(e) => handleDeviceChange(room.id, e.target.value)}
                       disabled={isActive}
                       style={{
                         width: '100%',
-                        padding: '10px 12px',
+                        padding: '10px 14px',
                         fontSize: '13px',
                         fontWeight: 600,
-                        fontFamily: 'JetBrains Mono, monospace',
+                        fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
                         background: 'var(--bg-input)',
-                        border: '1px solid var(--border-default)',
-                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
                         color: 'var(--text-primary)',
                         cursor: isActive ? 'not-allowed' : 'pointer',
                         outline: 'none',
-                        transition: 'border-color 0.2s',
+                        transition: 'all 0.2s ease',
                       }}
                     >
-                      <option value="">-- Assign Device --</option>
+                      <option value="">{language === 'ar' ? '-- تعيين جهاز للغرفة --' : '-- Assign a device --'}</option>
                       {(data?.devices ?? []).map((dev) => {
-                        const assignedToRoom = Object.entries(roomDeviceIds).find(
-                          ([roomNumKey, dId]) => dId === dev.id && Number(roomNumKey) !== room.number
+                        const assignedToOtherRoom = rooms.find(
+                          (other) => other.deviceId === dev.id && other.id !== room.id
                         );
-                        const assignedSuffix = assignedToRoom
-                          ? ` (Assigned to Room ${assignedToRoom[0]})`
+                        const suffix = assignedToOtherRoom
+                          ? (language === 'ar' ? ` (معين في ${assignedToOtherRoom.name})` : ` (Assigned to ${assignedToOtherRoom.name})`)
                           : '';
                         return (
                           <option key={dev.id} value={dev.id}>
-                            {dev.name} ({dev.type.toUpperCase()}){assignedSuffix}
+                            {dev.name} ({dev.type.toUpperCase()}){suffix}
                           </option>
                         );
                       })}
                     </select>
                   </div>
 
-                  {!room.device ? (
+                  {!device ? (
                     <div
                       style={{
                         textAlign: 'center',
-                        padding: '20px 16px',
+                        padding: '24px 16px',
                         color: 'var(--text-secondary)',
                         fontSize: '13px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderRadius: '10px',
+                        border: '1px dashed rgba(255, 255, 255, 0.08)',
                       }}
                     >
                       <span
                         className="material-symbols-outlined"
-                        style={{ fontSize: '32px', display: 'block', marginBottom: '8px', opacity: 0.3 }}
+                        style={{ fontSize: '32px', display: 'block', marginBottom: '8px', opacity: 0.4, color: 'var(--accent-cyan)' }}
                       >
                         devices
                       </span>
-                      Assign a device above to configure the room.
+                      {language === 'ar' ? 'قم بتعيين جهاز من القائمة أعلاه لبدء تشغيل الغرفة.' : 'Assign a device above to configure this room.'}
                     </div>
                   ) : (
                     <>
@@ -317,106 +426,111 @@ export default function RoomsPage() {
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          padding: '8px 0',
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                          padding: '10px 14px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255, 255, 255, 0.04)',
                         }}
                       >
-                        <span className="ccms-eyebrow">Hourly Rate</span>
+                        <span className="ccms-eyebrow">{language === 'ar' ? 'سعر الساعة' : 'Hourly Rate'}</span>
                         <span
                           style={{
                             fontFamily: 'JetBrains Mono, monospace',
-                            fontSize: '13px',
-                            color: ROOM_ACCENT_COLOR,
-                            fontWeight: 600,
+                            fontSize: '14px',
+                            color: 'var(--accent-cyan)',
+                            fontWeight: 700,
                           }}
                         >
-                          {formatCurrency(playMode === 'multiplayer' ? room.device.hourly_rate_multi : room.device.hourly_rate)}/hr
+                          {formatCurrency(playMode === 'multiplayer' ? device.hourly_rate_multi : device.hourly_rate)}/{language === 'ar' ? 'ساعة' : 'hr'}
                         </span>
                       </div>
 
                       {/* Play Mode Toggle */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <span className="ccms-eyebrow">Play Mode</span>
+                        <span className="ccms-eyebrow">{language === 'ar' ? 'طريقة اللعب' : 'Play Mode'}</span>
                         <div
                           style={{
                             display: 'flex',
                             borderRadius: '8px',
                             overflow: 'hidden',
                             border: '1px solid var(--border-default)',
+                            background: 'var(--bg-input)',
                           }}
                         >
                           <button
                             type="button"
-                            onClick={() => setPlayModes((p) => ({ ...p, [i]: 'single' }))}
+                            onClick={() => setPlayModes((p) => ({ ...p, [room.id]: 'single' }))}
                             style={{
                               flex: 1,
                               padding: '8px 12px',
                               fontSize: '12px',
                               fontWeight: 600,
-                              fontFamily: 'JetBrains Mono, monospace',
-                              letterSpacing: '0.03em',
+                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
                               border: 'none',
                               cursor: 'pointer',
                               transition: 'all 0.2s ease',
-                              background: playMode === 'single' ? 'rgba(0, 194, 255, 0.15)' : 'transparent',
-                              color: playMode === 'single' ? ROOM_ACCENT_COLOR : 'var(--text-secondary)',
-                              borderRight: '1px solid var(--border-default)',
+                              background: playMode === 'single' ? 'var(--accent-cyan-dim)' : 'transparent',
+                              color: playMode === 'single' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '6px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '6px', marginLeft: isRtl ? '6px' : 0 }}>
                               person
                             </span>
-                            Single
+                            {language === 'ar' ? 'فردي' : 'Single'}
                           </button>
                           <button
                             type="button"
-                            onClick={() => setPlayModes((p) => ({ ...p, [i]: 'multiplayer' }))}
+                            onClick={() => setPlayModes((p) => ({ ...p, [room.id]: 'multiplayer' }))}
                             style={{
                               flex: 1,
                               padding: '8px 12px',
                               fontSize: '12px',
                               fontWeight: 600,
-                              fontFamily: 'JetBrains Mono, monospace',
-                              letterSpacing: '0.03em',
+                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
                               border: 'none',
                               cursor: 'pointer',
                               transition: 'all 0.2s ease',
-                              background: playMode === 'multiplayer' ? 'rgba(0, 194, 255, 0.15)' : 'transparent',
-                              color: playMode === 'multiplayer' ? ROOM_ACCENT_COLOR : 'var(--text-secondary)',
+                              background: playMode === 'multiplayer' ? 'rgba(54, 38, 206, 0.25)' : 'transparent',
+                              color: playMode === 'multiplayer' ? 'var(--accent-purple)' : 'var(--text-secondary)',
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '6px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '6px', marginLeft: isRtl ? '6px' : 0 }}>
                               group
                             </span>
-                            Multi
+                            {language === 'ar' ? 'جماعي' : 'Multi'}
                           </button>
                         </div>
                       </div>
 
-                      {/* Active Session Info */}
-                      {isActive && room.session && (
+                      {/* Active Session Info Panel */}
+                      {isActive && session && (
                         <div
                           style={{
-                            padding: '14px',
+                            padding: '14px 16px',
                             background: 'var(--bg-elevated)',
-                            borderRadius: '8px',
-                            border: '1px solid var(--border-default)',
+                            borderRadius: '10px',
+                            border: '1px solid rgba(0, 194, 255, 0.2)',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '8px',
+                            gap: '10px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span className="ccms-eyebrow">Customer</span>
-                            <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600 }}>
-                              {room.session.customer ? `@${room.session.customer.username}` : 'Walk-in'}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span className="ccms-eyebrow">{language === 'ar' ? 'العميل' : 'Customer'}</span>
+                            <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 700 }}>
+                              {session.customer?.name && session.customer.name !== 'Walk-in'
+                                ? session.customer.name
+                                : session.customer?.username && !session.customer.username.startsWith('walkin_')
+                                ? `@${session.customer.username}`
+                                : (language === 'ar' ? 'عميل بدون حساب' : 'Walk-in')}
                             </span>
                           </div>
 
                           {/* Timer */}
-                          {room.session.session_type === 'fixed' && room.session.scheduled_end ? (
+                          {session.session_type === 'fixed' && session.scheduled_end ? (
                             (() => {
-                              const endTime = new Date(room.session.scheduled_end!).getTime();
+                              const endTime = new Date(session.scheduled_end!).getTime();
                               const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
                               const isOvertime = now >= endTime;
                               const hrs = Math.floor(remaining / 3600);
@@ -430,11 +544,11 @@ export default function RoomsPage() {
                                 const eSecs = elapsed % 60;
                                 return (
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span className="ccms-eyebrow" style={{ color: 'var(--accent-red)' }}>OVERTIME</span>
+                                    <span className="ccms-eyebrow" style={{ color: 'var(--accent-red)' }}>{language === 'ar' ? 'وقت إضافي' : 'OVERTIME'}</span>
                                     <span style={{
-                                      fontFamily: 'JetBrains Mono, monospace', fontSize: '14px',
+                                      fontFamily: 'JetBrains Mono, monospace', fontSize: '16px',
                                       color: 'var(--accent-red)', fontWeight: 'bold',
-                                      textShadow: '0 0 8px rgba(255,68,102,0.4)',
+                                      textShadow: '0 0 10px rgba(239, 68, 68, 0.4)',
                                     }}>
                                       +{eHrs > 0 ? eHrs + ':' : ''}{eMins.toString().padStart(2, '0')}:{eSecs.toString().padStart(2, '0')}
                                     </span>
@@ -444,10 +558,10 @@ export default function RoomsPage() {
 
                               return (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                  <span className="ccms-eyebrow">Remaining</span>
+                                  <span className="ccms-eyebrow">{language === 'ar' ? 'المتبقي' : 'Remaining'}</span>
                                   <span style={{
-                                    fontFamily: 'JetBrains Mono, monospace', fontSize: '14px',
-                                    color: ROOM_ACCENT_COLOR, fontWeight: 600,
+                                    fontFamily: 'JetBrains Mono, monospace', fontSize: '16px',
+                                    color: 'var(--accent-cyan)', fontWeight: 700,
                                   }}>
                                     {hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
                                   </span>
@@ -456,62 +570,85 @@ export default function RoomsPage() {
                             })()
                           ) : (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                              <span className="ccms-eyebrow">Elapsed</span>
+                              <span className="ccms-eyebrow">{language === 'ar' ? 'المنقضي' : 'Elapsed'}</span>
                               <span style={{
-                                fontFamily: 'JetBrains Mono, monospace', fontSize: '14px',
-                                color: 'var(--accent-green)', fontWeight: 600,
+                                fontFamily: 'JetBrains Mono, monospace', fontSize: '16px',
+                                color: 'var(--accent-green)', fontWeight: 700,
                               }}>
-                                {formatElapsed(room.session.started_at, now)}
+                                {formatElapsed(session.started_at, now)}
                               </span>
                             </div>
                           )}
+
+                          {/* Quick Cafe Order button */}
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              className="ccms-btn ccms-btn-ghost"
+                              style={{
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                minHeight: '28px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                borderColor: 'var(--accent-cyan)',
+                                color: 'var(--accent-cyan)',
+                                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                              }}
+                              onClick={() => setCafeTarget(session)}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
+                              {language === 'ar' ? 'مشروب +' : '+ Café'}
+                            </button>
+                          </div>
                         </div>
                       )}
 
                       {/* Action Button */}
-                      <div style={{ marginTop: 'auto' }}>
-                        {room.device.status === 'available' && (
+                      <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                        {device.status === 'available' && (
                           <button
                             className="ccms-btn ccms-btn-primary"
                             style={{
                               width: '100%',
                               padding: '10px 16px',
-                              fontSize: '12px',
+                              fontSize: '13px',
                               fontWeight: 700,
-                              letterSpacing: '0.05em',
-                              background: `linear-gradient(135deg, ${ROOM_ACCENT_COLOR}, rgba(0, 194, 255, 0.75))`,
                               border: 'none',
+                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
                             }}
                             onClick={() => {
                               setStartPlayMode(playMode);
-                              handleAction(room.device!);
+                              handleAction(device);
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '8px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>
                               play_arrow
                             </span>
-                            Start Session
+                            {language === 'ar' ? 'بدء اللعب' : 'Start Session'}
                           </button>
                         )}
-                        {room.device.status === 'in_use' && (
+
+                        {device.status === 'in_use' && (
                           <button
                             className="ccms-btn ccms-btn-danger"
                             style={{
                               width: '100%',
                               padding: '10px 16px',
-                              fontSize: '12px',
+                              fontSize: '13px',
                               fontWeight: 700,
-                              letterSpacing: '0.05em',
+                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
                             }}
-                            onClick={() => handleAction(room.device!)}
+                            onClick={() => handleAction(device)}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '8px' }}>
-                              stop
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>
+                              stop_circle
                             </span>
-                            End Session
+                            {language === 'ar' ? 'إنهاء الجلسة' : 'End Session'}
                           </button>
                         )}
-                        {room.device.status !== 'available' && room.device.status !== 'in_use' && (
+
+                        {device.status !== 'available' && device.status !== 'in_use' && (
                           <div
                             style={{
                               textAlign: 'center',
@@ -521,7 +658,9 @@ export default function RoomsPage() {
                               fontStyle: 'italic',
                             }}
                           >
-                            {room.device.status === 'reserved' ? 'Reserved' : 'Offline'}
+                            {device.status === 'reserved'
+                              ? (language === 'ar' ? 'محجوز' : 'Reserved')
+                              : (language === 'ar' ? 'غير متصل' : 'Offline')}
                           </div>
                         )}
                       </div>
@@ -532,6 +671,45 @@ export default function RoomsPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Add / Edit Room Modal */}
+      {showRoomModal && (
+        <RoomFormModal
+          initial={editingRoom}
+          devices={data.devices}
+          rooms={rooms}
+          onClose={() => {
+            setShowRoomModal(false);
+            setEditingRoom(null);
+          }}
+          onSave={handleCreateOrUpdateRoom}
+        />
+      )}
+
+      {/* Delete Room Confirmation Modal */}
+      {deletingRoom && (
+        <Modal
+          open
+          title={language === 'ar' ? 'تأكيد حذف الغرفة' : 'Confirm Delete Room'}
+          onClose={() => setDeletingRoom(null)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setDeletingRoom(null)} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+                {t('cancel')}
+              </Button>
+              <Button variant="danger" onClick={() => handleDeleteRoom(deletingRoom.id)} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+                {t('delete')}
+              </Button>
+            </>
+          }
+        >
+          <p style={{ color: 'var(--text-primary)', fontSize: '14px', margin: 0 }}>
+            {language === 'ar'
+              ? `هل أنت أيد أنك تريد حذف "${deletingRoom.name}"؟ لن يؤثر هذا على الجهاز نفسه.`
+              : `Are you sure you want to delete "${deletingRoom.name}"? This will not remove the assigned device.`}
+          </p>
+        </Modal>
       )}
 
       {/* Start session modal */}
@@ -573,6 +751,127 @@ export default function RoomsPage() {
           }}
         />
       )}
+
+      {/* Quick Cafe Order Modal */}
+      {cafeTarget && (
+        <AddCafeModal
+          session={cafeTarget}
+          onClose={() => setCafeTarget(null)}
+          onDone={() => {
+            toast(language === 'ar' ? 'تم إضافة الطلب إلى الفاتورة' : 'Café item added to session', 'success');
+            refetch();
+          }}
+        />
+      )}
     </Layout>
+  );
+}
+
+function RoomFormModal({
+  initial,
+  devices,
+  rooms,
+  onClose,
+  onSave,
+}: {
+  initial: GamingRoom | null;
+  devices: Device[];
+  rooms: GamingRoom[];
+  onClose: () => void;
+  onSave: (data: Omit<GamingRoom, 'id'> & { id?: string }) => void;
+}) {
+  const { t, language, isRtl } = useLanguage();
+  const [name, setName] = useState(initial?.name ?? `غرفة ${rooms.length + 1}`);
+  const [icon, setIcon] = useState(initial?.icon ?? 'sports_esports');
+  const [deviceId, setDeviceId] = useState(initial?.deviceId ?? '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({
+      id: initial?.id,
+      name: name.trim(),
+      icon,
+      deviceId,
+    });
+  };
+
+  return (
+    <Modal
+      open
+      title={
+        initial
+          ? language === 'ar' ? `تعديل ${initial.name}` : `Edit ${initial.name}`
+          : language === 'ar' ? 'إضافة غرفة ألعاب جديدة' : 'Add New Gaming Room'
+      }
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {t('cancel')}
+          </Button>
+          <Button onClick={handleSubmit} disabled={!name.trim()} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {initial ? t('save') : (language === 'ar' ? 'إضافة الغرفة' : 'Add Room')}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <Input
+          label={language === 'ar' ? 'اسم الغرفة / الصالة' : 'Room Name'}
+          placeholder="مثال: غرفة 1، صالة VIP، بلايستيشن 1"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          required
+        />
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label className="ccms-eyebrow">{language === 'ar' ? 'أيقونة الغرفة' : 'Room Symbol'}</label>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {AVAILABLE_ROOM_ICONS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setIcon(item.id)}
+                title={item.label}
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '10px',
+                  border: icon === item.id ? '2px solid var(--accent-cyan)' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: icon === item.id ? 'rgba(0, 194, 255, 0.15)' : 'var(--bg-input)',
+                  color: icon === item.id ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  boxShadow: icon === item.id ? '0 0 10px rgba(0, 194, 255, 0.3)' : 'none',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>{item.id}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Select
+          label={language === 'ar' ? 'تخصيص جهاز للغرفة' : 'Assign Device'}
+          value={deviceId}
+          onChange={(e) => setDeviceId(e.target.value)}
+        >
+          <option value="">{language === 'ar' ? '-- بدون جهاز (غير معين) --' : '-- No Device (Unassigned) --'}</option>
+          {devices.map((dev) => {
+            const assignedOther = rooms.find((r) => r.deviceId === dev.id && r.id !== initial?.id);
+            return (
+              <option key={dev.id} value={dev.id}>
+                {dev.name} ({dev.type.toUpperCase()}){assignedOther ? ` (${language === 'ar' ? 'معين في ' + assignedOther.name : 'Assigned to ' + assignedOther.name})` : ''}
+              </option>
+            );
+          })}
+        </Select>
+      </form>
+    </Modal>
   );
 }

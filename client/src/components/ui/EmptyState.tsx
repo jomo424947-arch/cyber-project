@@ -40,7 +40,13 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
             marginBottom: '4px',
           }}
         >
-          {icon}
+          {typeof icon === 'string' ? (
+            <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
+              {icon}
+            </span>
+          ) : (
+            icon
+          )}
         </div>
       )}
       <h3 style={{ color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, margin: 0 }}>

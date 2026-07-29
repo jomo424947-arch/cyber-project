@@ -122,6 +122,7 @@ export interface StartSessionPayload {
   customer_name?: string;
   customer_phone?: string;
   session_type?: 'open' | 'fixed';
+  play_mode?: 'single' | 'multiplayer';
   started_at?: string;
   scheduled_end?: string;
   hourly_rate_override?: number | null;

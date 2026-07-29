@@ -59,7 +59,7 @@ export function Modal({ open, title, onClose, children, footer, width = 480 }: M
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: isMobile ? 'calc(100vh - 40px + var(--safe-top))' : 'none',
+          maxHeight: isMobile ? 'calc(100vh - 40px + var(--safe-top))' : 'calc(100vh - 48px)',
           animation: isMobile ? 'slide-up 0.25s ease-out both' : 'fade-in-up 0.25s ease-out both',
         }}
       >
@@ -83,8 +83,8 @@ export function Modal({ open, title, onClose, children, footer, width = 480 }: M
           >
             {title}
           </h2>
-          <Button variant="ghost" onClick={onClose} aria-label="Close" style={{ padding: '6px 10px', minHeight: '36px' }}>
-            ✕
+          <Button variant="ghost" onClick={onClose} aria-label="Close" style={{ padding: '6px 10px', minHeight: '36px', display: 'inline-flex', alignItems: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
           </Button>
         </div>
 
