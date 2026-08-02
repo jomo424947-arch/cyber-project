@@ -14,6 +14,8 @@
     "dev:client": "npm run dev -w client",
     "dist": "npm run build && npm run dist -w client",
     "build": "npm run build -w server && npm run build -w client",
+    "build:server": "npm run build -w server",
+    "start": "npm start -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
   },
   "devDependencies": {
