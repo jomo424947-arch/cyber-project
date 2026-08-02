@@ -26,7 +26,8 @@ export async function listDevices(req: Request, res: Response) {
     const { data: sessionData, error: scError } = await supabase
       .from('sessions')
       .select('device_id')
-      .in('device_id', deviceIds);
+      .in('device_id', deviceIds)
+      .eq('tenant_id', req.user!.tenant_id);
 
     const historyMap = new Set<string>();
     if (!scError && sessionData) {
@@ -83,6 +84,20 @@ export async function updateDevice(req: Request, res: Response) {
     }
   }
 
+  if (status === 'offline' || status === 'maintenance') {
+    const { data: activeSess } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('device_id', id)
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .maybeSingle();
+
+    if (activeSess) {
+      throw badRequest(`Cannot set device status to '${status}' while an active session is in progress`);
+    }
+  }
+
   const patch: Record<string, unknown> = {};
   if (name !== undefined) patch.name = name;
   if (type !== undefined) patch.type = type;
@@ -108,7 +123,15 @@ export async function updateDevice(req: Request, res: Response) {
 export async function deleteDevice(req: Request, res: Response) {
   const { id } = req.params;
 
-  // Check if device has any session history
+  // 1. Auto-end active sessions on this device
+  await supabase
+    .from('sessions')
+    .update({ status: 'ended', ended_at: new Date().toISOString() })
+    .eq('device_id', id)
+    .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id);
+
+  // 2. Check if device has any session history
   const { data: sessions, error: sErr } = await supabase
     .from('sessions')
     .select('id')

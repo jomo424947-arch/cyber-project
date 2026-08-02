@@ -17,7 +17,7 @@ const STORAGE_WALLET_QR_KEY = 'ccms_wallet_qr';
 const STORAGE_WALLET_PHONE_KEY = 'ccms_wallet_phone';
 const STORAGE_BANK_DETAILS_KEY = 'ccms_bank_details';
 
-const DEFAULT_SYSTEM_NAME = '';
+const DEFAULT_SYSTEM_NAME = 'CCMS';
 const DEFAULT_SYSTEM_LOGO = '';
 
 const SystemSettingsContext = createContext<SystemSettingsContextType | undefined>(undefined);
@@ -43,9 +43,7 @@ export const SystemSettingsProvider: React.FC<{ children: React.ReactNode }> = (
     return localStorage.getItem(STORAGE_BANK_DETAILS_KEY) || '';
   });
 
-  const [hasConfiguredSettings, setHasConfiguredSettings] = useState<boolean>(() => {
-    return !!localStorage.getItem(STORAGE_NAME_KEY);
-  });
+  const [hasConfiguredSettings, setHasConfiguredSettings] = useState<boolean>(true);
 
   // Automatically update browser tab title & favicon when systemName or systemLogoUrl changes
   React.useEffect(() => {

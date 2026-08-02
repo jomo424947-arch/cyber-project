@@ -48,6 +48,7 @@ export default function ReportsPage() {
       if (language === 'ar') {
         if (d.type === 'pc') localizedType = 'جهاز كمبيوتر';
         else if (d.type === 'console') localizedType = 'جهاز كونسول';
+        else if (d.type === 'table') localizedType = 'طربيزة';
         else localizedType = 'شاشة ذكية';
       }
       return {

@@ -54,6 +54,19 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 login attempts per 15 minutes
+  message: {
+    error: {
+      message: 'Too many authentication attempts, please try again later.',
+      code: 'TOO_MANY_LOGIN_REQUESTS'
+    }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: (requestOrigin, callback) => {
@@ -68,6 +81,7 @@ app.use(cors({
 app.use(cookieParser());
 app.use(csrfProtection);
 app.use(express.json());
+app.use('/api/auth/login', authLimiter);
 app.use(apiLimiter);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(licenseCheck);

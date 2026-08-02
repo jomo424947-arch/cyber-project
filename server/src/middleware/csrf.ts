@@ -35,7 +35,6 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     '/health',
   ];
 
-  const userAgent = req.headers['user-agent'] || '';
   const isSuperAdminExempt = 
     req.path === '/api/auth/register-tenant' || 
     (req.path.startsWith('/api/auth/tenants/') && req.path.endsWith('/status'));
@@ -44,7 +43,6 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     safeMethods.includes(req.method) ||
     exemptPaths.includes(req.path) ||
     exemptPaths.includes(req.originalUrl) ||
-    userAgent.includes('Electron') ||
     isSuperAdminExempt
   ) {
     return next();

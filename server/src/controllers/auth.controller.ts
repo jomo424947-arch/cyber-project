@@ -310,63 +310,53 @@ export async function refresh(req: Request, res: Response) {
     throw unauthorized('No refresh token');
   }
 
-  const isOffline = process.env.OFFLINE_MODE === 'true';
+  let userId = '';
 
-  if (isOffline) {
-    let decoded: { id: string };
-    try {
-      decoded = verifyRefreshToken(refreshToken);
-    } catch (err) {
-      clearAuthCookies(res);
-      throw unauthorized('Session expired. Please log in again.');
+  // 1. Try local refresh token verification first (since login/signup issue local tokens)
+  try {
+    const decoded = verifyRefreshToken(refreshToken);
+    userId = decoded.id;
+  } catch {
+    // 2. If local verification fails, try Supabase Cloud refresh if available
+    if (cloudSupabase) {
+      try {
+        const { data, error } = await cloudSupabase.auth.refreshSession({
+          refresh_token: refreshToken,
+        });
+        if (!error && data?.session) {
+          userId = data.session.user.id;
+        }
+      } catch {
+        // Ignore
+      }
     }
-
-    const profile = await loadUserProfile(decoded.id);
-    if (!profile) {
-      clearAuthCookies(res);
-      throw unauthorized('User profile not found.');
-    }
-
-    const newAccessToken = signToken({ id: profile.id, email: profile.email, role: profile.role });
-    const newRefreshToken = signRefreshToken({ id: profile.id });
-
-    const remember = !!req.cookies?.['sb-refresh-token'];
-    setAuthCookies(res, newAccessToken, newRefreshToken, remember);
-
-    res.json({
-      user: {
-        id: profile.id,
-        email: profile.email,
-        full_name: profile.full_name ?? profile.email.split('@')[0],
-        role: profile.role,
-      },
-    });
-  } else {
-    // Cloud Mode: refresh session via Supabase Cloud
-    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
-
-    const { data, error } = await cloudSupabase.auth.refreshSession({
-      refresh_token: refreshToken,
-    });
-
-    if (error || !data.session) {
-      clearAuthCookies(res);
-      throw unauthorized('Session expired. Please log in again.');
-    }
-
-    const profile = await loadUserProfile(data.session.user.id);
-    const remember = !!req.cookies?.['sb-refresh-token'];
-    setAuthCookies(res, data.session.access_token, data.session.refresh_token, remember);
-
-    res.json({
-      user: {
-        id: data.session.user.id,
-        email: data.session.user.email,
-        full_name: profile?.full_name ?? data.session.user.email?.split('@')[0] ?? '',
-        role: profile?.role ?? 'staff',
-      },
-    });
   }
+
+  if (!userId) {
+    clearAuthCookies(res);
+    throw unauthorized('Session expired. Please log in again.');
+  }
+
+  const profile = await loadUserProfile(userId);
+  if (!profile) {
+    clearAuthCookies(res);
+    throw unauthorized('User profile not found.');
+  }
+
+  const newAccessToken = signToken({ id: profile.id, email: profile.email, role: profile.role });
+  const newRefreshToken = signRefreshToken({ id: profile.id });
+
+  const remember = !!req.cookies?.['sb-refresh-token'];
+  setAuthCookies(res, newAccessToken, newRefreshToken, remember);
+
+  res.json({
+    user: {
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name ?? profile.email.split('@')[0],
+      role: profile.role,
+    },
+  });
 }
 
 // ─── GET /api/auth/me ─────────────────────────────────────────────────────
@@ -682,8 +672,8 @@ export async function activateTenant(req: Request, res: Response) {
 export async function registerTenant(req: Request, res: Response) {
   const { tenantName, ownerFullName, ownerEmail, ownerPassword, status = 'active', secretKey } = req.body;
 
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
-  if (!secretKey || secretKey !== expectedKey) {
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey || !secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
 
@@ -753,8 +743,8 @@ export async function registerTenant(req: Request, res: Response) {
 /** GET /api/auth/tenants — Lists all tenants from Supabase. */
 export async function getTenants(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
-  if (!secretKey || secretKey !== expectedKey) {
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey || !secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
 
@@ -780,8 +770,8 @@ export async function getTenants(req: Request, res: Response) {
 /** PATCH /api/auth/tenants/:id/status — Updates a tenant's subscription status. */
 export async function updateTenantStatus(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
-  if (!secretKey || secretKey !== expectedKey) {
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey || !secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
 

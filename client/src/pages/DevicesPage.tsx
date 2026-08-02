@@ -3,10 +3,13 @@ import { Layout } from '../components/Layout';
 import { DeviceCard } from '../components/DeviceCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Modal } from '../components/ui/Modal';
+import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { 
@@ -20,6 +23,7 @@ export default function DevicesPage() {
   const now = useNow(1000);
   const { toast } = useToast();
   const { t, language } = useLanguage();
+  const { isAdmin } = useAuth();
 
   const { data, loading, refetch } = useAsync(async () => {
     const [devices, sessions] = await Promise.all([
@@ -39,6 +43,8 @@ export default function DevicesPage() {
   const [startTarget, setStartTarget] = useState<Device | null>(null);
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
 
   const handleAction = (device: Device) => {
     if (device.status === 'in_use') {
@@ -58,6 +64,21 @@ export default function DevicesPage() {
       refetch();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not extend session'), 'error');
+    }
+  };
+
+  const handleDeleteDevice = async () => {
+    if (!deleteTarget) return;
+    setDeletingLoading(true);
+    try {
+      await dataService.deleteDevice(deleteTarget.id);
+      toast(language === 'ar' ? 'تمت إزالة الجهاز بنجاح' : 'Device removed successfully', 'success');
+      setDeleteTarget(null);
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not delete device'), 'error');
+    } finally {
+      setDeletingLoading(false);
     }
   };
 
@@ -114,6 +135,7 @@ export default function DevicesPage() {
               onAction={handleAction}
               onEditSession={(session) => setEditTarget(session)}
               onExtendSession={handleExtendSession}
+              onDeleteDevice={isAdmin ? (dev) => setDeleteTarget(dev) : undefined}
             />
           ))}
         </div>
@@ -156,6 +178,29 @@ export default function DevicesPage() {
             refetch();
           }}
         />
+      )}
+
+      {/* Delete device modal */}
+      {deleteTarget && (
+        <Modal
+          open
+          title={language === 'ar' ? `حذف الجهاز · ${deleteTarget.name}` : `Delete Device · ${deleteTarget.name}`}
+          onClose={() => setDeleteTarget(null)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)}>{t('cancel')}</Button>
+              <Button variant="danger" loading={deletingLoading} onClick={handleDeleteDevice}>
+                {t('delete')}
+              </Button>
+            </>
+          }
+        >
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0, lineHeight: 1.6 }}>
+            {language === 'ar'
+              ? `هل أنت متأكد من رغبتك في حذف وإزالة الجهاز (${deleteTarget.name}) من النظام نهائياً؟`
+              : `Are you sure you want to delete and remove device (${deleteTarget.name}) from the system?`}
+          </p>
+        </Modal>
       )}
     </Layout>
   );

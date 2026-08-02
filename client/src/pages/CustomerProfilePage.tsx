@@ -55,6 +55,7 @@ export default function CustomerProfilePage() {
     if (stats.favorite_device_type === 'pc') localizedFavLabel = 'أجهزة الكمبيوتر';
     else if (stats.favorite_device_type === 'console') localizedFavLabel = 'منصات ألعاب (PS/Xbox)';
     else if (stats.favorite_device_type === 'vr') localizedFavLabel = 'أجهزة الواقع الافتراضي';
+    else if (stats.favorite_device_type === 'table') localizedFavLabel = 'طربيزات الألعاب';
   }
 
   return (
@@ -168,7 +169,7 @@ export default function CustomerProfilePage() {
               {favoriteMeta ? (
                 <>
                   <span className="material-symbols-outlined" style={{ color: 'var(--accent-yellow)', fontSize: '24px' }}>
-                    {stats.favorite_device_type === 'pc' ? 'desktop_windows' : stats.favorite_device_type === 'console' ? 'sports_esports' : 'smart_display'}
+                    {stats.favorite_device_type === 'pc' ? 'desktop_windows' : stats.favorite_device_type === 'console' ? 'sports_esports' : stats.favorite_device_type === 'vr' ? 'smart_display' : 'sports_tennis'}
                   </span>
                   <span>{localizedFavLabel}</span>
                 </>
@@ -215,7 +216,7 @@ export default function CustomerProfilePage() {
                 render: (s: Session) => (
                   <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
-                      {s.device?.type === 'pc' ? 'desktop_windows' : s.device?.type === 'console' ? 'sports_esports' : 'smart_display'}
+                      {s.device?.type === 'pc' ? 'desktop_windows' : s.device?.type === 'console' ? 'sports_esports' : s.device?.type === 'vr' ? 'smart_display' : 'sports_tennis'}
                     </span>
                     <span>{s.device?.name ?? (language === 'ar' ? 'جهاز محذوف' : 'Deleted Device')}</span>
                   </strong>

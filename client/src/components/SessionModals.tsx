@@ -299,7 +299,6 @@ export function EndSessionModal({
       ? session.hourly_rate_override
       : (session.play_mode === 'multiplayer' ? session.device?.hourly_rate_multi : session.device?.hourly_rate) ?? 0
   );
-  const baseCost = (billedMinutes / 60) * rate;
 
   let overtimeMinutes = 0;
   let overtimeCost = 0;
@@ -312,6 +311,9 @@ export function EndSessionModal({
       overtimeCost = (overtimeMinutes / 60) * rate * 1.0;
     }
   }
+
+  const baseMinutes = billedMinutes - overtimeMinutes;
+  const baseCost = (baseMinutes / 60) * rate;
 
   const cafeCost = orders ? orders.reduce((sum, ord) => sum + Number(ord.total_price), 0) : 0;
   const totalCost = baseCost + overtimeCost + cafeCost;

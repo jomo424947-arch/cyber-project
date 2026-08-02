@@ -7,6 +7,8 @@ import { LoadingSpinner } from './ui/LoadingSpinner';
 import { dataService } from '../services';
 import type { Device, Session, SessionAuditLog } from '../types';
 
+import { getDeviceTypeIcon } from '../utils/constants';
+
 interface DeviceCardProps {
   device: Device;
   activeSession?: Session; // present when status is in_use
@@ -14,20 +16,12 @@ interface DeviceCardProps {
   onAction?: (device: Device) => void;
   onEditSession?: (session: Session) => void;
   onExtendSession?: (session: Session) => void;
+  onDeleteDevice?: (device: Device) => void;
   index?: number;
 }
 
 function getDeviceMaterialIcon(type: string): string {
-  switch (type) {
-    case 'pc':
-      return 'desktop_windows';
-    case 'console':
-      return 'sports_esports';
-    case 'vr':
-      return 'smart_display';
-    default:
-      return 'devices';
-  }
+  return getDeviceTypeIcon(type);
 }
 
 export function DeviceCard({ 
@@ -37,6 +31,7 @@ export function DeviceCard({
   onAction, 
   onEditSession,
   onExtendSession,
+  onDeleteDevice,
   index = 0 
 }: DeviceCardProps) {
   const isActive = device.status === 'in_use';
@@ -195,51 +190,70 @@ export function DeviceCard({
         >
           {device.name}
         </span>
-        {isActive && activeSession && (
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            {activeSession.edited_start_at && (
-              <button
-                type="button"
-                title="View edit logs"
-                onClick={() => setShowAuditLogs(true)}
-                style={{
-                  background: 'rgba(255, 170, 0, 0.1)',
-                  border: '1px solid var(--accent-yellow)',
-                  color: 'var(--accent-yellow)',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                Logs
-              </button>
-            )}
-            {onEditSession && (
-              <button
-                type="button"
-                title="Edit active session"
-                onClick={() => onEditSession(activeSession)}
-                style={{
-                  background: 'rgba(0, 194, 255, 0.1)',
-                  border: '1px solid rgba(0, 194, 255, 0.2)',
-                  color: 'var(--accent-cyan)',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  cursor: 'pointer',
-                }}
-              >
-                Edit
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {isActive && activeSession && activeSession.edited_start_at && (
+            <button
+              type="button"
+              title="View edit logs"
+              onClick={() => setShowAuditLogs(true)}
+              style={{
+                background: 'rgba(255, 170, 0, 0.1)',
+                border: '1px solid var(--accent-yellow)',
+                color: 'var(--accent-yellow)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontFamily: 'JetBrains Mono, monospace',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              Logs
+            </button>
+          )}
+          {isActive && activeSession && onEditSession && (
+            <button
+              type="button"
+              title="Edit active session"
+              onClick={() => onEditSession(activeSession)}
+              style={{
+                background: 'rgba(0, 194, 255, 0.1)',
+                border: '1px solid rgba(0, 194, 255, 0.2)',
+                color: 'var(--accent-cyan)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontFamily: 'JetBrains Mono, monospace',
+                cursor: 'pointer',
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {onDeleteDevice && (
+            <button
+              type="button"
+              title="Delete device"
+              onClick={() => onDeleteDevice(device)}
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: 'var(--accent-red)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Status */}

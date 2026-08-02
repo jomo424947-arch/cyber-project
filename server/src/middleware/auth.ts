@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../lib/supabase';
+import { supabase, localDb } from '../lib/supabase';
+import { cloudSupabase } from '../lib/cloud-supabase';
 import { unauthorized, forbidden } from '../lib/errors';
 import type { Role } from '../lib/types';
 import { verifyToken } from '../lib/local-auth';
@@ -25,37 +26,45 @@ export async function verifyJWT(req: Request, _res: Response, next: NextFunction
       throw unauthorized('Missing session token');
     }
 
-    const isOffline = process.env.OFFLINE_MODE === 'true';
     let userId = '';
 
-    if (isOffline) {
-      // Validate the local JWT.
-      try {
-        const decoded = verifyToken(token);
-        userId = decoded.id;
-      } catch (err) {
+    // First try decoding with local JWT secret (since auth.controller.ts signs tokens using local-auth)
+    try {
+      const decoded = verifyToken(token);
+      userId = decoded.id;
+    } catch {
+      // Fallback to Supabase Cloud verification if local JWT check fails
+      if (cloudSupabase) {
+        const { data, error } = await cloudSupabase.auth.getUser(token);
+        if (error || !data.user) {
+          throw unauthorized('Invalid or expired token');
+        }
+        userId = data.user.id;
+      } else {
         throw unauthorized('Invalid or expired token');
       }
-    } else {
-      // Validate the JWT against Supabase Cloud.
-      const { data, error } = await (supabase as any).auth.getUser(token);
-      if (error || !data.user) {
-        throw unauthorized('Invalid or expired token');
-      }
-      userId = data.user.id;
     }
 
-    // Look up the role and tenant_id from our users table.
-    const { data: userRow, error: userErr } = await supabase
-      .from('users')
-      .select('id, email, role, tenant_id')
-      .eq('id', userId)
-      .maybeSingle();
+    // Look up the role and tenant_id from users table (checking primary supabase client first, then localDb)
+    let userRow: any = null;
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('id, email, role, tenant_id')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) userRow = data;
+    } catch (userErr) {
+      console.warn('[auth] primary users lookup failed, falling back to localDb:', userErr);
+    }
 
-    // Fail closed on a genuine query error — do NOT default to 'staff'.
-    if (userErr) {
-      console.error('[auth] users lookup failed:', userErr.message);
-      throw unauthorized('Authentication failed — please try again');
+    if (!userRow) {
+      const { data: localUserRow } = await localDb
+        .from('users')
+        .select('id, email, role, tenant_id')
+        .eq('id', userId)
+        .maybeSingle();
+      userRow = localUserRow;
     }
 
     if (!userRow) {

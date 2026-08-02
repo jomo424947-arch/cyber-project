@@ -122,7 +122,7 @@ export default function ReservationsPage() {
                 render: (r: Reservation) => (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
-                      {r.device?.type === 'pc' ? 'desktop_windows' : r.device?.type === 'console' ? 'sports_esports' : 'smart_display'}
+                      {r.device?.type === 'pc' ? 'desktop_windows' : r.device?.type === 'console' ? 'sports_esports' : r.device?.type === 'vr' ? 'smart_display' : 'sports_tennis'}
                     </span>
                     <strong>{r.device?.name ?? '—'}</strong>
                   </span>

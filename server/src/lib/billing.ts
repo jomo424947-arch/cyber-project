@@ -33,6 +33,10 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
   const startMs = new Date(params.startedAt).getTime();
   const endMs = new Date(params.endedAt).getTime();
 
+  if (isNaN(startMs) || isNaN(endMs)) {
+    throw new Error('Invalid date provided for session calculation');
+  }
+
   if (endMs < startMs) {
     throw new Error('Session end time cannot be before start time');
   }
@@ -46,16 +50,18 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
       : params.deviceHourlyRate
   );
 
-  const baseCost = (billedMinutes / 60) * effectiveRate;
-
   let overtimeMinutes = 0;
   let isOvertime = false;
   let overtimeCost = 0;
 
   if (params.sessionType === 'fixed' && params.scheduledEnd) {
+    const scheduledMs = new Date(params.scheduledEnd).getTime();
+    if (isNaN(scheduledMs)) {
+      throw new Error('Invalid scheduled end date provided for session calculation');
+    }
     const scheduledMinutes = Math.max(
       0,
-      Math.ceil((new Date(params.scheduledEnd).getTime() - startMs) / 60000)
+      Math.ceil((scheduledMs - startMs) / 60000)
     );
     const graceMinutes = Number(params.gracePeriodMinutes || 0);
 
@@ -67,6 +73,8 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
     }
   }
 
+  const baseMinutes = billedMinutes - overtimeMinutes;
+  const baseCost = (baseMinutes / 60) * effectiveRate;
   const totalCost = Number((baseCost + overtimeCost).toFixed(2));
 
   return {

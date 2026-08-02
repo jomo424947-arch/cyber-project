@@ -12,6 +12,7 @@ import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
+import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatCurrency } from '../utils/format';
 import {
   StartSessionModal,
@@ -89,24 +90,60 @@ export default function RoomsPage() {
   const [editTarget, setEditTarget] = useState<Session | null>(null);
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
 
-  const handleCreateOrUpdateRoom = (roomData: Omit<GamingRoom, 'id'> & { id?: string }) => {
-    if (roomData.id) {
-      // Edit existing room
-      setRooms((prev) =>
-        prev.map((r) => (r.id === roomData.id ? { ...(roomData as GamingRoom) } : r))
-      );
-      toast(language === 'ar' ? 'تم تحديث بيانات الغرفة' : 'Room updated', 'success');
-    } else {
-      // Add new room
-      const newRoom: GamingRoom = {
-        id: 'room_' + Date.now(),
-        name: roomData.name,
-        icon: roomData.icon || 'sports_esports',
-        deviceId: roomData.deviceId || '',
-      };
-      setRooms((prev) => [...prev, newRoom]);
-      toast(language === 'ar' ? 'تم إضافة الغرفة الجديدة بنجاح' : 'New room added', 'success');
+  const handleCreateOrUpdateRoom = async (roomData: {
+    id?: string;
+    name: string;
+    icon: string;
+    deviceId: string;
+    hourlyRate: number;
+    hourlyRateMulti: number;
+  }) => {
+    let targetDeviceId = roomData.deviceId;
+    const singleRate = roomData.hourlyRate;
+    const multiRate = roomData.hourlyRateMulti;
+
+    try {
+      if (targetDeviceId) {
+        // Update existing device rates
+        await dataService.updateDevice(targetDeviceId, {
+          hourly_rate: singleRate,
+          hourly_rate_multi: multiRate,
+        });
+      } else {
+        // Auto-create new device for this room with specified rates
+        const createdDev = await dataService.createDevice({
+          name: roomData.name,
+          type: 'console',
+          hourly_rate: singleRate,
+          hourly_rate_multi: multiRate,
+        });
+        targetDeviceId = createdDev.id;
+      }
+
+      if (roomData.id) {
+        // Edit existing room
+        setRooms((prev) =>
+          prev.map((r) =>
+            r.id === roomData.id ? { id: r.id, name: roomData.name, icon: roomData.icon, deviceId: targetDeviceId } : r
+          )
+        );
+        toast(language === 'ar' ? 'تم تحديث بيانات وسعر الغرفة بنجاح' : 'Room & prices updated', 'success');
+      } else {
+        // Add new room
+        const newRoom: GamingRoom = {
+          id: 'room_' + Date.now(),
+          name: roomData.name,
+          icon: roomData.icon || 'sports_esports',
+          deviceId: targetDeviceId,
+        };
+        setRooms((prev) => [...prev, newRoom]);
+        toast(language === 'ar' ? 'تم إضافة الغرفة وتحديد سعرها بنجاح' : 'New room & prices added', 'success');
+      }
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not save room rate'), 'error');
     }
+
     setShowRoomModal(false);
     setEditingRoom(null);
   };
@@ -531,11 +568,28 @@ export default function RoomsPage() {
                           {session.session_type === 'fixed' && session.scheduled_end ? (
                             (() => {
                               const endTime = new Date(session.scheduled_end!).getTime();
-                              const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
-                              const isOvertime = now >= endTime;
-                              const hrs = Math.floor(remaining / 3600);
-                              const mins = Math.floor((remaining % 3600) / 60);
-                              const secs = remaining % 60;
+                              const graceMins = session.grace_period_minutes || 0;
+                              const graceTime = endTime + graceMins * 60000;
+
+                              const isGrace = now >= endTime && now < graceTime;
+                              const isOvertime = now >= graceTime;
+
+                              if (isGrace) {
+                                const remainingGrace = Math.max(0, Math.floor((graceTime - now) / 1000));
+                                const gMins = Math.floor(remainingGrace / 60);
+                                const gSecs = remainingGrace % 60;
+                                return (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                    <span className="ccms-eyebrow" style={{ color: 'var(--accent-yellow)' }}>{language === 'ar' ? 'فترة سماح' : 'Grace Period'}</span>
+                                    <span style={{
+                                      fontFamily: 'JetBrains Mono, monospace', fontSize: '16px',
+                                      color: 'var(--accent-yellow)', fontWeight: 'bold',
+                                    }}>
+                                      {gMins}:{gSecs.toString().padStart(2, '0')}
+                                    </span>
+                                  </div>
+                                );
+                              }
 
                               if (isOvertime) {
                                 const elapsed = Math.floor((now - endTime) / 1000);
@@ -555,6 +609,11 @@ export default function RoomsPage() {
                                   </div>
                                 );
                               }
+
+                              const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+                              const hrs = Math.floor(remaining / 3600);
+                              const mins = Math.floor((remaining % 3600) / 60);
+                              const secs = remaining % 60;
 
                               return (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -778,12 +837,36 @@ function RoomFormModal({
   devices: Device[];
   rooms: GamingRoom[];
   onClose: () => void;
-  onSave: (data: Omit<GamingRoom, 'id'> & { id?: string }) => void;
+  onSave: (data: {
+    id?: string;
+    name: string;
+    icon: string;
+    deviceId: string;
+    hourlyRate: number;
+    hourlyRateMulti: number;
+  }) => void;
 }) {
   const { t, language, isRtl } = useLanguage();
   const [name, setName] = useState(initial?.name ?? `غرفة ${rooms.length + 1}`);
   const [icon, setIcon] = useState(initial?.icon ?? 'sports_esports');
   const [deviceId, setDeviceId] = useState(initial?.deviceId ?? '');
+
+  // Pre-populate rates from the assigned device (if editing an existing room)
+  const existingDevice = initial?.deviceId ? devices.find((d) => d.id === initial.deviceId) : null;
+  const [hourlyRate, setHourlyRate] = useState<number>(existingDevice?.hourly_rate ?? 20);
+  const [hourlyRateMulti, setHourlyRateMulti] = useState<number>(existingDevice?.hourly_rate_multi ?? 30);
+
+  // When device selection changes, update rate fields to match the selected device
+  const handleDeviceChange = (newDeviceId: string) => {
+    setDeviceId(newDeviceId);
+    if (newDeviceId) {
+      const dev = devices.find((d) => d.id === newDeviceId);
+      if (dev) {
+        setHourlyRate(dev.hourly_rate);
+        setHourlyRateMulti(dev.hourly_rate_multi);
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -793,6 +876,8 @@ function RoomFormModal({
       name: name.trim(),
       icon,
       deviceId,
+      hourlyRate,
+      hourlyRateMulti,
     });
   };
 
@@ -856,12 +941,147 @@ function RoomFormModal({
           </div>
         </div>
 
+        {/* ── Pricing Section ─────────────────────────────────── */}
+        <div
+          style={{
+            background: 'rgba(0, 194, 255, 0.04)',
+            border: '1px solid rgba(0, 194, 255, 0.15)',
+            borderRadius: '12px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+              payments
+            </span>
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif',
+              }}
+            >
+              {language === 'ar' ? 'تسعير الغرفة (بالساعة)' : 'Room Pricing (per hour)'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {/* Single player rate */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label
+                className="ccms-eyebrow"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>person</span>
+                {language === 'ar' ? 'سعر الفردي' : 'Single Rate'}
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(Number(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    paddingLeft: isRtl ? '14px' : '38px',
+                    paddingRight: isRtl ? '38px' : '14px',
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    background: 'var(--bg-input)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    color: 'var(--accent-green)',
+                    outline: 'none',
+                    transition: 'border-color 0.2s ease',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent-cyan)')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)')}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    ...(isRtl ? { right: '12px' } : { left: '12px' }),
+                    fontSize: '14px',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {language === 'ar' ? 'ج' : '$'}
+                </span>
+              </div>
+            </div>
+
+            {/* Multiplayer rate */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label
+                className="ccms-eyebrow"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>group</span>
+                {language === 'ar' ? 'سعر الجماعي' : 'Multi Rate'}
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={hourlyRateMulti}
+                  onChange={(e) => setHourlyRateMulti(Number(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    paddingLeft: isRtl ? '14px' : '38px',
+                    paddingRight: isRtl ? '38px' : '14px',
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    background: 'var(--bg-input)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    color: 'var(--accent-purple)',
+                    outline: 'none',
+                    transition: 'border-color 0.2s ease',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent-purple)')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)')}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    ...(isRtl ? { right: '12px' } : { left: '12px' }),
+                    fontSize: '14px',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {language === 'ar' ? 'ج' : '$'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <Select
           label={language === 'ar' ? 'تخصيص جهاز للغرفة' : 'Assign Device'}
           value={deviceId}
-          onChange={(e) => setDeviceId(e.target.value)}
+          onChange={(e) => handleDeviceChange(e.target.value)}
         >
-          <option value="">{language === 'ar' ? '-- بدون جهاز (غير معين) --' : '-- No Device (Unassigned) --'}</option>
+          <option value="">{language === 'ar' ? '-- بدون جهاز (إنشاء جهاز تلقائياً) --' : '-- No Device (Auto-create) --'}</option>
           {devices.map((dev) => {
             const assignedOther = rooms.find((r) => r.deviceId === dev.id && r.id !== initial?.id);
             return (

@@ -10,7 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
-import { formatCurrency, formatDuration } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 import type { Invoice } from '../types';
 
 type Filter = 'all' | 'paid' | 'unpaid';
@@ -251,14 +251,50 @@ export default function BillingPage() {
                 },
               },
               {
-                key: 'device',
-                header: language === 'ar' ? 'الجهاز' : 'Terminal',
-                render: (i: Invoice) => i.session?.device?.name ?? '—',
+                key: 'startTime',
+                header: language === 'ar' ? 'وقت البدء' : 'Start Time',
+                render: (i: Invoice) => {
+                  if (!i.session?.started_at) return '—';
+                  const d = new Date(i.session.started_at);
+                  const time = d.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  const date = d.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' });
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, color: 'var(--accent-green)' }}>
+                        {time}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {date}
+                      </span>
+                    </div>
+                  );
+                },
               },
               {
-                key: 'duration',
-                header: language === 'ar' ? 'المدة' : 'Duration',
-                render: (i: Invoice) => formatDuration(i.session?.duration_minutes),
+                key: 'endTime',
+                header: language === 'ar' ? 'وقت الانتهاء' : 'End Time',
+                render: (i: Invoice) => {
+                  if (!i.session?.ended_at) {
+                    return (
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--accent-yellow)', fontWeight: 600 }}>
+                        {language === 'ar' ? 'لا يزال نشطاً' : 'Still Active'}
+                      </span>
+                    );
+                  }
+                  const d = new Date(i.session.ended_at);
+                  const time = d.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  const date = d.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' });
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, color: 'var(--accent-red)' }}>
+                        {time}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {date}
+                      </span>
+                    </div>
+                  );
+                },
               },
               {
                 key: 'status',

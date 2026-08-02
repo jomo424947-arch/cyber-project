@@ -27,7 +27,7 @@ export const verifyEmailSchema = z.object({
 
 export const createDeviceSchema = z.object({
   name: z.string().min(1, 'Name required').max(60),
-  type: z.enum(['pc', 'console', 'vr']).default('pc'),
+  type: z.enum(['pc', 'console', 'vr', 'table']).default('pc'),
   hourly_rate: z.number().nonnegative().default(0),
   hourly_rate_multi: z.number().nonnegative().optional(),
   specs: z.record(z.unknown()).optional().nullable(),
@@ -35,7 +35,7 @@ export const createDeviceSchema = z.object({
 
 export const updateDeviceSchema = z.object({
   name: z.string().min(1).max(60).optional(),
-  type: z.enum(['pc', 'console', 'vr']).optional(),
+  type: z.enum(['pc', 'console', 'vr', 'table']).optional(),
   status: z.enum(['available', 'in_use', 'reserved', 'offline']).optional(),
   hourly_rate: z.number().nonnegative().optional(),
   hourly_rate_multi: z.number().nonnegative().optional(),

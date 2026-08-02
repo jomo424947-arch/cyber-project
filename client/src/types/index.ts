@@ -11,7 +11,7 @@ export interface User {
   role: Role;
 }
 
-export type DeviceType = 'pc' | 'console' | 'vr';
+export type DeviceType = 'pc' | 'console' | 'vr' | 'table';
 export type DeviceStatus = 'available' | 'in_use' | 'reserved' | 'offline';
 
 export interface Device {
@@ -142,6 +142,7 @@ export interface CreateDevicePayload {
   name: string;
   type: DeviceType;
   hourly_rate: number;
+  hourly_rate_multi?: number;
   specs?: Record<string, string>;
 }
 

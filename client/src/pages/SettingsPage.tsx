@@ -78,7 +78,7 @@ export default function SettingsPage() {
                   render: (d: Device) => (
                     <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
-                        {d.type === 'pc' ? 'desktop_windows' : d.type === 'console' ? 'sports_esports' : 'smart_display'}
+                        {d.type === 'pc' ? 'desktop_windows' : d.type === 'console' ? 'sports_esports' : d.type === 'vr' ? 'smart_display' : 'sports_tennis'}
                       </span>
                       {d.name}
                     </strong>
@@ -91,6 +91,7 @@ export default function SettingsPage() {
                     if (language === 'ar') {
                       if (d.type === 'pc') return 'كمبيوتر مكتبى';
                       if (d.type === 'console') return 'جهاز كونسول';
+                      if (d.type === 'table') return 'طربيزة';
                       return 'شاشة ذكية';
                     }
                     return DEVICE_TYPE_META[d.type].label;
@@ -124,15 +125,13 @@ export default function SettingsPage() {
                       >
                         {t('edit')}
                       </Button>
-                      {d.status !== 'in_use' && (
-                        <Button
-                          variant="danger"
-                          onClick={() => setDeleting(d)}
-                          style={{ padding: '6px 14px', fontSize: '11px', minHeight: '32px' }}
-                        >
-                          {t('delete')}
-                        </Button>
-                      )}
+                      <Button
+                        variant="danger"
+                        onClick={() => setDeleting(d)}
+                        style={{ padding: '6px 14px', fontSize: '11px', minHeight: '32px' }}
+                      >
+                        {t('delete')}
+                      </Button>
                     </div>
                   ),
                 },
@@ -291,6 +290,7 @@ function DeviceFormModal({
           <option value="pc">{language === 'ar' ? 'كمبيوتر مكتبى (PC)' : 'PC'}</option>
           <option value="console">{language === 'ar' ? 'منصة ألعاب (Console)' : 'Console'}</option>
           <option value="vr">{language === 'ar' ? 'واقع افتراضي (VR)' : 'VR'}</option>
+          <option value="table">{language === 'ar' ? 'طربيزة (بلياردو / تنس)' : 'Table (Billiard/Tennis)'}</option>
         </Select>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <Input

@@ -26,6 +26,7 @@ export const DEVICE_TYPE_META: Record<DeviceType, { label: string; icon: string 
   pc: { label: 'PC', icon: 'desktop_windows' },
   console: { label: 'Console', icon: 'sports_esports' },
   vr: { label: 'VR', icon: 'view_in_ar' },
+  table: { label: 'Table', icon: 'sports_tennis' },
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -34,3 +35,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: 'Transfer',
   wallet: 'Wallet',
 };
+
+export function getDeviceTypeIcon(type: string): string {
+  return DEVICE_TYPE_META[type as DeviceType]?.icon || 'desktop_windows';
+}

@@ -1,14 +1,11 @@
-import { ReactNode, useState, useEffect } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { ReactNode, useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { useSystemSettings } from '../context/SystemSettingsContext';
-import { Modal } from './ui/Modal';
-import { Button } from './ui/Button';
 
 interface LayoutProps {
   title: string;
@@ -22,19 +19,9 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
   const { user, isAdmin, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const { language, setLanguage, t, isRtl } = useLanguage();
   const { theme, toggleTheme } = useTheme();
-  const { hasConfiguredSettings } = useSystemSettings();
-  const [showFirstTimeModal, setShowFirstTimeModal] = useState(false);
-
-  useEffect(() => {
-    if (!hasConfiguredSettings && location.pathname !== '/settings') {
-      navigate('/settings', { replace: true });
-      setShowFirstTimeModal(true);
-    }
-  }, [hasConfiguredSettings, location.pathname, navigate]);
 
   const handleLogout = async () => {
     setShowMoreMenu(false);
@@ -522,49 +509,6 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
             </>
           )}
         </>
-      )}
-
-      {/* First-time Setup Prompt Modal */}
-      {showFirstTimeModal && (
-        <Modal
-          open
-          title={language === 'ar' ? 'تنبيه: ضبط إعدادات النظام واسم السايبر' : 'System Setup Required'}
-          onClose={() => setShowFirstTimeModal(false)}
-          width={480}
-          footer={
-            <Button onClick={() => setShowFirstTimeModal(false)} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
-              {language === 'ar' ? 'حسناً، البدء الآن' : 'Got it, let\'s configure'}
-            </Button>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center', padding: '12px 6px' }}>
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                background: 'var(--accent-cyan-dim)',
-                border: '1px solid var(--accent-cyan)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--accent-cyan)',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>settings</span>
-            </div>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0', fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif' }}>
-                {language === 'ar' ? 'مرحباً بك في النظام! 👋' : 'Welcome to CCMS! 👋'}
-              </h3>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                {language === 'ar'
-                  ? 'برجاء إدخال اسم السايبر الخاص بك وشعار الواجهة وإعدادات النظام أولاً لبدء استخدام النظام.'
-                  : 'Please configure your cyber cafe name, brand logo, and system parameters to complete setup.'}
-              </p>
-            </div>
-          </div>
-        </Modal>
       )}
     </div>
   );

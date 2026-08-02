@@ -11,7 +11,7 @@ export interface DbUser {
   updated_at: string;
 }
 
-export type DeviceType = 'pc' | 'console' | 'vr';
+export type DeviceType = 'pc' | 'console' | 'vr' | 'table';
 export type DeviceStatus = 'available' | 'in_use' | 'reserved' | 'offline';
 
 export interface DbDevice {
