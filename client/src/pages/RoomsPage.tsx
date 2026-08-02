@@ -568,11 +568,28 @@ export default function RoomsPage() {
                           {session.session_type === 'fixed' && session.scheduled_end ? (
                             (() => {
                               const endTime = new Date(session.scheduled_end!).getTime();
-                              const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
-                              const isOvertime = now >= endTime;
-                              const hrs = Math.floor(remaining / 3600);
-                              const mins = Math.floor((remaining % 3600) / 60);
-                              const secs = remaining % 60;
+                              const graceMins = session.grace_period_minutes || 0;
+                              const graceTime = endTime + graceMins * 60000;
+
+                              const isGrace = now >= endTime && now < graceTime;
+                              const isOvertime = now >= graceTime;
+
+                              if (isGrace) {
+                                const remainingGrace = Math.max(0, Math.floor((graceTime - now) / 1000));
+                                const gMins = Math.floor(remainingGrace / 60);
+                                const gSecs = remainingGrace % 60;
+                                return (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                    <span className="ccms-eyebrow" style={{ color: 'var(--accent-yellow)' }}>{language === 'ar' ? 'فترة سماح' : 'Grace Period'}</span>
+                                    <span style={{
+                                      fontFamily: 'JetBrains Mono, monospace', fontSize: '16px',
+                                      color: 'var(--accent-yellow)', fontWeight: 'bold',
+                                    }}>
+                                      {gMins}:{gSecs.toString().padStart(2, '0')}
+                                    </span>
+                                  </div>
+                                );
+                              }
 
                               if (isOvertime) {
                                 const elapsed = Math.floor((now - endTime) / 1000);
@@ -592,6 +609,11 @@ export default function RoomsPage() {
                                   </div>
                                 );
                               }
+
+                              const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+                              const hrs = Math.floor(remaining / 3600);
+                              const mins = Math.floor((remaining % 3600) / 60);
+                              const secs = remaining % 60;
 
                               return (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

@@ -62,7 +62,7 @@ export async function getPricing(req: Request, res: Response) {
 
 /**
  * PATCH /api/pricing/bulk — update hourly rates for all devices of a given type.
- * Body: { type: 'pc' | 'console' | 'vr', hourly_rate?: number, hourly_rate_multi?: number }
+ * Body: { type: 'pc' | 'console' | 'vr' | 'table', hourly_rate?: number, hourly_rate_multi?: number }
  */
 export async function updateBulkPricing(req: Request, res: Response) {
   if (req.user?.role !== 'admin') {
@@ -71,8 +71,8 @@ export async function updateBulkPricing(req: Request, res: Response) {
 
   const { type, hourly_rate, hourly_rate_multi } = req.body;
 
-  if (!type || !['pc', 'console', 'vr'].includes(type)) {
-    throw badRequest('Valid type required (pc, console, vr)');
+  if (!type || !['pc', 'console', 'vr', 'table'].includes(type)) {
+    throw badRequest('Valid type required (pc, console, vr, table)');
   }
 
   const patch: Record<string, any> = {};

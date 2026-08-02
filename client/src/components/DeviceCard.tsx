@@ -7,6 +7,8 @@ import { LoadingSpinner } from './ui/LoadingSpinner';
 import { dataService } from '../services';
 import type { Device, Session, SessionAuditLog } from '../types';
 
+import { getDeviceTypeIcon } from '../utils/constants';
+
 interface DeviceCardProps {
   device: Device;
   activeSession?: Session; // present when status is in_use
@@ -19,16 +21,7 @@ interface DeviceCardProps {
 }
 
 function getDeviceMaterialIcon(type: string): string {
-  switch (type) {
-    case 'pc':
-      return 'desktop_windows';
-    case 'console':
-      return 'sports_esports';
-    case 'vr':
-      return 'smart_display';
-    default:
-      return 'devices';
-  }
+  return getDeviceTypeIcon(type);
 }
 
 export function DeviceCard({ 

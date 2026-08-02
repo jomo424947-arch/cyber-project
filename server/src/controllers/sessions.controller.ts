@@ -139,11 +139,14 @@ export async function startSession(req: Request, res: Response) {
   const deviceBaseRate = play_mode === 'multiplayer' ? Number(device.hourly_rate_multi) : Number(device.hourly_rate);
 
   // Authorization check on hourly rate override.
+  let finalOverride: number | null = null;
   if (hourly_rate_override !== undefined && hourly_rate_override !== null) {
-    if (Number(hourly_rate_override) !== deviceBaseRate) {
+    const overrideNum = Number(hourly_rate_override);
+    if (overrideNum !== deviceBaseRate) {
       if (req.user?.role !== 'admin') {
         throw forbidden('Only admins can override the hourly rate');
       }
+      finalOverride = overrideNum;
     }
   }
 
@@ -165,6 +168,16 @@ export async function startSession(req: Request, res: Response) {
     throw badRequest('Start time cannot be in the future');
   }
 
+  const isBackdated = started_at && (now.getTime() - sessionStart.getTime() > 60000);
+  if (isBackdated) {
+    if (req.user?.role !== 'admin') {
+      throw forbidden('Only admins can backdate session start times');
+    }
+    if (now.getTime() - sessionStart.getTime() > 30 * 86400000) {
+      throw badRequest('Session start time cannot be backdated by more than 30 days');
+    }
+  }
+
   if (session_type === 'fixed') {
     if (!scheduled_end) {
       throw badRequest('Scheduled end is required for fixed-duration sessions');
@@ -174,8 +187,6 @@ export async function startSession(req: Request, res: Response) {
       throw badRequest('Scheduled end must be after started_at');
     }
   }
-
-  const isBackdated = started_at && (now.getTime() - sessionStart.getTime() > 60000);
 
   // 5. Create the session.
   const { data: session, error: sErr } = await supabase
@@ -187,11 +198,12 @@ export async function startSession(req: Request, res: Response) {
       play_mode,
       started_at: sessionStart.toISOString(),
       scheduled_end: session_type === 'fixed' ? new Date(scheduled_end).toISOString() : null,
-      hourly_rate_override: hourly_rate_override !== undefined && hourly_rate_override !== null ? Number(hourly_rate_override) : null,
+      hourly_rate_override: finalOverride,
       grace_period_minutes: session_type === 'fixed' ? grace_period_minutes : 0,
       edited_start_at: !!isBackdated,
       status: 'active',
       created_by: req.user!.id,
+      tenant_id: req.user!.tenant_id,
     })
     .select(
       '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)'
@@ -225,7 +237,8 @@ export async function startSession(req: Request, res: Response) {
   const { error: updErr } = await supabase
     .from('devices')
     .update({ status: 'in_use' })
-    .eq('id', device_id);
+    .eq('id', device_id)
+    .eq('tenant_id', req.user!.tenant_id);
   if (updErr) throw updErr;
 
   res.status(201).json({ data: session as unknown as DbSession });
@@ -240,6 +253,7 @@ export async function editSession(req: Request, res: Response) {
     .from('sessions')
     .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi)')
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
 
   if (sErr) throw sErr;
@@ -251,9 +265,18 @@ export async function editSession(req: Request, res: Response) {
 
   if (started_at !== undefined) {
     const newStart = new Date(started_at);
-    if (newStart.getTime() > new Date().getTime() + 10000) {
+    const nowTime = new Date().getTime();
+    if (newStart.getTime() > nowTime + 10000) {
       throw badRequest('Start time cannot be in the future');
     }
+    const backdateMs = nowTime - newStart.getTime();
+    if (backdateMs > 60000 && req.user?.role !== 'admin') {
+      throw forbidden('Only admins can backdate session start times');
+    }
+    if (backdateMs > 30 * 86400000) {
+      throw badRequest('Session start time cannot be backdated by more than 30 days');
+    }
+
     const oldVal = session.started_at;
     const newVal = newStart.toISOString();
     if (oldVal !== newVal) {
@@ -295,7 +318,7 @@ export async function editSession(req: Request, res: Response) {
     const newVal = hourly_rate_override !== null && hourly_rate_override !== undefined ? Number(hourly_rate_override) : null;
     const targetRate = newVal !== null ? newVal : deviceRate;
 
-    if (targetRate !== deviceRate) {
+    if (targetRate !== deviceRate || (newVal !== null && req.user?.role !== 'admin')) {
       if (req.user?.role !== 'admin') {
         throw forbidden('Only admins can override the hourly rate');
       }
@@ -334,6 +357,7 @@ export async function editSession(req: Request, res: Response) {
       .from('sessions')
       .update(updates)
       .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id)
       .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
       .single();
 
@@ -354,6 +378,7 @@ export async function editSession(req: Request, res: Response) {
       .from('sessions')
       .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
       .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id)
       .single();
     if (fetchErr) throw fetchErr;
     res.json({ data: current as unknown as DbSession });
@@ -369,6 +394,7 @@ export async function extendSession(req: Request, res: Response) {
     .from('sessions')
     .select('*')
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
 
   if (sErr) throw sErr;
@@ -388,6 +414,7 @@ export async function extendSession(req: Request, res: Response) {
     .from('sessions')
     .update({ scheduled_end: newEnd.toISOString() })
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
     .single();
 
@@ -419,6 +446,7 @@ export async function endSession(req: Request, res: Response) {
     .from('sessions')
     .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi)')
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
   if (sErr) throw sErr;
   if (!session) throw notFound('Session not found');
@@ -472,11 +500,13 @@ export async function endSession(req: Request, res: Response) {
       throw oErr;
     }
   } else {
-    cafeTotalCost = (orders ?? []).reduce((sum: number, ord: any) => sum + Number(ord.total_price), 0);
+    const sumCents = (orders ?? []).reduce((sum: number, ord: any) => sum + Math.round(Number(ord.total_price) * 100), 0);
+    cafeTotalCost = sumCents / 100;
   }
-  const finalTotalCost = Number((totalCost + cafeTotalCost).toFixed(2));
+  const finalTotalCost = Math.round((totalCost + cafeTotalCost) * 100) / 100;
 
-  // 3. End the session.
+  // 3. End the session atomically.
+  // Using status check in update prevents duplicate ending race condition.
   const { data: ended, error: endErr } = await supabase
     .from('sessions')
     .update({
@@ -488,11 +518,17 @@ export async function endSession(req: Request, res: Response) {
       overtime_minutes: overtimeMinutes > 0 ? overtimeMinutes : null,
     })
     .eq('id', id)
+    .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id)
     .select(
       '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)'
     )
-    .single();
+    .maybeSingle();
+
   if (endErr) throw endErr;
+  if (!ended) {
+    throw conflict('Session already ended or not found', 'SESSION_ENDED');
+  }
 
   // 4. Auto-generate an invoice.
   const { data: invoice, error: invErr } = await supabase
@@ -503,6 +539,7 @@ export async function endSession(req: Request, res: Response) {
       paid: !!mark_paid,
       payment_method,
       paid_at: mark_paid ? sessionEnd.toISOString() : null,
+      tenant_id: req.user!.tenant_id,
     })
     .select('*')
     .single();
@@ -511,6 +548,9 @@ export async function endSession(req: Request, res: Response) {
   // 5. Audit end backdating if applicable
   const isEndBackdated = ended_at && (new Date().getTime() - sessionEnd.getTime() > 60000);
   if (isEndBackdated) {
+    if (req.user?.role !== 'admin') {
+      throw forbidden('Only admins can backdate session end times');
+    }
     const { error: auditErr } = await supabase
       .from('session_audit_log')
       .insert({
@@ -529,7 +569,8 @@ export async function endSession(req: Request, res: Response) {
   const { error: devErr } = await supabase
     .from('devices')
     .update({ status: 'available' })
-    .eq('id', session.device_id);
+    .eq('id', session.device_id)
+    .eq('tenant_id', req.user!.tenant_id);
   if (devErr) throw devErr;
 
   res.json({
@@ -552,11 +593,12 @@ export async function addSessionOrder(req: Request, res: Response) {
   const { id: sessionId } = req.params;
   const { product_id, quantity } = req.body;
 
-  // 1. Verify session is active
+  // 1. Verify session is active and belongs to current tenant
   const { data: session, error: sErr } = await supabase
     .from('sessions')
     .select('id, status')
     .eq('id', sessionId)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
 
   if (sErr) throw sErr;
@@ -565,18 +607,19 @@ export async function addSessionOrder(req: Request, res: Response) {
     throw badRequest('Cannot add café orders to an ended session');
   }
 
-  // 2. Fetch product price
+  // 2. Fetch product price for tenant
   const { data: product, error: pErr } = await supabase
     .from('products')
     .select('id, price')
     .eq('id', product_id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
 
   if (pErr) throw pErr;
   if (!product) throw notFound('Product not found');
 
   const unitPrice = Number(product.price);
-  const totalPrice = Number((unitPrice * Number(quantity)).toFixed(2));
+  const totalPrice = Math.round(unitPrice * Number(quantity) * 100) / 100;
 
   // 3. Insert order
   const { data: order, error: insErr } = await supabase
@@ -599,6 +642,17 @@ export async function addSessionOrder(req: Request, res: Response) {
 export async function listSessionOrders(req: Request, res: Response) {
   const { id: sessionId } = req.params;
 
+  // Verify session belongs to tenant
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+
   const { data: orders, error } = await supabase
     .from('session_orders')
     .select('*, product:products(id,name,price)')
@@ -612,6 +666,17 @@ export async function listSessionOrders(req: Request, res: Response) {
 /** GET /api/sessions/:id/audit-logs — list audit trails for a session. */
 export async function getSessionAuditLogs(req: Request, res: Response) {
   const { id } = req.params;
+
+  // Verify session belongs to tenant
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
 
   const { data, error } = await supabase
     .from('session_audit_log')

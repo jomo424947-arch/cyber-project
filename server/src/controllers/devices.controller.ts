@@ -26,7 +26,8 @@ export async function listDevices(req: Request, res: Response) {
     const { data: sessionData, error: scError } = await supabase
       .from('sessions')
       .select('device_id')
-      .in('device_id', deviceIds);
+      .in('device_id', deviceIds)
+      .eq('tenant_id', req.user!.tenant_id);
 
     const historyMap = new Set<string>();
     if (!scError && sessionData) {
@@ -80,6 +81,20 @@ export async function updateDevice(req: Request, res: Response) {
   if (req.user?.role !== 'admin') {
     if (name !== undefined || type !== undefined || hourly_rate !== undefined || hourly_rate_multi !== undefined || specs !== undefined) {
       throw forbidden('Only admins can update device settings');
+    }
+  }
+
+  if (status === 'offline' || status === 'maintenance') {
+    const { data: activeSess } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('device_id', id)
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .maybeSingle();
+
+    if (activeSess) {
+      throw badRequest(`Cannot set device status to '${status}' while an active session is in progress`);
     }
   }
 

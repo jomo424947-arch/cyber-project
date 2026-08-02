@@ -60,10 +60,12 @@ describe('calculateSessionCost', () => {
     });
     expect(result.isOvertime).toBe(true);
     expect(result.overtimeMinutes).toBe(5);
-    // Base cost: 75/60 * $6/hr = $7.50
+    // Base cost: 70/60 * $6/hr = $7.00 (non-overtime minutes)
     // Overtime cost: 5/60 * $6/hr * 1.5 = $0.75
-    // Total cost: 7.50 + 0.75 = $8.25
-    expect(result.totalCost).toBe(8.25);
+    // Total cost: 7.00 + 0.75 = $7.75
+    expect(result.baseCost).toBe(7.0);
+    expect(result.overtimeCost).toBe(0.75);
+    expect(result.totalCost).toBe(7.75);
   });
 
   it('does not calculate overtime if within grace period', () => {
@@ -86,5 +88,14 @@ describe('calculateSessionCost', () => {
         endedAt: '2026-07-18T09:50:00.000Z',
       });
     }).toThrow('Session end time cannot be before start time');
+  });
+
+  it('errors out if invalid dates are provided', () => {
+    expect(() => {
+      calculateSessionCost({
+        ...defaultParams,
+        startedAt: 'invalid-date-string',
+      });
+    }).toThrow('Invalid date provided for session calculation');
   });
 });

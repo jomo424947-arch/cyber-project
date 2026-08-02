@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS devices (
   id              TEXT PRIMARY KEY,
   name            TEXT NOT NULL,
-  type            TEXT NOT NULL DEFAULT 'pc' CHECK (type IN ('pc','console','vr')),
+  type            TEXT NOT NULL DEFAULT 'pc' CHECK (type IN ('pc','console','vr','table')),
   status          TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available','in_use','reserved','offline')),
   specs           TEXT,
   hourly_rate     REAL NOT NULL DEFAULT 0 CHECK (hourly_rate >= 0),
@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_device   ON sessions(device_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_customer ON sessions(customer_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status   ON sessions(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_one_active_per_device ON sessions(device_id) WHERE status = 'active';
 
 -- invoices
 CREATE TABLE IF NOT EXISTS invoices (
@@ -132,6 +133,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoices_session ON invoices(session_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_session_unique ON invoices(session_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_paid    ON invoices(paid);
 
 -- reservations
@@ -259,6 +261,38 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     tenantStmt.free();
   } catch (err: any) {
     console.error('[database] Auto-migration check failed:', err.message);
+  }
+
+  try {
+    const devicesTableInfo = _db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='devices'");
+    const createSql = (devicesTableInfo[0]?.values[0]?.[0] as string) || '';
+
+    if (createSql && !createSql.includes("'table'")) {
+      console.log('[database] Running database migration: updating devices.type CHECK constraint to include table...');
+      _db.run(`
+        CREATE TABLE devices_new (
+          id              TEXT PRIMARY KEY,
+          name            TEXT NOT NULL,
+          type            TEXT NOT NULL DEFAULT 'pc' CHECK (type IN ('pc','console','vr','table')),
+          status          TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available','in_use','reserved','offline')),
+          specs           TEXT,
+          hourly_rate     REAL NOT NULL DEFAULT 0 CHECK (hourly_rate >= 0),
+          hourly_rate_multi REAL NOT NULL DEFAULT 0 CHECK (hourly_rate_multi >= 0),
+          archived        INTEGER NOT NULL DEFAULT 0,
+          tenant_id       TEXT,
+          created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+          synced          INTEGER NOT NULL DEFAULT 0,
+          synced_at       TEXT
+        );
+      `);
+      _db.run('INSERT INTO devices_new SELECT * FROM devices;');
+      _db.run('DROP TABLE devices;');
+      _db.run('ALTER TABLE devices_new RENAME TO devices;');
+      console.log('[database] Devices table migration completed successfully.');
+    }
+  } catch (err: any) {
+    console.error('[database] Devices table migration failed:', err.message);
   }
 
   // Persist after schema creation and migrations

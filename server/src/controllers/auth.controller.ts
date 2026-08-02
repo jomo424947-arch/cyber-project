@@ -672,8 +672,8 @@ export async function activateTenant(req: Request, res: Response) {
 export async function registerTenant(req: Request, res: Response) {
   const { tenantName, ownerFullName, ownerEmail, ownerPassword, status = 'active', secretKey } = req.body;
 
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
-  if (!secretKey || secretKey !== expectedKey) {
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey || !secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
 
@@ -743,8 +743,8 @@ export async function registerTenant(req: Request, res: Response) {
 /** GET /api/auth/tenants — Lists all tenants from Supabase. */
 export async function getTenants(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
-  if (!secretKey || secretKey !== expectedKey) {
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey || !secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
 
@@ -770,8 +770,8 @@ export async function getTenants(req: Request, res: Response) {
 /** PATCH /api/auth/tenants/:id/status — Updates a tenant's subscription status. */
 export async function updateTenantStatus(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
-  if (!secretKey || secretKey !== expectedKey) {
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey || !secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
 

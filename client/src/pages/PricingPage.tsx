@@ -37,6 +37,15 @@ const TYPE_META: Record<string, { label: string; labelAr: string; icon: string; 
     description: 'Virtual reality pods and immersive gaming',
     descriptionAr: 'مقصورات الواقع الافتراضي والألعاب الانغماسية ثلاثية الأبعاد',
   },
+  table: {
+    label: 'Table Games',
+    labelAr: 'طربيزات الألعاب',
+    icon: 'sports_tennis',
+    color: 'var(--accent-yellow)',
+    gradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.06) 100%)',
+    description: 'Billiard, ping-pong, and other table games',
+    descriptionAr: 'طرابيزات البلياردو والتنس وغيرها من ألعاب الطاولة',
+  },
 };
 
 export default function PricingPage() {
@@ -138,7 +147,7 @@ export default function PricingPage() {
     );
   }
 
-  const orderedTypes = ['pc', 'console', 'vr'];
+  const orderedTypes = ['pc', 'console', 'vr', 'table'];
   const sortedTiers = (tiers ?? []).sort(
     (a, b) => orderedTypes.indexOf(a.type) - orderedTypes.indexOf(b.type)
   );
