@@ -15,10 +15,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
   let csrfToken = req.cookies?.['csrf-token'];
   if (!csrfToken) {
     csrfToken = crypto.randomBytes(32).toString('hex');
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('csrf-token', csrfToken, {
       httpOnly: false, // Must be readable by client JS to attach to headers
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
     });
   }

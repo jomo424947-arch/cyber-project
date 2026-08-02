@@ -607,7 +607,10 @@ class QueryBuilder {
         fetchBuilder._selectCols = this._returnCols || this._selectCols || '*';
         fetchBuilder._joins = this._returnJoins.length ? this._returnJoins : this._joins;
         fetchBuilder._nestedJoins = this._returnNestedJoins.size ? this._returnNestedJoins : this._nestedJoins;
-        fetchBuilder._where = [...this._where];
+        // Exclude WHERE conditions on columns that were just updated,
+        // otherwise the re-fetch won't find the row (e.g. status changed from 'active' to 'ended')
+        const updatedCols = new Set(Object.keys(data));
+        fetchBuilder._where = this._where.filter(w => !updatedCols.has(w.col));
         fetchBuilder._singleRow = this._singleRow;
         fetchBuilder._maybeSingle = this._maybeSingle;
         return fetchBuilder._execSelect();

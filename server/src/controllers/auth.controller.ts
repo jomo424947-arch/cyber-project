@@ -13,8 +13,8 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 /** Duration for access token cookie — 1 hour. */
 const ACCESS_COOKIE_OPTS = {
   httpOnly: true,
-  secure: false, // Set to false so it works in Electron / HTTP dev environments
-  sameSite: 'lax' as const,
+  secure: IS_PROD,
+  sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax',
   path: '/',
   maxAge: 60 * 60 * 1000, // 1 hour
 };
@@ -22,8 +22,8 @@ const ACCESS_COOKIE_OPTS = {
 /** Default refresh token cookie (session-only unless "remember me"). */
 const REFRESH_COOKIE_OPTS = {
   httpOnly: true,
-  secure: false,
-  sameSite: 'lax' as const,
+  secure: IS_PROD,
+  sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax',
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };

@@ -13,9 +13,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'ax
  *                             If refresh fails, the user is redirected to /login.
  */
 
-const baseURL = window.location.origin.includes('localhost')
-  ? window.location.origin
-  : import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const baseURL = import.meta.env.VITE_API_URL || '';
 
 export const http: AxiosInstance = axios.create({
   baseURL,
