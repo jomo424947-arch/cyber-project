@@ -33,6 +33,7 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     '/api/auth/logout',
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
+    '/api/auth/activate',
     '/health',
   ];
 
