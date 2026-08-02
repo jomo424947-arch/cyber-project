@@ -4,7 +4,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface ModalProps {
   open: boolean;
-  title: string;
+  title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;

@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { StatCard } from '../components/StatCard';
+import { InvoiceDetailsModal } from '../components/InvoiceDetailsModal';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -22,6 +23,7 @@ export default function BillingPage() {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [detailInvoice, setDetailInvoice] = useState<Invoice | null>(null);
   const { t, language, isRtl } = useLanguage();
 
   const { data, loading, refetch } = useAsync(() => dataService.listInvoices(), []);
@@ -317,70 +319,133 @@ export default function BillingPage() {
                 header: '',
                 align: 'right',
                 render: (i: Invoice) => (
-                  <div style={{ position: 'relative', display: 'inline-block' }}>
-                    <button 
-                      style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                    {/* Invoice Details Button */}
+                    <button
+                      title={language === 'ar' ? 'تفاصيل الفاتورة' : 'Invoice Details'}
+                      style={{
+                        color: 'var(--accent-cyan)',
+                        cursor: 'pointer',
+                        padding: '6px',
+                        background: 'rgba(0, 194, 255, 0.08)',
+                        border: '1px solid rgba(0, 194, 255, 0.2)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveMenuId(activeMenuId === i.id ? null : i.id);
+                        setDetailInvoice(i);
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#00C2FF'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(0, 194, 255, 0.18)';
+                        e.currentTarget.style.borderColor = 'var(--accent-cyan)';
+                        e.currentTarget.style.boxShadow = '0 0 8px rgba(0, 194, 255, 0.25)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(0, 194, 255, 0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(0, 194, 255, 0.2)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>more_vert</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>info</span>
                     </button>
-                    {activeMenuId === i.id && (
-                      <>
-                        <div 
-                          style={{ position: 'fixed', inset: 0, zIndex: 90 }} 
-                          onClick={() => setActiveMenuId(null)}
-                        />
-                        <div 
-                          style={{ 
-                            position: 'absolute', 
-                            right: isRtl ? 'auto' : 0, 
-                            left: isRtl ? 0 : 'auto', 
-                            top: '24px', 
-                            background: 'var(--bg-elevated)', 
-                            border: '1px solid var(--border-default)', 
-                            borderRadius: '8px', 
-                            boxShadow: 'var(--shadow-glow-strong)', 
-                            zIndex: 100, 
-                            minWidth: '150px',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          {!i.paid ? (
+
+                    {/* More Actions Menu */}
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <button 
+                        style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuId(activeMenuId === i.id ? null : i.id);
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = '#00C2FF'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>more_vert</span>
+                      </button>
+                      {activeMenuId === i.id && (
+                        <>
+                          <div 
+                            style={{ position: 'fixed', inset: 0, zIndex: 90 }} 
+                            onClick={() => setActiveMenuId(null)}
+                          />
+                          <div 
+                            style={{ 
+                              position: 'absolute', 
+                              right: isRtl ? 'auto' : 0, 
+                              left: isRtl ? 0 : 'auto', 
+                              top: '24px', 
+                              background: 'var(--bg-elevated)', 
+                              border: '1px solid var(--border-default)', 
+                              borderRadius: '8px', 
+                              boxShadow: 'var(--shadow-glow-strong)', 
+                              zIndex: 100, 
+                              minWidth: '150px',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            {/* View Details option in menu */}
                             <button
-                              onClick={() => handlePay(i.id)}
-                              disabled={payingId === i.id}
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                setDetailInvoice(i);
+                              }}
                               style={{ 
                                 width: '100%', 
                                 padding: '10px 16px', 
                                 textAlign: isRtl ? 'right' : 'left', 
-                                color: 'var(--accent-green)', 
+                                color: 'var(--accent-cyan)', 
                                 fontFamily: isRtl ? 'Cairo, sans-serif' : 'Inter, sans-serif',
                                 fontSize: '13px',
                                 fontWeight: 500,
                                 background: 'none',
                                 border: 'none',
                                 cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
                               }}
                               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-surface)'}
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                              {payingId === i.id 
-                                ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...') 
-                                : (language === 'ar' ? 'تأكيد السداد' : 'Mark as Paid')}
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
+                              {language === 'ar' ? 'تفاصيل الفاتورة' : 'View Details'}
                             </button>
-                          ) : (
-                            <div style={{ padding: '10px 16px', color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center' }}>
-                              {language === 'ar' ? 'لا توجد إجراءات' : 'No Actions'}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
+                            {!i.paid ? (
+                              <button
+                                onClick={() => handlePay(i.id)}
+                                disabled={payingId === i.id}
+                                style={{ 
+                                  width: '100%', 
+                                  padding: '10px 16px', 
+                                  textAlign: isRtl ? 'right' : 'left', 
+                                  color: 'var(--accent-green)', 
+                                  fontFamily: isRtl ? 'Cairo, sans-serif' : 'Inter, sans-serif',
+                                  fontSize: '13px',
+                                  fontWeight: 500,
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check_circle</span>
+                                {payingId === i.id 
+                                  ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...') 
+                                  : (language === 'ar' ? 'تأكيد السداد' : 'Mark as Paid')}
+                              </button>
+                            ) : null}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ),
               },
@@ -455,6 +520,18 @@ export default function BillingPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Invoice Details Modal */}
+      {detailInvoice && (
+        <InvoiceDetailsModal
+          invoice={detailInvoice}
+          onClose={() => setDetailInvoice(null)}
+          onPaySuccess={() => {
+            toast(language === 'ar' ? 'تم تحديد الفاتورة كمدفوعة' : 'Invoice marked as paid', 'success');
+            refetch();
+          }}
+        />
       )}
 
       {/* Bottom Visualization Section */}

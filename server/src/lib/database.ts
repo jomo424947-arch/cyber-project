@@ -269,6 +269,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
 
     if (createSql && !createSql.includes("'table'")) {
       console.log('[database] Running database migration: updating devices.type CHECK constraint to include table...');
+      _db.run('PRAGMA foreign_keys = OFF;');
       _db.run(`
         CREATE TABLE devices_new (
           id              TEXT PRIMARY KEY,
@@ -289,6 +290,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       _db.run('INSERT INTO devices_new SELECT * FROM devices;');
       _db.run('DROP TABLE devices;');
       _db.run('ALTER TABLE devices_new RENAME TO devices;');
+      _db.run('PRAGMA foreign_keys = ON;');
       console.log('[database] Devices table migration completed successfully.');
     }
   } catch (err: any) {
