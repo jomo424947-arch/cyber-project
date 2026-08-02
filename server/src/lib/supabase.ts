@@ -1,22 +1,35 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import { localDb } from './local-db';
+import dotenv from 'dotenv';
+import path from 'path';
+import WebSocket from 'ws';
+
+// Load env variables
+dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') }); // same directory
+dotenv.config({ path: path.join(__dirname, '../.env') }); // parent directory (server/.env or electron/server/.env)
+dotenv.config({ path: path.join(__dirname, '../../.env') }); // server/dist/lib/.env
+dotenv.config({ path: path.join(__dirname, '../../../.env') });
+
+const isOffline = process.env.OFFLINE_MODE === 'true';
+
+const url = process.env.SUPABASE_URL || '';
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+// Initialize the real Supabase client for cloud mode
+const cloudClient = url && serviceKey
+  ? createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      realtime: { transport: WebSocket as any },
+    })
+  : null;
 
 /**
- * Service-role Supabase client.
- *
- * This bypasses RLS and must ONLY be used server-side.
- * Every request is still authenticated by verifying the caller's JWT in
- * middleware/auth.ts — the service role key is used for the DB writes.
+ * Dynamically exports either the local SQLite query builder (localDb)
+ * or the real Supabase Cloud client depending on the OFFLINE_MODE env variable.
  */
-const url = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const supabase = isOffline || !cloudClient
+  ? (localDb as any)
+  : cloudClient;
 
-if (!url || !serviceKey) {
-  // We warn rather than crash so the server can boot in dev for route inspection.
-  console.warn(
-    '[supabase] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — DB calls will fail.'
-  );
-}
-
-export const supabase: SupabaseClient = createClient(url ?? '', serviceKey ?? '', {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+export { localDb };

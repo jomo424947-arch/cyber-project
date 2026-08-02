@@ -4,10 +4,12 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { LoadingSpinner } from './ui/LoadingSpinner';
+import { useLanguage } from '../context/LanguageContext';
+import { useSystemSettings } from '../context/SystemSettingsContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
-import type { Device, Session, Customer, PaymentMethod, SessionAuditLog } from '../types';
+import type { Device, Session, Customer, PaymentMethod, SessionAuditLog, SessionOrder } from '../types';
 
 // Helper to format Date objects for datetime-local inputs
 const toLocalISOString = (date: Date) => {
@@ -18,13 +20,16 @@ const toLocalISOString = (date: Date) => {
 // ─── Start Session modal ───────────────────────────────────────────────
 export function StartSessionModal({
   device,
+  playMode = 'single',
   onClose,
   onDone,
 }: {
   device: Device;
+  playMode?: 'single' | 'multiplayer';
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t, language, isRtl } = useLanguage();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [mode, setMode] = useState<'existing' | 'new'>('new');
   
@@ -33,15 +38,12 @@ export function StartSessionModal({
   const [customerId, setCustomerId] = useState('');
   
   // Quick-create state
-  const [username, setUsername] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
 
   // Session options
   const [sessionType, setSessionType] = useState<'open' | 'fixed'>('open');
   const [startedAt, setStartedAt] = useState(toLocalISOString(new Date()));
   const [durationMinutes, setDurationMinutes] = useState('60');
-  const [hourlyRateOverride, setHourlyRateOverride] = useState(device.hourly_rate.toString());
   const [gracePeriod, setGracePeriod] = useState('0');
   
   const [loading, setLoading] = useState(false);
@@ -69,17 +71,6 @@ export function StartSessionModal({
     return toLocalISOString(endDate);
   }, [sessionType, startedAt, durationMinutes]);
 
-  const usernameError = useMemo(() => {
-    if (mode !== 'new' || !username) return '';
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      return 'Only letters, numbers, and underscores allowed (no spaces)';
-    }
-    if (customers?.some((c) => c.username.toLowerCase() === username.toLowerCase())) {
-      return 'Username is already taken';
-    }
-    return '';
-  }, [mode, username, customers]);
-
   const submit = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -87,25 +78,21 @@ export function StartSessionModal({
       const payload: any = {
         device_id: device.id,
         session_type: sessionType,
+        play_mode: playMode,
         grace_period_minutes: sessionType === 'fixed' ? (parseInt(gracePeriod, 10) || 0) : 0,
-        hourly_rate_override: parseFloat(hourlyRateOverride) !== device.hourly_rate ? parseFloat(hourlyRateOverride) : null,
       };
 
       if (mode === 'existing') {
-        if (!customerId) throw new Error('Please select a customer');
+        if (!customerId) throw new Error(language === 'ar' ? 'يرجى اختيار عميل مسجل' : 'Please select a customer');
         payload.customer_id = customerId;
       } else {
-        if (!username.trim()) throw new Error('Username is required');
-        if (usernameError) throw new Error(usernameError);
-        payload.customer_username = username.trim().toLowerCase();
-        payload.customer_name = name.trim() || username.trim();
-        payload.customer_phone = phone.trim() || undefined;
+        payload.customer_name = name.trim() || undefined;
       }
 
       const now = new Date();
       const start = new Date(startedAt);
       if (start.getTime() > now.getTime() + 10000) {
-        throw new Error('Start time cannot be in the future');
+        throw new Error(language === 'ar' ? 'وقت البدء لا يمكن أن يكون في المستقبل' : 'Start time cannot be in the future');
       }
       payload.started_at = start.toISOString();
 
@@ -125,75 +112,57 @@ export function StartSessionModal({
   return (
     <Modal
       open
-      title={`Start Session · ${device.name}`}
+      title={language === 'ar' ? `بدء الجلسة · ${device.name}` : `Start Session · ${device.name}`}
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
           <Button
             loading={loading}
-            disabled={
-              mode === 'existing' 
-                ? !customerId 
-                : !username.trim() || !!usernameError || !name.trim()
-            }
+            disabled={mode === 'existing' && !customerId}
             onClick={submit}
+            style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
-            Start Session
+            {language === 'ar' ? 'بدء الجلسة' : 'Start Session'}
           </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', textAlign: isRtl ? 'right' : 'left' }}>
         
         {/* Toggle Mode: Existing vs New Customer */}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
             className={mode === 'new' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ flex: 1, fontSize: '13px' }}
+            style={{ flex: 1, fontSize: '13px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
             onClick={() => setMode('new')}
           >
-            New Customer
+            {language === 'ar' ? 'عميل جديد' : 'New Customer'}
           </button>
           <button
             type="button"
             className={mode === 'existing' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ flex: 1, fontSize: '13px' }}
+            style={{ flex: 1, fontSize: '13px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
             onClick={() => setMode('existing')}
           >
-            Existing
+            {language === 'ar' ? 'عميل مسجل' : 'Existing'}
           </button>
         </div>
 
         {mode === 'new' ? (
-          <>
-            <Input
-              label="Username (unique identifier)*"
-              placeholder="e.g. omar_99"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              error={usernameError}
-              autoFocus
-            />
-            <Input
-              label="Customer Display Name*"
-              placeholder="e.g. Omar Khalid"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input
-              label="Phone (optional)"
-              placeholder="+20 100 000 0000"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </>
+          <Input
+            label={language === 'ar' ? 'اسم العميل (اختياري)' : 'Customer Display Name (optional)'}
+            placeholder={language === 'ar' ? 'مثال: عمر خالد' : 'e.g. Omar Khalid'}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
         ) : (
           <>
             <Input
-              label="Search Customers"
-              placeholder="Type username..."
+              label={language === 'ar' ? 'البحث عن عميل' : 'Search Customers'}
+              placeholder={language === 'ar' ? 'اكتب اسم العميل...' : 'Type username...'}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -201,13 +170,17 @@ export function StartSessionModal({
               }}
             />
             <Select
-              label="Select Customer*"
+              label={language === 'ar' ? 'اختر العميل*' : 'Select Customer*'}
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               disabled={!customers || customers.length === 0}
             >
               <option value="">
-                {customers === null ? 'Loading…' : filteredCustomers.length === 0 ? 'No matching customers' : 'Choose…'}
+                {customers === null 
+                  ? (language === 'ar' ? 'جاري التحميل...' : 'Loading…') 
+                  : filteredCustomers.length === 0 
+                  ? (language === 'ar' ? 'لا توجد نتائج مطابقة' : 'No matching customers') 
+                  : (language === 'ar' ? 'اختر عميلاً...' : 'Choose…')}
               </option>
               {filteredCustomers.map((c) => (
                 <option key={c.id} value={c.id}>@{c.username} — {c.name}</option>
@@ -220,23 +193,25 @@ export function StartSessionModal({
 
         {/* Toggle Session Type */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span className="ccms-eyebrow">Session Type</span>
+          <span className="ccms-eyebrow" style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar' ? 'نوع الجلسة' : 'Session Type'}
+          </span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               type="button"
               className={sessionType === 'open' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-              style={{ flex: 1, fontSize: '13px' }}
+              style={{ flex: 1, fontSize: '13px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
               onClick={() => setSessionType('open')}
             >
-              Open Time
+              {language === 'ar' ? 'وقت مفتوح' : 'Open Time'}
             </button>
             <button
               type="button"
               className={sessionType === 'fixed' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-              style={{ flex: 1, fontSize: '13px' }}
+              style={{ flex: 1, fontSize: '13px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
               onClick={() => setSessionType('fixed')}
             >
-              Fixed Time
+              {language === 'ar' ? 'وقت محدد' : 'Fixed Time'}
             </button>
           </div>
         </div>
@@ -244,7 +219,7 @@ export function StartSessionModal({
         {/* Start time */}
         <Input
           type="datetime-local"
-          label="Start Time (Backdate)"
+          label={language === 'ar' ? 'وقت البدء (تعديل تاريخي)' : 'Start Time (Backdate)'}
           value={startedAt}
           max={toLocalISOString(new Date())}
           onChange={(e) => setStartedAt(e.target.value)}
@@ -255,14 +230,14 @@ export function StartSessionModal({
             <div className="ccms-grid-form" style={{ gap: '12px' }}>
               <Input
                 type="number"
-                label="Duration (minutes)*"
+                label={language === 'ar' ? 'المدة (بالدقائق)*' : 'Duration (minutes)*'}
                 min="1"
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(e.target.value)}
               />
               <Input
                 type="number"
-                label="Grace Period (minutes)"
+                label={language === 'ar' ? 'فترة السماح (بالدقائق)' : 'Grace Period (minutes)'}
                 min="0"
                 value={gracePeriod}
                 onChange={(e) => setGracePeriod(e.target.value)}
@@ -270,20 +245,11 @@ export function StartSessionModal({
             </div>
             {durationMinutes && startedAt && (
               <div style={{ fontSize: '12px', color: 'var(--accent-cyan)' }}>
-                Scheduled End: <strong>{new Date(computedScheduledEnd).toLocaleString()}</strong>
+                {language === 'ar' ? 'نهاية الجلسة المجدولة:' : 'Scheduled End:'} <strong>{new Date(computedScheduledEnd).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)}</strong>
               </div>
             )}
           </>
         )}
-
-        <Input
-          type="number"
-          label="Hourly Rate Override ($/hr)"
-          min="0"
-          step="0.01"
-          value={hourlyRateOverride}
-          onChange={(e) => setHourlyRateOverride(e.target.value)}
-        />
 
         {errorMsg && (
           <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
@@ -305,11 +271,22 @@ export function EndSessionModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t, language, isRtl } = useLanguage();
+  const { walletQrUrl, walletPhoneNumber, bankDetails } = useSystemSettings();
   const [endedAt, setEndedAt] = useState(toLocalISOString(new Date()));
   const [markPaid, setMarkPaid] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [showQrZoom, setShowQrZoom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [orders, setOrders] = useState<SessionOrder[] | null>(null);
+
+  useEffect(() => {
+    dataService.listSessionOrders(session.id)
+      .then(setOrders)
+      .catch((err) => console.error('Failed to list session orders in end modal:', err));
+  }, [session.id]);
 
   const startedTime = new Date(session.started_at).getTime();
   const endingTime = new Date(endedAt).getTime();
@@ -317,7 +294,11 @@ export function EndSessionModal({
   const rawMinutes = Math.max(0, Math.ceil((endingTime - startedTime) / 60000));
   const billedMinutes = Math.max(30, rawMinutes);
   
-  const rate = Number(session.hourly_rate_override !== null ? session.hourly_rate_override : session.device?.hourly_rate ?? 0);
+  const rate = Number(
+    session.hourly_rate_override !== null
+      ? session.hourly_rate_override
+      : (session.play_mode === 'multiplayer' ? session.device?.hourly_rate_multi : session.device?.hourly_rate) ?? 0
+  );
   const baseCost = (billedMinutes / 60) * rate;
 
   let overtimeMinutes = 0;
@@ -332,18 +313,19 @@ export function EndSessionModal({
     }
   }
 
-  const totalCost = baseCost + overtimeCost;
+  const cafeCost = orders ? orders.reduce((sum, ord) => sum + Number(ord.total_price), 0) : 0;
+  const totalCost = baseCost + overtimeCost + cafeCost;
 
   const submit = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
       if (endingTime < startedTime) {
-        throw new Error('End time cannot be earlier than start time');
+        throw new Error(language === 'ar' ? 'وقت الانتهاء لا يمكن أن يكون أقدم من بدء اللعب' : 'End time cannot be earlier than start time');
       }
       const now = new Date();
       if (endingTime > now.getTime() + 10000) {
-        throw new Error('End time cannot be in the future');
+        throw new Error(language === 'ar' ? 'وقت الانتهاء لا يمكن أن يكون في المستقبل' : 'End time cannot be in the future');
       }
 
       await dataService.endSession(session.id, {
@@ -361,94 +343,257 @@ export function EndSessionModal({
   };
 
   return (
-    <Modal
-      open
-      title={`End Session · ${session.device?.name ?? 'Device'}`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="danger" loading={loading} onClick={submit}>
-            End & Generate Invoice
-          </Button>
-        </>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <Input
-          type="datetime-local"
-          label="End Time"
-          value={endedAt}
-          max={toLocalISOString(new Date())}
-          onChange={(e) => setEndedAt(e.target.value)}
-        />
-
-        <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border-default)' }}>
-          <Row label="Customer" value={session.customer ? `@${session.customer.username} (${session.customer.name})` : 'Walk-in'} />
-          <Row label="Hourly Rate" value={`${formatCurrency(rate)} / hr`} />
-          <Row label="Started At" value={new Date(session.started_at).toLocaleString()} />
-          <Row label="Billed Time" value={`${billedMinutes} minutes (raw: ${rawMinutes}m, min 30m)`} />
-          
-          <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-          
-          <Row label="Base Cost" value={formatCurrency(baseCost)} />
-          
-          {session.session_type === 'fixed' && (
-            <>
-              <Row 
-                label="Overtime Minutes" 
-                value={`${overtimeMinutes} mins (${session.grace_period_minutes}m grace applied)`} 
-                valueColor={overtimeMinutes > 0 ? 'var(--accent-red)' : 'var(--text-secondary)'}
-              />
-              <Row 
-                label="Overtime Cost" 
-                value={formatCurrency(overtimeCost)} 
-                valueColor={overtimeCost > 0 ? 'var(--accent-red)' : 'var(--text-secondary)'}
-              />
-            </>
-          )}
-
-          <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-          
-          <Row 
-            label="Total Cost" 
-            value={formatCurrency(totalCost)} 
-            valueColor="var(--accent-green)" 
-            isBold 
+    <>
+      <Modal
+        open
+        title={language === 'ar' ? `إنهاء الجلسة · ${session.device?.name ?? 'الجهاز'}` : `End Session · ${session.device?.name ?? 'Device'}`}
+        onClose={onClose}
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
+            <Button variant="danger" loading={loading} onClick={submit} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+              {language === 'ar' ? 'إنهاء وإصدار الفاتورة' : 'End & Generate Invoice'}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left' }}>
+          <Input
+            type="datetime-local"
+            label={language === 'ar' ? 'وقت الانتهاء' : 'End Time'}
+            value={endedAt}
+            max={toLocalISOString(new Date())}
+            onChange={(e) => setEndedAt(e.target.value)}
           />
-        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-            <input 
-              type="checkbox" 
-              checked={markPaid} 
-              onChange={(e) => setMarkPaid(e.target.checked)} 
+          <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border-default)' }}>
+            <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={session.customer ? `@${session.customer.username} (${session.customer.name})` : (language === 'ar' ? 'مستغل خارجي' : 'Walk-in')} />
+            <Row label={language === 'ar' ? 'سعر الساعة' : 'Hourly Rate'} value={`${formatCurrency(rate)} / ${language === 'ar' ? 'ساعة' : 'hr'}`} />
+            <Row label={language === 'ar' ? 'تاريخ البدء' : 'Started At'} value={new Date(session.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)} />
+            <Row 
+              label={language === 'ar' ? 'الوقت المحسوب' : 'Billed Time'} 
+              value={language === 'ar' 
+                ? `${billedMinutes} دقيقة (الحقيقي: ${rawMinutes} د، الحد الأدنى 30 د)`
+                : `${billedMinutes} minutes (raw: ${rawMinutes}m, min 30m)`
+              } 
             />
-            Mark as Paid Immediately
-          </label>
-          
-          {markPaid && (
-            <Select
-              label="Payment Method"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Credit/Debit Card</option>
-              <option value="transfer">Bank Transfer</option>
-              <option value="wallet">Digital Wallet</option>
-            </Select>
+            
+            <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+            
+            <Row label={language === 'ar' ? 'التكلفة الأساسية' : 'Base Cost'} value={formatCurrency(baseCost)} />
+            
+            {session.session_type === 'fixed' && (
+              <>
+                <Row 
+                  label={language === 'ar' ? 'دقائق الوقت الإضافي' : 'Overtime Minutes'} 
+                  value={language === 'ar'
+                    ? `${overtimeMinutes} دقيقة (مع تطبيق ${session.grace_period_minutes} د سماح)`
+                    : `${overtimeMinutes} mins (${session.grace_period_minutes}m grace applied)`
+                  } 
+                  valueColor={overtimeMinutes > 0 ? 'var(--accent-red)' : 'var(--text-secondary)'}
+                />
+                <Row 
+                  label={language === 'ar' ? 'تكلفة الوقت الإضافي' : 'Overtime Cost'} 
+                  value={formatCurrency(overtimeCost)} 
+                  valueColor={overtimeCost > 0 ? 'var(--accent-red)' : 'var(--text-secondary)'}
+                />
+              </>
+            )}
+
+            {cafeCost > 0 && (
+              <>
+                <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: isRtl ? 0 : '8px', paddingRight: isRtl ? '8px' : 0 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+                    {language === 'ar' ? 'طلبات البوفيه:' : 'Café Orders:'}
+                  </span>
+                  {(orders ?? []).map((ord) => (
+                    <div key={ord.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <span>{ord.product?.name} (x{ord.quantity})</span>
+                      <span>{formatCurrency(ord.total_price)}</span>
+                    </div>
+                  ))}
+                </div>
+                <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+                <Row label={language === 'ar' ? 'إجمالي تكلفة البوفيه' : 'Total Café Cost'} value={formatCurrency(cafeCost)} valueColor="var(--accent-cyan)" />
+              </>
+            )}
+
+            <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+            
+            <Row 
+              label={language === 'ar' ? 'إجمالي الحساب' : 'Total Cost'} 
+              value={formatCurrency(totalCost)} 
+              valueColor="var(--accent-green)" 
+              isBold 
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              <input 
+                type="checkbox" 
+                checked={markPaid} 
+                onChange={(e) => setMarkPaid(e.target.checked)} 
+              />
+              {language === 'ar' ? 'تسجيل كمدفوع فوراً' : 'Mark as Paid Immediately'}
+            </label>
+            
+            {markPaid && (
+              <>
+                <Select
+                  label={language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                >
+                  <option value="cash">{language === 'ar' ? 'نقدي' : 'Cash'}</option>
+                  <option value="card">{language === 'ar' ? 'فيزا / كارت ائتمان' : 'Credit/Debit Card'}</option>
+                  <option value="transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
+                  <option value="wallet">{language === 'ar' ? 'محفظة إلكترونية' : 'Digital Wallet'}</option>
+                </Select>
+
+                {/* Wallet Details & QR Code display */}
+                {paymentMethod === 'wallet' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>qr_code_2</span>
+                        {language === 'ar' ? 'سداد عبر المحفظة الإلكترونية (فودافون كاش)' : 'Pay via E-Wallet (Vodafone Cash)'}
+                      </span>
+                      {walletQrUrl && (
+                        <button 
+                          type="button" 
+                          className="ccms-btn ccms-btn-ghost" 
+                          style={{ fontSize: '11px', padding: '2px 8px', color: 'var(--accent-green)' }}
+                          onClick={() => setShowQrZoom(true)}
+                        >
+                          {language === 'ar' ? 'تكبير الـ QR' : 'Zoom QR'}
+                        </button>
+                      )}
+                    </div>
+
+                    {walletQrUrl ? (
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#FFFFFF', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)' }}>
+                        <img 
+                          src={walletQrUrl} 
+                          alt="Vodafone Cash QR" 
+                          style={{ width: '100px', height: '100px', objectFit: 'contain', cursor: 'pointer', borderRadius: '4px' }} 
+                          onClick={() => setShowQrZoom(true)}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#1E293B' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                            {language === 'ar' ? 'امسح الـ QR للتحويل الفوري' : 'Scan QR code to pay'}
+                          </span>
+                          {walletPhoneNumber ? (
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', fontFamily: 'JetBrains Mono, monospace' }}>
+                              📱 {walletPhoneNumber}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: '#475569' }}>
+                              {language === 'ar' ? 'حوالة فودافون كاش المباشرة' : 'Vodafone Cash Direct Wallet'}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '10px', color: '#64748B' }}>
+                            {language === 'ar' ? 'تأكد من مطابقة المبلغ قبل إتمام العملية' : 'Please verify amount before transfer'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent-yellow)', lineHeight: '1.5' }}>
+                        ⚠️ {language === 'ar' ? 'لم يتم تعيين صورة الـ QR للمحفظة في الإعدادات بعد (الديفولت فارغة). يمكنك رفع صورة QR فودافون كاش من صفحة الإعدادات.' : 'No E-Wallet QR image set in settings yet. You can upload your QR code in the Settings page.'}
+                      </div>
+                    )}
+
+                    <Input
+                      label={language === 'ar' ? 'رقم عملية المحفظة / رقم المحوّل (اختياري)' : 'Wallet Transaction Ref / Phone (optional)'}
+                      placeholder={language === 'ar' ? 'مثال: 010xxx أو رقم العملية' : 'e.g. 010xxx or TxID'}
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Card POS Details */}
+                {paymentMethod === 'card' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(0, 194, 255, 0.05)', border: '1px solid rgba(0, 194, 255, 0.2)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>credit_card</span>
+                      {language === 'ar' ? 'دفع عبر ماكينة الفيزا (POS)' : 'Card Terminal (POS)'}
+                    </div>
+                    <Input
+                      label={language === 'ar' ? 'رقم العملية / مرجع ماكينة الـ POS (اختياري)' : 'POS Transaction Ref / Auth Code (optional)'}
+                      placeholder={language === 'ar' ? 'مثال: Auth Code #123456' : 'e.g. Auth Code #123456'}
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Bank Transfer Details */}
+                {paymentMethod === 'transfer' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#c084fc' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>account_balance</span>
+                      {language === 'ar' ? 'تحويل بنكي / InstaPay' : 'Bank Transfer / InstaPay'}
+                    </div>
+                    {bankDetails ? (
+                      <div style={{ fontSize: '12px', background: '#111', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                        {bankDetails}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {language === 'ar' ? 'يمكنك تدوين بيانات الحساب البنكي من صفحة الإعدادات.' : 'You can configure bank details in Settings.'}
+                      </div>
+                    )}
+                    <Input
+                      label={language === 'ar' ? 'رقم مرجع التحويل / اسم المحوّل (اختياري)' : 'Bank Reference / Sender Name (optional)'}
+                      placeholder={language === 'ar' ? 'رقم الحوالة أو الاسم' : 'Transfer Ref or Name'}
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {errorMsg && (
+            <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
+              {errorMsg}
+            </div>
           )}
         </div>
+      </Modal>
 
-        {errorMsg && (
-          <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
-            {errorMsg}
+      {/* QR Code Zoom Popup Modal */}
+      {showQrZoom && walletQrUrl && (
+        <Modal
+          open
+          title={language === 'ar' ? 'رمز QR المحفظة الإلكترونية (فودافون كاش)' : 'E-Wallet QR Code (Vodafone Cash)'}
+          onClose={() => setShowQrZoom(false)}
+          width={380}
+          footer={
+            <Button onClick={() => setShowQrZoom(false)} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+              {language === 'ar' ? 'إغلاق' : 'Close'}
+            </Button>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '10px' }}>
+            <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '16px', boxShadow: '0 0 24px rgba(34, 197, 94, 0.3)' }}>
+              <img src={walletQrUrl} alt="QR Code Large" style={{ width: '240px', height: '240px', objectFit: 'contain' }} />
+            </div>
+            {walletPhoneNumber && (
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
+                📱 {walletPhoneNumber}
+              </div>
+            )}
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
+              {language === 'ar' ? 'قم بمسح الكود من تطبيق محفظتك الإلكترونية على الهاتف لإكمال عملية التحويل.' : 'Scan code using your mobile wallet app to complete payment.'}
+            </p>
           </div>
-        )}
-      </div>
-    </Modal>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -462,9 +607,9 @@ export function EditSessionModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t, language, isRtl } = useLanguage();
   const [startedAt, setStartedAt] = useState(toLocalISOString(new Date(session.started_at)));
   const [scheduledEnd, setScheduledEnd] = useState(session.scheduled_end ? toLocalISOString(new Date(session.scheduled_end)) : '');
-  const [hourlyRateOverride, setHourlyRateOverride] = useState(session.hourly_rate_override !== null ? session.hourly_rate_override.toString() : (session.device?.hourly_rate || 0).toString());
   const [gracePeriod, setGracePeriod] = useState(session.grace_period_minutes.toString());
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -476,19 +621,18 @@ export function EditSessionModal({
       const start = new Date(startedAt);
       const now = new Date();
       if (start.getTime() > now.getTime() + 10000) {
-        throw new Error('Start time cannot be in the future');
+        throw new Error(language === 'ar' ? 'وقت البدء لا يمكن أن يكون في المستقبل' : 'Start time cannot be in the future');
       }
 
       const patch: any = {
         started_at: start.toISOString(),
-        hourly_rate_override: parseFloat(hourlyRateOverride) !== (session.device?.hourly_rate ?? 0) ? parseFloat(hourlyRateOverride) : null,
       };
 
       if (session.session_type === 'fixed') {
-        if (!scheduledEnd) throw new Error('Scheduled end is required for fixed sessions');
+        if (!scheduledEnd) throw new Error(language === 'ar' ? 'وقت الانتهاء المجدول مطلوب للجلسات المحددة' : 'Scheduled end is required for fixed sessions');
         const end = new Date(scheduledEnd);
         if (end.getTime() <= start.getTime()) {
-          throw new Error('Scheduled end must be after started_at');
+          throw new Error(language === 'ar' ? 'وقت الانتهاء المجدول يجب أن يكون بعد وقت البدء' : 'Scheduled end must be after started_at');
         }
         patch.scheduled_end = end.toISOString();
         patch.grace_period_minutes = parseInt(gracePeriod, 10) || 0;
@@ -506,25 +650,27 @@ export function EditSessionModal({
   return (
     <Modal
       open
-      title={`Edit Active Session · ${session.device?.name ?? 'Device'}`}
+      title={language === 'ar' ? `تعديل الجلسة النشطة · ${session.device?.name ?? 'الجهاز'}` : `Edit Active Session · ${session.device?.name ?? 'Device'}`}
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button loading={loading} onClick={submit}>
-            Save Changes
+          <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
+          <Button loading={loading} onClick={submit} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar' ? 'حفظ التغييرات' : 'Save Changes'}
           </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left' }}>
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-          Adjust active session parameters. Every change will be logged in the audit trail.
+          {language === 'ar' 
+            ? 'تعديل خيارات الجلسة الحالية. سيتم تسجيل أي تغيير في سجل التدقيق لأمان النظام.'
+            : 'Adjust active session parameters. Every change will be logged in the audit trail.'}
         </p>
 
         <Input
           type="datetime-local"
-          label="Start Time"
+          label={language === 'ar' ? 'وقت البدء' : 'Start Time'}
           value={startedAt}
           max={toLocalISOString(new Date())}
           onChange={(e) => setStartedAt(e.target.value)}
@@ -534,28 +680,19 @@ export function EditSessionModal({
           <>
             <Input
               type="datetime-local"
-              label="Scheduled End Time"
+              label={language === 'ar' ? 'نهاية الجلسة المجدولة' : 'Scheduled End Time'}
               value={scheduledEnd}
               onChange={(e) => setScheduledEnd(e.target.value)}
             />
             <Input
               type="number"
-              label="Grace Period (minutes)"
+              label={language === 'ar' ? 'فترة السماح (بالدقائق)' : 'Grace Period (minutes)'}
               min="0"
               value={gracePeriod}
               onChange={(e) => setGracePeriod(e.target.value)}
             />
           </>
         )}
-
-        <Input
-          type="number"
-          label="Hourly Rate Override ($/hr)"
-          min="0"
-          step="0.01"
-          value={hourlyRateOverride}
-          onChange={(e) => setHourlyRateOverride(e.target.value)}
-        />
 
         {errorMsg && (
           <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
@@ -575,6 +712,7 @@ export function AuditLogModal({
   session: Session; 
   onClose: () => void 
 }) {
+  const { language, isRtl } = useLanguage();
   const [logs, setLogs] = useState<SessionAuditLog[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -588,18 +726,18 @@ export function AuditLogModal({
   return (
     <Modal
       open
-      title={`Session Audit Trail · @${session.customer?.username ?? 'walkin'}`}
+      title={language === 'ar' ? `سجل تدقيق وتغييرات الجلسة · @${session.customer?.username ?? 'walkin'}` : `Session Audit Trail · @${session.customer?.username ?? 'walkin'}`}
       onClose={onClose}
-      footer={<Button onClick={onClose}>Close</Button>}
+      footer={<Button onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{language === 'ar' ? 'إغلاق' : 'Close'}</Button>}
     >
       {loading ? (
-        <LoadingSpinner label="Fetching audit logs…" />
+        <LoadingSpinner label={language === 'ar' ? 'جاري جلب سجلات التدقيق...' : 'Fetching audit logs…'} />
       ) : !logs || logs.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'center', padding: '16px' }}>
-          No audit records found.
+          {language === 'ar' ? 'لم يتم العثور على أي تغييرات مسجلة.' : 'No audit records found.'}
         </p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '50vh', overflowY: 'auto', paddingRight: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '50vh', overflowY: 'auto', paddingRight: '4px', textAlign: isRtl ? 'right' : 'left' }}>
           {logs.map((log) => (
             <div 
               key={log.id} 
@@ -612,16 +750,16 @@ export function AuditLogModal({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
-                <span style={{ fontWeight: 'bold' }}>Changed: {log.field_changed}</span>
-                <span style={{ color: 'var(--text-secondary)' }}>{new Date(log.edited_at).toLocaleString()}</span>
+                <span style={{ fontWeight: 'bold' }}>{language === 'ar' ? `تم تعديل حقل: ${log.field_changed}` : `Changed: ${log.field_changed}`}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{new Date(log.edited_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)}</span>
               </div>
               <div style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                <strong>Old:</strong> {log.old_value !== null ? log.old_value : '—'} <br />
-                <strong>New:</strong> {log.new_value !== null ? log.new_value : '—'}
+                <strong>{language === 'ar' ? 'القيمة السابقة:' : 'Old:'}</strong> {log.old_value !== null ? log.old_value : '—'} <br />
+                <strong>{language === 'ar' ? 'القيمة الجديدة:' : 'New:'}</strong> {log.new_value !== null ? log.new_value : '—'}
               </div>
               {log.editor?.full_name && (
-                <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '6px', textAlign: 'right' }}>
-                  Edited by: <strong>{log.editor.full_name}</strong>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '6px', textAlign: isRtl ? 'left' : 'right' }}>
+                  {language === 'ar' ? `تم التعديل بواسطة الموظف: ` : `Edited by: `}<strong>{log.editor.full_name}</strong>
                 </div>
               )}
             </div>

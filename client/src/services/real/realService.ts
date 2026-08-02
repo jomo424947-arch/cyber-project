@@ -15,6 +15,9 @@ import type {
   LeaderboardEntry,
   CustomerProfileData,
   Customer,
+  Product,
+  SessionOrder,
+  PricingTier,
 } from '../../types';
 
 // The backend wraps every list response in { data: [...] }.
@@ -83,6 +86,59 @@ export const realService: DataService = {
   async getGoogleOAuthUrl() {
     const { data } = await http.get<{ url: string }>('/api/auth/oauth/google');
     return data;
+  },
+
+  async getActivationStatus() {
+    const { data } = await http.get<{ status: string; tenant: { tenant_id: string; name: string; owner_email: string } | null }>('/api/auth/status');
+    return data;
+  },
+
+  async activateTenant(email, password) {
+    const { data } = await http.post<{ success: boolean; tenant: { id: string; name: string; status: string } }>('/api/auth/activate', { email, password });
+    return data;
+  },
+
+  async registerTenant(payload) {
+    const { data } = await http.post<{ success: boolean; tenant: { id: string; name: string; owner_email: string } }>('/api/auth/register-tenant', payload);
+    return data;
+  },
+
+  async getTenants(secretKey: string) {
+    const { data } = await http.get<{ success: boolean; tenants: any[] }>('/api/auth/tenants', {
+      headers: { 'x-super-admin-key': secretKey },
+    });
+    return data;
+  },
+
+  async updateTenantStatus(id: string, status: string, secretKey: string) {
+    const { data } = await http.patch<{ success: boolean }>(`/api/auth/tenants/${id}/status`, { status }, {
+      headers: { 'x-super-admin-key': secretKey },
+    });
+    return data;
+  },
+
+  async listPublicEmployees() {
+    const { data } = await http.get<{ users: User[] }>('/api/auth/employees-public');
+    return data.users;
+  },
+
+  async listEmployees() {
+    const { data } = await http.get<User[]>('/api/employees');
+    return data;
+  },
+
+  async createEmployee(payload) {
+    const { data } = await http.post<User>('/api/employees', payload);
+    return data;
+  },
+
+  async updateEmployee(id, payload) {
+    const { data } = await http.patch<User>(`/api/employees/${id}`, payload);
+    return data;
+  },
+
+  async deleteEmployee(id) {
+    await http.delete(`/api/employees/${id}`);
   },
 
   // ─── Devices ─────────────────────────────────────────────────────────────
@@ -190,5 +246,44 @@ export const realService: DataService = {
   async getCustomerProfile(id) {
     const { data } = await http.get<OneWrap<CustomerProfileData>>(`/api/customers/${id}/profile`);
     return data.data;
+  },
+  async listProducts() {
+    const { data } = await http.get<ListWrap<Product>>('/api/products');
+    return data.data;
+  },
+  async createProduct(payload: { name: string; price: number }) {
+    const { data } = await http.post<OneWrap<Product>>('/api/products', payload);
+    return data.data;
+  },
+  async updateProduct(id: string, patch: { name?: string; price?: number }) {
+    const { data } = await http.patch<OneWrap<Product>>(`/api/products/${id}`, patch);
+    return data.data;
+  },
+  async deleteProduct(id: string) {
+    await http.delete(`/api/products/${id}`);
+  },
+  async addSessionOrder(sessionId, productId, quantity) {
+    const { data } = await http.post<OneWrap<SessionOrder>>(`/api/sessions/${sessionId}/orders`, {
+      product_id: productId,
+      quantity,
+    });
+    return data.data;
+  },
+  async listSessionOrders(sessionId) {
+    const { data } = await http.get<ListWrap<SessionOrder>>(`/api/sessions/${sessionId}/orders`);
+    return data.data;
+  },
+
+  // ─── Pricing ─────────────────────────────────────────────────────────────
+
+  async getPricing() {
+    const { data } = await http.get<ListWrap<PricingTier>>('/api/pricing');
+    return data.data;
+  },
+  async updateBulkPricing(type: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }) {
+    await http.patch('/api/pricing/bulk', { type, ...rates });
+  },
+  async updateDevicePricing(id: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }) {
+    await http.patch(`/api/pricing/device/${id}`, rates);
   },
 };

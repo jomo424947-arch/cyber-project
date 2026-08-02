@@ -2,17 +2,32 @@
 node_modules/
 client/node_modules/
 server/node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
 
 # Build output
 dist/
 build/
 client/dist/
 server/dist/
+client/build-dist/
+client/release/
+client/electron/server/
+release/
+build-dist/
+*.exe
+*.blockmap
+
+
 
 # Env files (never commit secrets)
 .env
 .env.local
 .env.*.local
+.env/
 client/.env
 client/.env.local
 server/.env

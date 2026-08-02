@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
-import { badRequest, notFound } from '../lib/errors';
+import { badRequest, forbidden, notFound } from '../lib/errors';
 import type { DbDevice } from '../lib/types';
 
 /** GET /api/devices — list all devices with current status. */
@@ -10,6 +10,7 @@ export async function listDevices(req: Request, res: Response) {
   let query = supabase
     .from('devices')
     .select('*')
+    .eq('tenant_id', req.user!.tenant_id)
     .order('name', { ascending: true });
 
   if (!includeArchived) {
@@ -47,7 +48,7 @@ export async function listDevices(req: Request, res: Response) {
 
 /** POST /api/devices — create a new device (admin only). */
 export async function createDevice(req: Request, res: Response) {
-  const { name, type, hourly_rate, specs } = req.body;
+  const { name, type, hourly_rate, hourly_rate_multi, specs } = req.body;
 
   const { data, error } = await supabase
     .from('devices')
@@ -55,8 +56,10 @@ export async function createDevice(req: Request, res: Response) {
       name,
       type,
       hourly_rate,
+      hourly_rate_multi: hourly_rate_multi ?? hourly_rate,
       specs: specs ?? null,
       status: 'available',
+      tenant_id: req.user!.tenant_id,
     })
     .select()
     .single();
@@ -71,19 +74,28 @@ export async function createDevice(req: Request, res: Response) {
 /** PATCH /api/devices/:id — update device info or status. */
 export async function updateDevice(req: Request, res: Response) {
   const { id } = req.params;
-  const { name, type, status, hourly_rate, specs } = req.body;
+  const { name, type, status, hourly_rate, hourly_rate_multi, specs } = req.body;
+
+  // Security: only admins can edit configuration details. Staff can only update status.
+  if (req.user?.role !== 'admin') {
+    if (name !== undefined || type !== undefined || hourly_rate !== undefined || hourly_rate_multi !== undefined || specs !== undefined) {
+      throw forbidden('Only admins can update device settings');
+    }
+  }
 
   const patch: Record<string, unknown> = {};
   if (name !== undefined) patch.name = name;
   if (type !== undefined) patch.type = type;
   if (status !== undefined) patch.status = status;
   if (hourly_rate !== undefined) patch.hourly_rate = hourly_rate;
+  if (hourly_rate_multi !== undefined) patch.hourly_rate_multi = hourly_rate_multi;
   if (specs !== undefined) patch.specs = specs;
 
   const { data, error } = await supabase
     .from('devices')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select()
     .maybeSingle();
 
@@ -96,11 +108,20 @@ export async function updateDevice(req: Request, res: Response) {
 export async function deleteDevice(req: Request, res: Response) {
   const { id } = req.params;
 
-  // Check if device has any session history
+  // 1. Auto-end active sessions on this device
+  await supabase
+    .from('sessions')
+    .update({ status: 'ended', ended_at: new Date().toISOString() })
+    .eq('device_id', id)
+    .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id);
+
+  // 2. Check if device has any session history
   const { data: sessions, error: sErr } = await supabase
     .from('sessions')
     .select('id')
     .eq('device_id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .limit(1);
 
   if (sErr) throw sErr;
@@ -110,7 +131,8 @@ export async function deleteDevice(req: Request, res: Response) {
     const { error: updErr } = await supabase
       .from('devices')
       .update({ archived: true, status: 'offline' })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id);
     if (updErr) throw updErr;
     res.json({ message: 'Device archived', action: 'archived' });
   } else {
@@ -118,7 +140,8 @@ export async function deleteDevice(req: Request, res: Response) {
     const { error, count } = await supabase
       .from('devices')
       .delete({ count: 'exact' })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id);
 
     if (error) throw error;
     if (!count) throw notFound('Device not found');

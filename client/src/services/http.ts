@@ -13,12 +13,15 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'ax
  *                             If refresh fails, the user is redirected to /login.
  */
 
-const baseURL = import.meta.env.VITE_API_URL || '';
+const baseURL = window.location.origin.includes('localhost')
+  ? window.location.origin
+  : import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export const http: AxiosInstance = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // Send cookies on every request
+  timeout: 5000, // Fail fast when backend is unreachable
 });
 
 // ─── CSRF Token Injection ─────────────────────────────────────────────────
@@ -60,11 +63,14 @@ http.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Only attempt refresh on 401 from protected endpoints, and only once.
+    // Skip auth init endpoints — AuthContext handles their 401s directly.
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url?.includes('/api/auth/refresh') &&
-      !originalRequest.url?.includes('/api/auth/login')
+      !originalRequest.url?.includes('/api/auth/login') &&
+      !originalRequest.url?.includes('/api/auth/me') &&
+      !originalRequest.url?.includes('/api/auth/status')
     ) {
       originalRequest._retry = true;
 
@@ -77,10 +83,8 @@ http.interceptors.response.use(
         } catch {
           isRefreshing = false;
           onRefreshComplete(false);
-          // Refresh failed → kick to login
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
+          // Refresh failed — let AuthContext handle the redirect via React Router.
+          // No manual navigation here to avoid conflicts with AuthContext's own flow.
           return Promise.reject(error);
         }
       }

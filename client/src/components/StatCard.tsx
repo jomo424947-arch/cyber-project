@@ -10,7 +10,7 @@ interface StatCardProps {
 }
 
 function getMaterialIconName(icon: any): string {
-  if (typeof icon !== 'string') return 'analytics';
+  if (typeof icon !== 'string' || !icon) return 'analytics';
   switch (icon) {
     case '✓':
     case 'check':
@@ -18,29 +18,23 @@ function getMaterialIconName(icon: any): string {
     case '!':
     case 'warning':
       return 'warning';
-    case '🗂':
     case 'invoices':
       return 'receipt_long';
-    case '⏱':
     case 'timer':
       return 'history_toggle_off';
-    case '🖥':
     case 'pc':
       return 'devices';
     case '$':
     case 'usd':
       return 'payments';
-    case '📅':
     case 'calendar':
       return 'event_upcoming';
-    case '🕹':
     case 'gamepad':
       return 'sports_esports';
-    case '💳':
     case 'card':
       return 'credit_card';
     default:
-      return 'analytics';
+      return icon;
   }
 }
 

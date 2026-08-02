@@ -10,10 +10,11 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
-import { RESERVATION_STATUS_META, DEVICE_TYPE_META } from '../utils/constants';
-import { formatDateTime, toDateTimeLocalValue } from '../utils/format';
+import { RESERVATION_STATUS_META } from '../utils/constants';
+import { formatDateTime, toDateTimeLocalValue, formatCurrency } from '../utils/format';
 import type { Reservation, Device } from '../types';
 
 type Filter = 'upcoming' | 'all';
@@ -23,6 +24,7 @@ export default function ReservationsPage() {
   const [filter, setFilter] = useState<Filter>('upcoming');
   const [showCreate, setShowCreate] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const { t, language, isRtl } = useLanguage();
 
   const { data, loading, refetch } = useAsync(async () => {
     const [devices, reservations] = await Promise.all([
@@ -47,7 +49,7 @@ export default function ReservationsPage() {
     setCancellingId(id);
     try {
       await dataService.updateReservation(id, { status: 'cancelled' });
-      toast('Reservation cancelled', 'success');
+      toast(language === 'ar' ? 'تم إلغاء الحجز بنجاح' : 'Reservation cancelled', 'success');
       refetch();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not cancel reservation'), 'error');
@@ -58,15 +60,15 @@ export default function ReservationsPage() {
 
   return (
     <Layout
-      title="Reservations"
-      subtitle="Manage device bookings and reservations conflict detection"
+      title={t('reservations')}
+      subtitle={language === 'ar' ? 'إدارة حجوزات الأجهزة والتحقق المسبق من تضارب المواعيد.' : 'Manage device bookings and reservations conflict detection'}
       actions={
         <Button 
           onClick={() => setShowCreate(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-          New Reservation
+          {language === 'ar' ? 'حجز جديد' : 'New Reservation'}
         </Button>
       }
     >
@@ -77,11 +79,11 @@ export default function ReservationsPage() {
             key={f}
             onClick={() => setFilter(f)}
             style={{
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
               fontSize: '12px',
               fontWeight: 600,
               textTransform: 'uppercase',
-              letterSpacing: '0.1em',
+              letterSpacing: '0.05em',
               padding: '10px 20px',
               borderRadius: '8px',
               border: filter === f ? '1px solid var(--accent-cyan)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -89,22 +91,25 @@ export default function ReservationsPage() {
               color: filter === f ? 'var(--accent-cyan)' : 'var(--text-secondary)',
               boxShadow: filter === f ? '0 0 10px rgba(0, 194, 255, 0.2)' : 'none',
               transition: 'all 0.2s ease',
+              cursor: 'pointer',
             }}
           >
-            {f} Bookings
+            {f === 'upcoming' 
+              ? (language === 'ar' ? 'الحجوزات القادمة' : 'Upcoming Bookings') 
+              : (language === 'ar' ? 'جميع الحجوزات' : 'All Bookings')}
           </button>
         ))}
       </div>
 
       {loading || !data ? (
-        <LoadingSpinner label="Loading reservations…" />
+        <LoadingSpinner label={t('loading')} />
       ) : visible.length === 0 ? (
         <div className="ccms-card">
           <EmptyState
-            icon="📅"
-            title="No reservations"
-            description="Create a reservation to book a device for a future time slot."
-            action={<Button onClick={() => setShowCreate(true)}>+ New Reservation</Button>}
+            icon="event_upcoming"
+            title={language === 'ar' ? 'لا توجد حجوزات' : 'No reservations'}
+            description={language === 'ar' ? 'قم بإنشاء حجز لحجز جهاز لفترة زمنية مستقبلية.' : 'Create a reservation to book a device for a future time slot.'}
+            action={<Button onClick={() => setShowCreate(true)}>{language === 'ar' ? 'حجز جديد' : '+ New Reservation'}</Button>}
           />
         </div>
       ) : (
@@ -113,7 +118,7 @@ export default function ReservationsPage() {
             columns={[
               {
                 key: 'device',
-                header: 'Device',
+                header: language === 'ar' ? 'الجهاز' : 'Device',
                 render: (r: Reservation) => (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
@@ -123,21 +128,28 @@ export default function ReservationsPage() {
                   </span>
                 ),
               },
-              { key: 'customer', header: 'Customer', render: (r: Reservation) => r.customer?.name ?? 'Walk-in' },
-              { key: 'from', header: 'From', render: (r: Reservation) => formatDateTime(r.reserved_from) },
-              { key: 'until', header: 'Until', render: (r: Reservation) => formatDateTime(r.reserved_until) },
+              { key: 'customer', header: language === 'ar' ? 'العميل' : 'Customer', render: (r: Reservation) => r.customer?.name ?? (language === 'ar' ? 'مستغل خارجي' : 'Walk-in') },
+              { key: 'from', header: language === 'ar' ? 'من' : 'From', render: (r: Reservation) => formatDateTime(r.reserved_from) },
+              { key: 'until', header: language === 'ar' ? 'إلى' : 'Until', render: (r: Reservation) => formatDateTime(r.reserved_until) },
               {
                 key: 'status',
-                header: 'Status',
+                header: language === 'ar' ? 'الحالة' : 'Status',
                 align: 'right',
                 render: (r: Reservation) => {
                   const m = RESERVATION_STATUS_META[r.status];
-                  return <Badge label={m.label} color={m.color} bg={m.bg} />;
+                  let localizedLabel = m.label;
+                  if (language === 'ar') {
+                    if (r.status === 'active') localizedLabel = 'نشط / مؤكد';
+                    else if (r.status === 'completed') localizedLabel = 'مكتمل';
+                    else if (r.status === 'pending') localizedLabel = 'معلق';
+                    else if (r.status === 'cancelled') localizedLabel = 'ملغى';
+                  }
+                  return <Badge label={localizedLabel} color={m.color} bg={m.bg} />;
                 },
               },
               {
                 key: 'notes',
-                header: 'Notes',
+                header: language === 'ar' ? 'ملاحظات' : 'Notes',
                 render: (r: Reservation) => (
                   <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
                     {r.notes ?? '—'}
@@ -156,9 +168,9 @@ export default function ReservationsPage() {
                       variant="ghost"
                       loading={cancellingId === r.id}
                       onClick={() => handleCancel(r.id)}
-                      style={{ padding: '6px 12px', fontSize: '11px', color: 'var(--accent-red)', minHeight: '32px' }}
+                      style={{ padding: '6px 12px', fontSize: '11px', color: 'var(--accent-red)', minHeight: '32px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
                     >
-                      Cancel
+                      {language === 'ar' ? 'إلغاء' : 'Cancel'}
                     </Button>
                   ),
               },
@@ -194,6 +206,7 @@ function CreateReservationModal({
 }) {
   const { toast } = useToast();
   const [customers, setCustomers] = useState<{ id: string; name: string }[] | null>(null);
+  const { t, language, isRtl } = useLanguage();
 
   const defaultFrom = useMemo(() => {
     const d = new Date();
@@ -226,12 +239,12 @@ function CreateReservationModal({
         reserved_until: new Date(reservedUntil).toISOString(),
         notes: notes || undefined,
       });
-      toast('Reservation created', 'success');
+      toast(language === 'ar' ? 'تم إنشاء الحجز بنجاح' : 'Reservation created', 'success');
       onDone();
     } catch (err) {
       const status = (err as { status?: number }).status;
       const msg = apiErrorMessage(err, 'Could not create reservation');
-      toast(status === 409 ? `Conflict: ${msg}` : msg, 'error');
+      toast(status === 409 ? (language === 'ar' ? `تضارب: ${msg}` : `Conflict: ${msg}`) : msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -242,23 +255,23 @@ function CreateReservationModal({
   return (
     <Modal
       open
-      title="New Reservation"
+      title={language === 'ar' ? 'حجز جديد' : 'New Reservation'}
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button loading={loading} disabled={!valid} onClick={submit}>
-            Create Reservation
+            {language === 'ar' ? 'إنشاء الحجز' : 'Create Reservation'}
           </Button>
         </>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Select label="Device" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-          <option value="">Choose a device…</option>
+        <Select label={language === 'ar' ? 'الجهاز' : 'Device'} value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
+          <option value="">{language === 'ar' ? 'اختر جهازاً...' : 'Choose a device…'}</option>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.name} — {formatCurrency(d.hourly_rate)}/hr
+              {d.name} — {formatCurrency(d.hourly_rate)}/{language === 'ar' ? 'ساعة' : 'hr'}
             </option>
           ))}
         </Select>
@@ -267,24 +280,24 @@ function CreateReservationModal({
           <button
             type="button"
             className={mode === 'new' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ flex: 1, fontSize: '11px', minHeight: '36px' }}
+            style={{ flex: 1, fontSize: '11px', minHeight: '36px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
             onClick={() => setMode('new')}
           >
-            New Customer
+            {t('new_customer')}
           </button>
           <button
             type="button"
             className={mode === 'existing' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-            style={{ flex: 1, fontSize: '11px', minHeight: '36px' }}
+            style={{ flex: 1, fontSize: '11px', minHeight: '36px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
             onClick={() => setMode('existing')}
           >
-            Existing
+            {t('existing')}
           </button>
         </div>
 
         {mode === 'new' ? (
           <Input
-            label="Customer Name"
+            label={language === 'ar' ? 'اسم العميل' : 'Customer Name'}
             placeholder="e.g. Omar Khalid"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -292,13 +305,17 @@ function CreateReservationModal({
           />
         ) : (
           <Select
-            label="Select Customer"
+            label={language === 'ar' ? 'اختر العميل' : 'Select Customer'}
             value={customerId}
             onChange={(e) => setCustomerId(e.target.value)}
             disabled={!customers || customers.length === 0}
           >
             <option value="">
-              {customers === null ? 'Loading…' : customers.length === 0 ? 'No customers yet' : 'Choose…'}
+              {customers === null 
+                ? (language === 'ar' ? 'جاري التحميل...' : 'Loading…') 
+                : customers.length === 0 
+                ? (language === 'ar' ? 'لا يوجد عملاء حالياً' : 'No customers yet') 
+                : (language === 'ar' ? 'اختر عميلاً...' : 'Choose…')}
             </option>
             {customers?.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
@@ -308,13 +325,13 @@ function CreateReservationModal({
 
         <div className="ccms-grid-form" style={{ gap: '12px' }}>
           <Input
-            label="From"
+            label={language === 'ar' ? 'تبدأ من' : 'From'}
             type="datetime-local"
             value={reservedFrom}
             onChange={(e) => setReservedFrom(e.target.value)}
           />
           <Input
-            label="Until"
+            label={language === 'ar' ? 'تنتهي في' : 'Until'}
             type="datetime-local"
             value={reservedUntil}
             onChange={(e) => setReservedUntil(e.target.value)}
@@ -322,7 +339,7 @@ function CreateReservationModal({
         </div>
 
         <Input
-          label="Notes (optional)"
+          label={language === 'ar' ? 'ملاحظات (اختياري)' : 'Notes (optional)'}
           placeholder="e.g. birthday party booking"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}

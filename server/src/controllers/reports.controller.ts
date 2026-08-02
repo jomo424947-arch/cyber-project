@@ -7,7 +7,7 @@ import { startOfDay, startOfWeek, startOfMonth, subDays, addDays, getHours } fro
  * GET /api/reports/revenue — revenue summary.
  * Returns totals for today, this week, this month, plus a per-bucket breakdown.
  */
-export async function revenueReport(_req: Request, res: Response) {
+export async function revenueReport(req: Request, res: Response) {
   const now = new Date();
   const tz = process.env.REPORT_TIMEZONE || 'Africa/Cairo';
 
@@ -23,19 +23,20 @@ export async function revenueReport(_req: Request, res: Response) {
     .from('sessions')
     .select('id, started_at, ended_at, total_cost, duration_minutes')
     .eq('status', 'ended')
+    .eq('tenant_id', req.user!.tenant_id)
     .gte('ended_at', sinceUtc.toISOString())
     .order('ended_at', { ascending: true });
 
   if (error) throw error;
 
-  const sum = (rows: typeof sessions, boundaryZoned: Date) =>
+  const sum = (rows: any, boundaryZoned: Date) =>
     (rows ?? [])
-      .filter((r) => {
+      .filter((r: any) => {
         if (!r.ended_at) return false;
         const endedZoned = toZonedTime(new Date(r.ended_at), tz);
         return endedZoned.getTime() >= boundaryZoned.getTime();
       })
-      .reduce((acc, r) => acc + Number(r.total_cost ?? 0), 0);
+      .reduce((acc: number, r: any) => acc + Number(r.total_cost ?? 0), 0);
 
   const today = sum(sessions, startOfDayZoned);
   const week = sum(sessions, startOfWeekZoned);
@@ -49,12 +50,12 @@ export async function revenueReport(_req: Request, res: Response) {
     const dayEndBoundary = addDays(dayStartBoundary, 1);
     
     const total = (sessions ?? [])
-      .filter((r) => {
+      .filter((r: any) => {
         if (!r.ended_at) return false;
         const endedZoned = toZonedTime(new Date(r.ended_at), tz);
         return endedZoned.getTime() >= dayStartBoundary.getTime() && endedZoned.getTime() < dayEndBoundary.getTime();
       })
-      .reduce((acc, r) => acc + Number(r.total_cost ?? 0), 0);
+      .reduce((acc: number, r: any) => acc + Number(r.total_cost ?? 0), 0);
       
     const dateStr = format(dayStartBoundary, 'yyyy-MM-dd', { timeZone: tz });
     daily.push({ date: dateStr, total: Number(total.toFixed(2)) });
@@ -75,7 +76,7 @@ export async function revenueReport(_req: Request, res: Response) {
 /**
  * GET /api/reports/usage — device usage stats + peak hours.
  */
-export async function usageReport(_req: Request, res: Response) {
+export async function usageReport(req: Request, res: Response) {
   const now = new Date();
   const tz = process.env.REPORT_TIMEZONE || 'Africa/Cairo';
   const sinceUtc = subDays(now, 30);
@@ -83,6 +84,7 @@ export async function usageReport(_req: Request, res: Response) {
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select('id, device_id, started_at, ended_at, duration_minutes')
+    .eq('tenant_id', req.user!.tenant_id)
     .gte('started_at', sinceUtc.toISOString())
     .order('started_at', { ascending: true });
 
@@ -91,6 +93,7 @@ export async function usageReport(_req: Request, res: Response) {
   const { data: devices } = await supabase
     .from('devices')
     .select('id, name, type')
+    .eq('tenant_id', req.user!.tenant_id)
     .order('name', { ascending: true });
 
   // Per-device usage minutes (last 30d).
@@ -106,7 +109,7 @@ export async function usageReport(_req: Request, res: Response) {
   }
 
   const periodMinutes = 30 * 24 * 60;
-  const deviceUsage = (devices ?? []).map((d) => {
+  const deviceUsage = (devices ?? []).map((d: any) => {
     const used = byDevice.get(d.id) ?? 0;
     return {
       device_id: d.id,

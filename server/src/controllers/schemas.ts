@@ -29,7 +29,8 @@ export const createDeviceSchema = z.object({
   name: z.string().min(1, 'Name required').max(60),
   type: z.enum(['pc', 'console', 'vr']).default('pc'),
   hourly_rate: z.number().nonnegative().default(0),
-  specs: z.record(z.unknown()).optional(),
+  hourly_rate_multi: z.number().nonnegative().optional(),
+  specs: z.record(z.unknown()).optional().nullable(),
 });
 
 export const updateDeviceSchema = z.object({
@@ -37,16 +38,18 @@ export const updateDeviceSchema = z.object({
   type: z.enum(['pc', 'console', 'vr']).optional(),
   status: z.enum(['available', 'in_use', 'reserved', 'offline']).optional(),
   hourly_rate: z.number().nonnegative().optional(),
-  specs: z.record(z.unknown()).optional(),
+  hourly_rate_multi: z.number().nonnegative().optional(),
+  specs: z.record(z.unknown()).optional().nullable(),
 });
 
 export const startSessionSchema = z.object({
   device_id: z.string().uuid('Valid device_id required'),
   customer_id: z.string().uuid().optional().nullable(),
   customer_username: z.string().regex(/^[a-zA-Z0-9_]+$/, 'Username must be alphanumeric and underscores only, no spaces').min(1).max(60).optional().nullable(),
-  customer_name: z.string().min(1).max(120).optional(),
+  customer_name: z.string().max(120).optional().nullable(),
   customer_phone: z.string().max(40).optional(),
   session_type: z.enum(['open', 'fixed']).default('open'),
+  play_mode: z.enum(['single', 'multiplayer']).default('single'),
   started_at: z.string().optional(),
   scheduled_end: z.string().optional(),
   hourly_rate_override: z.number().nonnegative().optional().nullable(),
@@ -89,3 +92,19 @@ export const updateReservationSchema = z.object({
   reserved_from: z.string().optional(),
   reserved_until: z.string().optional(),
 });
+
+export const createProductSchema = z.object({
+  name: z.string().min(1, 'Name required').max(100),
+  price: z.number().nonnegative('Price must be a positive number'),
+});
+
+export const updateProductSchema = z.object({
+  name: z.string().min(1, 'Name required').max(100).optional(),
+  price: z.number().nonnegative('Price must be a positive number').optional(),
+});
+
+export const addSessionOrderSchema = z.object({
+  product_id: z.string().uuid('Valid product_id required'),
+  quantity: z.number().int().positive('Quantity must be at least 1'),
+});
+

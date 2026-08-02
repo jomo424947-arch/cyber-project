@@ -9,8 +9,10 @@
   ],
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:electron": "concurrently -n server,client,electron -c cyan,magenta,yellow \"npm run dev -w server\" \"npm run dev -w client\" \"npm run electron:dev -w client\"",
     "dev:server": "npm run dev -w server",
     "dev:client": "npm run dev -w client",
+    "dist": "npm run build && npm run dist -w client",
     "build": "npm run build -w server && npm run build -w client",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
   },

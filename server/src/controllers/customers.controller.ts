@@ -4,10 +4,11 @@ import { badRequest, notFound } from '../lib/errors';
 import type { DbCustomer } from '../lib/types';
 
 /** GET /api/customers — list all customers. */
-export async function listCustomers(_req: Request, res: Response) {
+export async function listCustomers(req: Request, res: Response) {
   const { data, error } = await supabase
     .from('customers')
     .select('*')
+    .eq('tenant_id', req.user!.tenant_id)
     .order('name', { ascending: true });
 
   if (error) throw error;
@@ -45,6 +46,7 @@ export async function getLeaderboard(req: Request, res: Response) {
     .from('sessions')
     .select('id, duration_minutes, total_cost, customer_id, customer:customers(id, name, username)')
     .eq('status', 'ended')
+    .eq('tenant_id', req.user!.tenant_id)
     .not('customer_id', 'is', null)
     .gte('started_at', startOfMonth.toISOString())
     .lt('started_at', endOfMonth.toISOString());
@@ -97,6 +99,7 @@ export async function getCustomerProfile(req: Request, res: Response) {
     .from('customers')
     .select('*')
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
 
   if (cErr) throw cErr;

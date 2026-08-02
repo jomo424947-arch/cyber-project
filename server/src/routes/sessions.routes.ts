@@ -6,13 +6,16 @@ import {
   endSession, 
   editSession, 
   extendSession, 
-  getSessionAuditLogs 
+  getSessionAuditLogs,
+  addSessionOrder,
+  listSessionOrders
 } from '../controllers/sessions.controller';
 import { 
   startSessionSchema, 
   endSessionSchema, 
   extendSessionSchema, 
-  updateSessionSchema 
+  updateSessionSchema,
+  addSessionOrderSchema
 } from '../controllers/schemas';
 import { validate } from '../middleware/validate';
 import { verifyJWT } from '../middleware/auth';
@@ -28,5 +31,9 @@ router.patch('/:id', validate(updateSessionSchema), asyncHandler(editSession));
 router.post('/:id/extend', validate(extendSessionSchema), asyncHandler(extendSession));
 router.post('/:id/end', validate(endSessionSchema), asyncHandler(endSession));
 router.get('/:id/audit-logs', asyncHandler(getSessionAuditLogs));
+
+// Café orders endpoints
+router.post('/:id/orders', validate(addSessionOrderSchema), asyncHandler(addSessionOrder));
+router.get('/:id/orders', asyncHandler(listSessionOrders));
 
 export default router;

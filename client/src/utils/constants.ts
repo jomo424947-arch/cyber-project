@@ -23,9 +23,9 @@ export const RESERVATION_STATUS_META: Record<
 };
 
 export const DEVICE_TYPE_META: Record<DeviceType, { label: string; icon: string }> = {
-  pc: { label: 'PC', icon: '🖥️' },
-  console: { label: 'Console', icon: '🎮' },
-  vr: { label: 'VR', icon: '🥽' },
+  pc: { label: 'PC', icon: 'desktop_windows' },
+  console: { label: 'Console', icon: 'sports_esports' },
+  vr: { label: 'VR', icon: 'view_in_ar' },
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

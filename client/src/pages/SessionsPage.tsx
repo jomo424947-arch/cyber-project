@@ -9,7 +9,7 @@ import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatDuration, formatCurrency, formatDateTime } from '../utils/format';
@@ -18,6 +18,7 @@ import {
   EditSessionModal, 
   AuditLogModal 
 } from '../components/SessionModals';
+import { AddCafeModal } from '../components/AddCafeModal';
 import type { Session } from '../types';
 
 type Tab = 'active' | 'history';
@@ -26,11 +27,12 @@ export default function SessionsPage() {
   const [tab, setTab] = useState<Tab>('active');
   const now = useNow(1000);
   const { toast } = useToast();
-  const isMobile = useIsMobile();
+  const { t, language, isRtl } = useLanguage();
 
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
   const [auditTarget, setAuditTarget] = useState<Session | null>(null);
+  const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
 
   const { data, loading, refetch } = useAsync(
     () => dataService.listSessions(),
@@ -46,7 +48,7 @@ export default function SessionsPage() {
   const handleExtend = async (session: Session) => {
     try {
       await dataService.extendSession(session.id, 30);
-      toast('Session extended by 30 minutes', 'success');
+      toast(language === 'ar' ? 'تم تمديد الجلسة بمقدار 30 دقيقة' : 'Session extended by 30 minutes', 'success');
       refetch();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not extend session'), 'error');
@@ -55,8 +57,8 @@ export default function SessionsPage() {
 
   return (
     <Layout
-      title="Active Sessions"
-      subtitle="Track active sessions and review history"
+      title={t('active_sessions_title')}
+      subtitle={language === 'ar' ? 'متابعة الجلسات النشطة حالياً ومراجعة سجل الجلسات السابقة' : 'Track active sessions and review history'}
       actions={
         <button 
           className="ccms-btn ccms-btn-ghost" 
@@ -64,31 +66,35 @@ export default function SessionsPage() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
-          Refresh
+          {language === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
       }
     >
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--border-default)' }}>
-        <TabButton active={tab === 'active'} onClick={() => setTab('active')}>
-          Active ({activeSessions.length})
+        <TabButton active={tab === 'active'} onClick={() => setTab('active')} isRtl={isRtl}>
+          {language === 'ar' ? `نشطة (${activeSessions.length})` : `Active (${activeSessions.length})`}
         </TabButton>
-        <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
-          History ({historySessions.length})
+        <TabButton active={tab === 'history'} onClick={() => setTab('history')} isRtl={isRtl}>
+          {language === 'ar' ? `السجل (${historySessions.length})` : `History (${historySessions.length})`}
         </TabButton>
       </div>
 
       {loading ? (
-        <LoadingSpinner label="Loading sessions…" />
+        <LoadingSpinner label={t('loading')} />
       ) : visible.length === 0 ? (
         <div className="ccms-card">
           <EmptyState
-            icon={tab === 'active' ? '⏱' : '🗂'}
-            title={tab === 'active' ? 'No active sessions' : 'No session history yet'}
+            icon={tab === 'active' ? 'history_toggle_off' : 'receipt_long'}
+            title={
+              tab === 'active' 
+                ? (language === 'ar' ? 'لا توجد جلسات نشطة' : 'No active sessions') 
+                : (language === 'ar' ? 'لا يوجد سجل للجلسات بعد' : 'No session history yet')
+            }
             description={
               tab === 'active'
-                ? 'Start a session from the Devices page to begin tracking.'
-                : 'Ended sessions will appear here with their cost and duration.'
+                ? (language === 'ar' ? 'ابدأ جلسة لعب من صفحة الأجهزة لبدء المتابعة.' : 'Start a session from the Devices page to begin tracking.')
+                : (language === 'ar' ? 'الجلسات المنتهية ستظهر هنا مع تكلفتها ومدتها.' : 'Ended sessions will appear here with their cost and duration.')
             }
           />
         </div>
@@ -100,31 +106,39 @@ export default function SessionsPage() {
                 ? [
                     { 
                       key: 'device', 
-                      header: 'Device', 
+                      header: language === 'ar' ? 'الجهاز' : 'Device', 
                       render: (s: Session) => <strong>{s.device?.name ?? '—'}</strong> 
                     },
                     { 
                       key: 'customer', 
-                      header: 'Customer', 
-                      render: (s: Session) => s.customer ? (
-                        <Link 
-                          to={`/customers/${s.customer_id}`} 
-                          style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
-                        >
-                          @{s.customer.username} ({s.customer.name})
-                        </Link>
-                      ) : (
-                        'Walk-in'
-                      )
+                      header: language === 'ar' ? 'العميل' : 'Customer', 
+                      render: (s: Session) => {
+                        const hasCustomName = s.customer?.name && s.customer.name !== 'Walk-in';
+                        const isRegistered = s.customer?.username && !s.customer.username.startsWith('walkin_');
+                        if (hasCustomName) {
+                          return <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.customer!.name}</span>;
+                        }
+                        if (isRegistered) {
+                          return (
+                            <Link 
+                              to={`/customers/${s.customer_id}`} 
+                              style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
+                            >
+                              @{s.customer!.username}
+                            </Link>
+                          );
+                        }
+                        return <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'عميل بدون حساب' : 'Walk-in'}</span>;
+                      }
                     },
                     { 
                       key: 'started', 
-                      header: 'Started', 
+                      header: language === 'ar' ? 'البدء' : 'Started', 
                       render: (s: Session) => formatDateTime(s.started_at) 
                     },
                     {
                       key: 'elapsed',
-                      header: 'Time Status',
+                      header: language === 'ar' ? 'حالة الوقت' : 'Time Status',
                       render: (s: Session) => {
                         if (s.session_type === 'fixed' && s.scheduled_end) {
                           const endTime = new Date(s.scheduled_end).getTime();
@@ -139,7 +153,7 @@ export default function SessionsPage() {
                             const secs = remainingGrace % 60;
                             return (
                               <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
-                                Grace {mins}:{secs.toString().padStart(2, '0')}
+                                {language === 'ar' ? 'فترة سماح' : 'Grace'} {mins}:{secs.toString().padStart(2, '0')}
                               </span>
                             );
                           }
@@ -151,7 +165,7 @@ export default function SessionsPage() {
                             const secs = overtimeElapsed % 60;
                             return (
                               <span style={{ color: 'var(--accent-red)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
-                                Overtime +{hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+                                {language === 'ar' ? 'وقت إضافي +' : 'Overtime +'}{hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
                               </span>
                             );
                           }
@@ -177,30 +191,34 @@ export default function SessionsPage() {
                     },
                     { 
                       key: 'rate', 
-                      header: 'Rate', 
+                      header: language === 'ar' ? 'السعر' : 'Rate', 
                       align: 'right' as const, 
                       render: (s: Session) => {
-                        const rate = Number(s.hourly_rate_override !== null ? s.hourly_rate_override : s.device?.hourly_rate ?? 0);
+                        const rate = Number(
+                          s.hourly_rate_override !== null
+                            ? s.hourly_rate_override
+                            : (s.play_mode === 'multiplayer' ? s.device?.hourly_rate_multi : s.device?.hourly_rate) ?? 0
+                        );
                         return (
                           <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                             {s.hourly_rate_override !== null && (
-                              <span style={{ fontSize: '10px', color: 'var(--accent-green)', marginRight: '4px', fontWeight: 'bold' }}>[override]</span>
+                              <span style={{ fontSize: '10px', color: 'var(--accent-green)', marginRight: '4px', fontWeight: 'bold' }}>[تعديل]</span>
                             )}
-                            {formatCurrency(rate)}/hr
+                            {formatCurrency(rate)}/{language === 'ar' ? 'ساعة' : 'hr'}
                           </span>
                         );
                       }
                     },
                     {
                       key: 'action',
-                      header: 'Actions',
+                      header: language === 'ar' ? 'التحكم' : 'Actions',
                       align: 'right' as const,
                       render: (s: Session) => (
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                           {s.edited_start_at && (
                             <button
                               type="button"
-                              title="Audit Trail Logs"
+                              title={language === 'ar' ? 'سجلات المراجعة' : 'Audit Trail Logs'}
                               className="ccms-btn ccms-btn-ghost"
                               style={{ 
                                 padding: '6px 12px', 
@@ -209,7 +227,7 @@ export default function SessionsPage() {
                               }}
                               onClick={() => setAuditTarget(s)}
                             >
-                              Logs
+                              {language === 'ar' ? 'السجلات' : 'Logs'}
                             </button>
                           )}
                           <button
@@ -222,7 +240,7 @@ export default function SessionsPage() {
                             }}
                             onClick={() => setEditTarget(s)}
                           >
-                            Edit
+                            {t('edit')}
                           </button>
                           {s.session_type === 'fixed' && (
                             <button
@@ -235,9 +253,28 @@ export default function SessionsPage() {
                               }}
                               onClick={() => handleExtend(s)}
                             >
-                              Extend 30m
+                              {language === 'ar' ? '+30 دقيقة' : 'Extend 30m'}
                             </button>
                           )}
+                          <button
+                            type="button"
+                            className="ccms-btn ccms-btn-ghost"
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '11px',
+                              minHeight: '32px',
+                              color: 'var(--accent-cyan)',
+                              borderColor: 'rgba(0, 194, 255, 0.4)',
+                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            onClick={() => setCafeTarget(s)}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
+                            {language === 'ar' ? 'مشروب +' : '+ Café'}
+                          </button>
                           <Button 
                             variant="danger" 
                             onClick={() => setEndTarget(s)} 
@@ -247,7 +284,7 @@ export default function SessionsPage() {
                               minHeight: '32px',
                             }}
                           >
-                            End
+                            {language === 'ar' ? 'إنهاء' : 'End'}
                           </Button>
                         </div>
                       ),
@@ -256,36 +293,44 @@ export default function SessionsPage() {
                 : [
                     { 
                       key: 'device', 
-                      header: 'Device', 
+                      header: language === 'ar' ? 'الجهاز' : 'Device', 
                       render: (s: Session) => <strong>{s.device?.name ?? '—'}</strong> 
                     },
                     { 
                       key: 'customer', 
-                      header: 'Customer', 
-                      render: (s: Session) => s.customer ? (
-                        <Link 
-                          to={`/customers/${s.customer_id}`} 
-                          style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
-                        >
-                          @{s.customer.username} ({s.customer.name})
-                        </Link>
-                      ) : (
-                        'Walk-in'
-                      )
+                      header: language === 'ar' ? 'العميل' : 'Customer', 
+                      render: (s: Session) => {
+                        const hasCustomName = s.customer?.name && s.customer.name !== 'Walk-in';
+                        const isRegistered = s.customer?.username && !s.customer.username.startsWith('walkin_');
+                        if (hasCustomName) {
+                          return <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.customer!.name}</span>;
+                        }
+                        if (isRegistered) {
+                          return (
+                            <Link 
+                              to={`/customers/${s.customer_id}`} 
+                              style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
+                            >
+                              @{s.customer!.username}
+                            </Link>
+                          );
+                        }
+                        return <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'عميل بدون حساب' : 'Walk-in'}</span>;
+                      }
                     },
                     { 
                       key: 'ended', 
-                      header: 'Ended', 
+                      header: language === 'ar' ? 'انتهت في' : 'Ended', 
                       render: (s: Session) => formatDateTime(s.ended_at) 
                     },
                     { 
                       key: 'duration', 
-                      header: 'Duration', 
+                      header: language === 'ar' ? 'المدة' : 'Duration', 
                       render: (s: Session) => formatDuration(s.duration_minutes) 
                     },
                     {
                       key: 'cost',
-                      header: 'Cost',
+                      header: language === 'ar' ? 'التكلفة' : 'Cost',
                       align: 'right' as const,
                       render: (s: Session) => (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
@@ -294,7 +339,7 @@ export default function SessionsPage() {
                           </span>
                           {s.is_overtime && s.overtime_minutes && (
                             <span style={{ fontSize: '10px', color: 'var(--accent-red)', fontWeight: 'bold' }}>
-                              Overtime ({s.overtime_minutes}m)
+                              {language === 'ar' ? `وقت إضافي (${s.overtime_minutes} د)` : `Overtime (${s.overtime_minutes}m)`}
                             </span>
                           )}
                         </div>
@@ -302,9 +347,9 @@ export default function SessionsPage() {
                     },
                     {
                       key: 'status',
-                      header: 'Status',
+                      header: language === 'ar' ? 'الحالة' : 'Status',
                       align: 'right' as const,
-                      render: () => <Badge label="Ended" color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />,
+                      render: () => <Badge label={language === 'ar' ? 'منتهية' : 'Ended'} color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />,
                     },
                   ]
             }
@@ -321,7 +366,7 @@ export default function SessionsPage() {
           onClose={() => setEndTarget(null)}
           onDone={() => {
             setEndTarget(null);
-            toast('Session ended successfully', 'success');
+            toast(language === 'ar' ? 'تم إنهاء الجلسة بنجاح' : 'Session ended successfully', 'success');
             refetch();
           }}
         />
@@ -334,7 +379,7 @@ export default function SessionsPage() {
           onClose={() => setEditTarget(null)}
           onDone={() => {
             setEditTarget(null);
-            toast('Session parameters updated', 'success');
+            toast(language === 'ar' ? 'تم تحديث خيارات الجلسة' : 'Session parameters updated', 'success');
             refetch();
           }}
         />
@@ -347,6 +392,15 @@ export default function SessionsPage() {
           onClose={() => setAuditTarget(null)}
         />
       )}
+
+      {/* Add Cafe Modal */}
+      {cafeTarget && (
+        <AddCafeModal
+          session={cafeTarget}
+          onClose={() => setCafeTarget(null)}
+          onDone={refetch}
+        />
+      )}
     </Layout>
   );
 }
@@ -355,26 +409,31 @@ function TabButton({
   active,
   onClick,
   children,
+  isRtl,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  isRtl: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       style={{
         padding: '12px 24px',
-        fontFamily: 'JetBrains Mono, monospace',
         fontSize: '12px',
         fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
         color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
         borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
         transition: 'all 0.15s ease',
         marginBottom: '-1px',
         minHeight: '44px',
+        fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace',
+        cursor: 'pointer',
+        background: 'transparent',
+        borderTop: 'none',
+        borderLeft: 'none',
+        borderRight: 'none',
       }}
     >
       {children}

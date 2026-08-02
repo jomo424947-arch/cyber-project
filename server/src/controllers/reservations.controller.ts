@@ -4,12 +4,13 @@ import { badRequest, conflict, notFound } from '../lib/errors';
 import type { DbReservation } from '../lib/types';
 
 /** GET /api/reservations — list all reservations. */
-export async function listReservations(_req: Request, res: Response) {
+export async function listReservations(req: Request, res: Response) {
   const { data, error } = await supabase
     .from('reservations')
     .select(
       '*, device:devices(id,name,type), customer:customers(id,name,phone)'
     )
+    .eq('tenant_id', req.user!.tenant_id)
     .order('reserved_from', { ascending: true });
 
   if (error) throw error;
@@ -46,10 +47,8 @@ export async function createReservation(req: Request, res: Response) {
     .from('reservations')
     .select('id, reserved_from, reserved_until')
     .eq('device_id', device_id)
+    .eq('tenant_id', req.user!.tenant_id)
     .neq('status', 'cancelled')
-    // Interval overlap: two ranges [A, B) and [C, D) overlap iff A < D AND B > C.
-    // Here: existing.reserved_from < new.reserved_until AND existing.reserved_until > new.reserved_from.
-    // Chained Supabase filters are joined with AND (unlike .or() which joins with OR).
     .lt('reserved_from', reserved_until)
     .gt('reserved_until', reserved_from);
 
@@ -72,6 +71,7 @@ export async function createReservation(req: Request, res: Response) {
       notes: notes ?? null,
       status: 'pending',
       created_by: req.user!.id,
+      tenant_id: req.user!.tenant_id,
     })
     .select('*, device:devices(id,name,type), customer:customers(id,name,phone)')
     .single();

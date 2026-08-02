@@ -1,23 +1,36 @@
 // Formatting helpers shared across the app.
 
-const CURRENCY = 'USD';
+function getLang(): string {
+  if (typeof document !== 'undefined' && (document.documentElement.lang === 'ar' || document.documentElement.dir === 'rtl')) {
+    return 'ar';
+  }
+  return localStorage.getItem('ccms-language') || localStorage.getItem('ccms_language') || 'en';
+}
 
 export function formatCurrency(amount: number | null | undefined): string {
   const value = amount ?? 0;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: CURRENCY,
-    minimumFractionDigits: 2,
-  }).format(value);
+  const lang = getLang();
+  if (lang === 'ar') {
+    return `${value.toFixed(2)} جنيه`;
+  }
+  return `${value.toFixed(2)} EGP`;
 }
 
 export function formatNumber(value: number | null | undefined): string {
-  return new Intl.NumberFormat('en-US').format(value ?? 0);
+  const lang = getLang();
+  return new Intl.NumberFormat(lang === 'ar' ? 'ar-EG' : 'en-US').format(value ?? 0);
 }
 
 /** "2h 14m" style duration from a minute count. */
 export function formatDuration(minutes: number | null | undefined): string {
   const m = minutes ?? 0;
+  const lang = getLang();
+  if (lang === 'ar') {
+    if (m < 60) return `${m} دقيقة`;
+    const h = Math.floor(m / 60);
+    const rem = m % 60;
+    return rem === 0 ? `${h} ساعة` : `${h} ساعة و ${rem} د`;
+  }
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
@@ -38,7 +51,8 @@ export function formatElapsed(startedAt: string, nowMs: number = Date.now()): st
 /** Short date/time: "Jun 29, 14:30". */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', {
+  const lang = getLang();
+  return new Date(iso).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -49,7 +63,8 @@ export function formatDateTime(iso: string | null | undefined): string {
 /** Short date only: "Jun 29, 2026". */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', {
+  const lang = getLang();
+  return new Date(iso).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

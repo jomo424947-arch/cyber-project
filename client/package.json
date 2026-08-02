@@ -1,29 +1,60 @@
 {
   "name": "ccms-client",
   "version": "1.0.0",
+  "description": "Cyber Café & Gaming Lounge Management System Desktop App",
+  "author": "CCMS",
+  "packageManager": "npm@10.8.2",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "electron:dev": "concurrently \"vite\" \"electron .\"",
+    "dist": "npm run build && node scripts/package-server.cjs && electron-builder --config electron-builder.config.cjs && node scripts/copy-dist.cjs"
   },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
-    "axios": "^1.7.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.25.1"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "axios": "^1.7.2",
+    "electron": "31.2.0",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.4.39",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.25.1",
     "tailwindcss": "^3.4.6",
     "typescript": "^5.5.3",
     "vite": "^5.3.4"
+  },
+  "build": {
+    "extends": null,
+    "appId": "com.ccms.gaminglounge",
+    "productName": "CCMS Cyber Cafe",
+    "electronVersion": "31.2.0",
+    "npmRebuild": false,
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

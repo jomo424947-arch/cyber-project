@@ -12,6 +12,11 @@ import {
   verifyEmail,
   googleLogin,
   googleCallback,
+  getActivationStatus,
+  activateTenant,
+  registerTenant,
+  getTenants,
+  updateTenantStatus,
 } from '../controllers/auth.controller';
 import {
   loginSchema,
@@ -21,7 +26,8 @@ import {
   verifyEmailSchema,
 } from '../controllers/schemas';
 import { validate } from '../middleware/validate';
-import { verifyJWT } from '../middleware/auth';
+import { verifyJWT, requireRole } from '../middleware/auth';
+import { listEmployeesPublic } from '../controllers/employees.controller';
 
 const router = Router();
 
@@ -45,6 +51,9 @@ const authLimiter = rateLimit({
 
 // ─── Public routes (no authentication required) ────────────────────────────
 
+router.get('/status',          asyncHandler(getActivationStatus));
+router.get('/employees-public', asyncHandler(listEmployeesPublic));
+router.post('/activate',       authLimiter, asyncHandler(activateTenant));
 router.post('/login',          authLimiter, validate(loginSchema),          asyncHandler(login));
 router.post('/signup',         authLimiter, validate(signupSchema),         asyncHandler(signup));
 router.post('/refresh',        asyncHandler(refresh));
@@ -58,7 +67,10 @@ router.get('/callback/google', asyncHandler(googleCallback));
 
 // ─── Protected routes (JWT required) ──────────────────────────────────────
 
-router.get('/me',     verifyJWT, asyncHandler(me));
-router.post('/logout', verifyJWT, asyncHandler(logout));
+router.get('/me',               verifyJWT, asyncHandler(me));
+router.post('/logout',          verifyJWT, asyncHandler(logout));
+router.post('/register-tenant', asyncHandler(registerTenant));
+router.get('/tenants',          asyncHandler(getTenants));
+router.patch('/tenants/:id/status', asyncHandler(updateTenantStatus));
 
 export default router;

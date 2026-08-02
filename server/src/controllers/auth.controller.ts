@@ -1,15 +1,19 @@
 import { Request, Response } from 'express';
-import { supabase } from '../lib/supabase';
+import { supabase, localDb } from '../lib/supabase';
 import { badRequest, unauthorized, conflict } from '../lib/errors';
+import { hashPassword, verifyPassword, signToken, signRefreshToken, verifyRefreshToken } from '../lib/local-auth';
+import crypto from 'crypto';
+import { cloudSupabase } from '../lib/cloud-supabase';
+import { getDb, saveDatabase } from '../lib/database';
 
 // ─── Cookie helpers ────────────────────────────────────────────────────────
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-/** Duration for access token cookie — Supabase issues 1 hour tokens by default. */
+/** Duration for access token cookie — 1 hour. */
 const ACCESS_COOKIE_OPTS = {
   httpOnly: true,
-  secure: IS_PROD,
+  secure: false, // Set to false so it works in Electron / HTTP dev environments
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 60 * 60 * 1000, // 1 hour
@@ -18,7 +22,7 @@ const ACCESS_COOKIE_OPTS = {
 /** Default refresh token cookie (session-only unless "remember me"). */
 const REFRESH_COOKIE_OPTS = {
   httpOnly: true,
-  secure: IS_PROD,
+  secure: false,
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -40,120 +44,265 @@ function clearAuthCookies(res: Response) {
   res.clearCookie('sb-refresh-token', { path: '/' });
 }
 
-/** Load the full user profile row from public.users. */
+/** Load the full user profile row from users table. */
 async function loadUserProfile(userId: string) {
-  const { data } = await supabase
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('id, email, full_name, role')
+      .eq('id', userId)
+      .maybeSingle();
+    if (data) return data;
+  } catch (err) {
+    console.warn('[auth] Failed to load user profile from primary client:', err);
+  }
+
+  // Fallback to local SQLite DB
+  const { data: localData } = await localDb
     .from('users')
     .select('id, email, full_name, role')
     .eq('id', userId)
     .maybeSingle();
-  return data;
+  return localData;
 }
-
-// ─── Rate-limited brute force protection ──────────────────────────────────
-// express-rate-limit is applied globally in index.ts, but auth endpoints
-// have a separate stricter limiter applied in auth.routes.ts.
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────
 
-/** Authenticate with email + password and issue HttpOnly cookies. */
+/** Authenticate with email + password. Handles both offline and online modes. */
 export async function login(req: Request, res: Response) {
   const { email, password, rememberMe = false } = req.body;
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error || !data.session) {
-    // Always return the same generic message to prevent email enumeration.
+  if (!email || !password) {
+    throw badRequest('Email and password are required');
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Try Cloud Supabase authentication if available
+  if (cloudSupabase) {
+    try {
+      const { data, error } = await cloudSupabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (!error && data.session) {
+        // Cloud login succeeded! Load profile
+        const { data: cloudUser } = await cloudSupabase
+          .from('users')
+          .select('id, email, full_name, role, tenant_id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        const userId = data.user.id;
+        const userEmail = data.user.email || cleanEmail;
+        const fullName = cloudUser?.full_name || userEmail.split('@')[0];
+        const role = cloudUser?.role || 'admin';
+        const tenantId = cloudUser?.tenant_id || null;
+
+        // Check cloud tenant subscription status FIRST
+        if (tenantId) {
+          const { data: cloudTenant } = await cloudSupabase
+            .from('tenants')
+            .select('status, name')
+            .eq('id', tenantId)
+            .maybeSingle();
+
+          if (cloudTenant) {
+            try {
+              const db = getDb();
+              db.run(
+                `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at)
+                 VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+                 ON CONFLICT(tenant_id) DO UPDATE SET status = excluded.status, last_checked_at = datetime('now')`,
+                [tenantId, cloudTenant.name || fullName, userEmail, cloudTenant.status]
+              );
+              saveDatabase();
+            } catch (e) {
+              console.warn('[auth] Failed to update local tenant_config:', e);
+            }
+
+            if (cloudTenant.status !== 'active' && cloudTenant.status !== 'trial') {
+              res.status(403).json({
+                error: {
+                  message: `Subscription ${cloudTenant.status}. Please renew your license to access the system.`,
+                  code: 'SUBSCRIPTION_INACTIVE',
+                },
+              });
+              return;
+            }
+          }
+        }
+
+        // Cache user credentials locally in SQLite for offline access
+        try {
+          const db = getDb();
+          const localHash = hashPassword(password);
+          db.run(
+            `INSERT OR REPLACE INTO users (id, email, full_name, role, password_hash, tenant_id) VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, userEmail, fullName, role, localHash, tenantId]
+          );
+          saveDatabase();
+        } catch (e) {
+          console.warn('[auth] Failed to cache cloud user locally:', e);
+        }
+
+        const accessToken = signToken({ id: userId, email: userEmail, role });
+        const refreshToken = signRefreshToken({ id: userId });
+        setAuthCookies(res, accessToken, refreshToken, rememberMe);
+
+        res.json({
+          user: { id: userId, email: userEmail, full_name: fullName, role },
+        });
+        return;
+      }
+    } catch (cloudErr) {
+      console.warn('[auth] Cloud login error, falling back to local DB:', cloudErr);
+    }
+  }
+
+  // 2. Fall back to local SQLite DB (offline mode)
+  const { data: allUsers, error: localErr } = await localDb
+    .from('users')
+    .select('*');
+
+  const user = (allUsers || []).find((u: any) => u.email?.trim().toLowerCase() === cleanEmail);
+
+  if (localErr || !user || !user.password_hash) {
     throw unauthorized('Invalid email or password');
   }
 
-  const profile = await loadUserProfile(data.user.id);
-  setAuthCookies(res, data.session.access_token, data.session.refresh_token, rememberMe);
+  const isMatch = verifyPassword(password, user.password_hash);
+  if (!isMatch) {
+    throw unauthorized('Invalid email or password');
+  }
+
+  const accessToken = signToken({ id: user.id, email: user.email, role: user.role });
+  const refreshToken = signRefreshToken({ id: user.id });
+  setAuthCookies(res, accessToken, refreshToken, rememberMe);
 
   res.json({
     user: {
-      id: data.user.id,
-      email: data.user.email,
-      full_name: profile?.full_name ?? data.user.email?.split('@')[0] ?? '',
-      role: profile?.role ?? 'staff',
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name ?? user.email.split('@')[0],
+      role: user.role,
     },
   });
 }
 
 // ─── POST /api/auth/signup ────────────────────────────────────────────────
 
-/** Create a new account in Supabase Auth.
- *  Email confirmation is handled by Supabase; the public.users row is
- *  created automatically via the on_auth_user_created trigger.
- */
+/** Create a new account. Handles both offline and online modes. */
 export async function signup(req: Request, res: Response): Promise<void> {
   const { email, password, fullName } = req.body;
+  const isOffline = process.env.OFFLINE_MODE === 'true';
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { full_name: fullName ?? email.split('@')[0] },
-    },
-  });
-
-  if (error) {
-    // Supabase returns "User already registered" — wrap as 409 Conflict.
-    if (error.message.toLowerCase().includes('already registered')) {
-      throw conflict('An account with this email already exists', 'EMAIL_EXISTS');
-    }
-    throw badRequest(error.message);
+  if (!email || !password) {
+    throw badRequest('Email and password are required');
   }
 
-  // If Supabase email confirmation is disabled, a session is returned immediately.
-  if (data.session) {
-    const profile = await loadUserProfile(data.user!.id);
-    setAuthCookies(res, data.session.access_token, data.session.refresh_token);
+  if (isOffline) {
+    // Check if email already exists locally
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existingUser) {
+      throw conflict('An account with this email already exists', 'EMAIL_EXISTS');
+    }
+
+    const userId = crypto.randomUUID();
+    const passwordHash = hashPassword(password);
+    const userRole = 'staff'; // default role
+
+    // Insert user locally in SQLite
+    const { error } = await supabase
+      .from('users')
+      .insert({
+        id: userId,
+        email,
+        full_name: fullName || email.split('@')[0],
+        role: userRole,
+        password_hash: passwordHash,
+      });
+
+    if (error) {
+      throw badRequest(error.message);
+    }
+
+    const accessToken = signToken({ id: userId, email, role: userRole });
+    const refreshToken = signRefreshToken({ id: userId });
+
+    setAuthCookies(res, accessToken, refreshToken);
+
     res.status(201).json({
       message: 'Account created successfully.',
       user: {
-        id: data.user!.id,
-        email: data.user!.email,
-        full_name: profile?.full_name ?? data.user!.email?.split('@')[0] ?? '',
-        role: profile?.role ?? 'staff',
+        id: userId,
+        email,
+        full_name: fullName || email.split('@')[0],
+        role: userRole,
       },
     });
-    return;
-  }
+  } else {
+    // Cloud Mode: register with Supabase Auth
+    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
 
-  // Email confirmation is required — advise the client.
-  res.status(201).json({
-    message: 'Account created. Please check your email to verify your account.',
-    user: null,
-    requiresEmailVerification: true,
-  });
+    const { data, error } = await cloudSupabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
+
+    if (error) throw badRequest(error.message);
+    if (!data.user) throw badRequest('Signup failed');
+
+    // Create user profile in public users table in Supabase Cloud
+    const { error: dbError } = await supabase.from('users').insert({
+      id: data.user.id,
+      email,
+      full_name: fullName || email.split('@')[0],
+      role: 'staff',
+    });
+
+    if (dbError) {
+      console.error('[auth] signup user insertion failed:', dbError.message);
+    }
+
+    if (data.session) {
+      setAuthCookies(res, data.session.access_token, data.session.refresh_token);
+    }
+
+    res.status(201).json({
+      message: data.session ? 'Signup successful.' : 'Signup successful. Please confirm your email.',
+      user: data.session ? {
+        id: data.user.id,
+        email,
+        full_name: fullName || email.split('@')[0],
+        role: 'staff',
+      } : null,
+    });
+  }
 }
 
 // ─── POST /api/auth/logout ────────────────────────────────────────────────
 
 /** Sign out the current user and clear auth cookies. */
 export async function logout(req: Request, res: Response) {
-  const accessToken = req.cookies?.['sb-access-token'];
-
-  // Best-effort revoke the server-side Supabase session.
-  if (accessToken) {
-    try {
-      // Use the user's own token to sign out their session only.
-      const userClient = supabase; // service-role client also works here
-      await userClient.auth.admin.signOut(accessToken);
-    } catch {
-      // Ignore — cookie will be cleared anyway.
-    }
-  }
-
   clearAuthCookies(res);
   res.json({ message: 'Logged out successfully.' });
 }
 
 // ─── POST /api/auth/refresh ───────────────────────────────────────────────
 
-/** Silently refresh the access token using the refresh token cookie.
- *  Implements Refresh Token Rotation — a new refresh token is issued each time.
- */
+/** Silently refresh the access token using the refresh token cookie. */
 export async function refresh(req: Request, res: Response) {
   const refreshToken = req.cookies?.['sb-refresh-token'];
   if (!refreshToken) {
@@ -161,199 +310,516 @@ export async function refresh(req: Request, res: Response) {
     throw unauthorized('No refresh token');
   }
 
-  const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
-  if (error || !data.session) {
+  let userId = '';
+
+  // 1. Try local refresh token verification first (since login/signup issue local tokens)
+  try {
+    const decoded = verifyRefreshToken(refreshToken);
+    userId = decoded.id;
+  } catch {
+    // 2. If local verification fails, try Supabase Cloud refresh if available
+    if (cloudSupabase) {
+      try {
+        const { data, error } = await cloudSupabase.auth.refreshSession({
+          refresh_token: refreshToken,
+        });
+        if (!error && data?.session) {
+          userId = data.session.user.id;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  if (!userId) {
     clearAuthCookies(res);
     throw unauthorized('Session expired. Please log in again.');
   }
 
-  // Detect "remember me" from existing cookie maxAge (heuristic: refresh > 7 days).
-  const remember = !!req.cookies?.['sb-refresh-token'];
-  setAuthCookies(res, data.session.access_token, data.session.refresh_token, remember);
+  const profile = await loadUserProfile(userId);
+  if (!profile) {
+    clearAuthCookies(res);
+    throw unauthorized('User profile not found.');
+  }
 
-  const profile = await loadUserProfile(data.user!.id);
+  const newAccessToken = signToken({ id: profile.id, email: profile.email, role: profile.role });
+  const newRefreshToken = signRefreshToken({ id: profile.id });
+
+  const remember = !!req.cookies?.['sb-refresh-token'];
+  setAuthCookies(res, newAccessToken, newRefreshToken, remember);
+
   res.json({
     user: {
-      id: data.user!.id,
-      email: data.user!.email,
-      full_name: profile?.full_name ?? data.user!.email?.split('@')[0] ?? '',
-      role: profile?.role ?? 'staff',
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name ?? profile.email.split('@')[0],
+      role: profile.role,
     },
   });
 }
 
 // ─── GET /api/auth/me ─────────────────────────────────────────────────────
 
-/** Return the authenticated user's profile. req.user is set by verifyJWT. */
+/** Return the authenticated user's profile. */
 export async function me(req: Request, res: Response) {
   const profile = await loadUserProfile(req.user!.id);
+  if (!profile) {
+    throw unauthorized('User profile not found');
+  }
   res.json({
     user: {
       id: req.user!.id,
-      email: profile?.email ?? req.user!.email,
-      full_name: profile?.full_name ?? req.user!.email.split('@')[0],
-      role: profile?.role ?? req.user!.role,
+      email: profile.email ?? req.user!.email,
+      full_name: profile.full_name ?? req.user!.email.split('@')[0],
+      role: profile.role ?? req.user!.role,
     },
   });
 }
 
 // ─── POST /api/auth/forgot-password ──────────────────────────────────────
 
-/** Send a password reset email.
- *  Always returns 200 to prevent email enumeration.
- */
+/** Send a password reset email. */
 export async function forgotPassword(req: Request, res: Response) {
   const { email } = req.body;
-  const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+  const isOffline = process.env.OFFLINE_MODE === 'true';
 
-  // Fire and forget — we don't reveal whether the email exists.
-  await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${clientOrigin}/reset-password`,
-  });
+  if (isOffline) {
+    res.status(501).json({
+      error: {
+        message: 'Password reset is not supported in offline desktop mode. Please contact the administrator.',
+        code: 'NOT_SUPPORTED',
+      },
+    });
+  } else {
+    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
+    
+    const { error } = await cloudSupabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${req.headers.origin}/reset-password`,
+    });
 
-  res.json({
-    message: 'If this email exists, a password reset link has been sent.',
-  });
+    if (error) throw badRequest(error.message);
+    res.json({ message: 'Password reset email sent successfully.' });
+  }
 }
 
 // ─── POST /api/auth/reset-password ───────────────────────────────────────
 
-/** Reset the user's password using the OTP code from the email link.
- *  The client extracts `token` and `type` from the URL hash and sends them here.
- */
+/** Reset the user's password. */
 export async function resetPassword(req: Request, res: Response) {
   const { token, newPassword } = req.body;
+  const isOffline = process.env.OFFLINE_MODE === 'true';
 
-  if (!token || !newPassword) {
-    throw badRequest('Token and new password are required');
+  if (isOffline) {
+    res.status(501).json({
+      error: {
+        message: 'Password reset is not supported in offline desktop mode.',
+        code: 'NOT_SUPPORTED',
+      },
+    });
+  } else {
+    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
+    
+    // Recovery links from Supabase use access_token exchange
+    const { error } = await cloudSupabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) throw badRequest(error.message);
+    res.json({ message: 'Password updated successfully.' });
   }
-
-  // Verify the OTP token to get a session, then update the password.
-  const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
-    token_hash: token,
-    type: 'recovery',
-  });
-
-  if (verifyErr || !verifyData.session) {
-    throw badRequest('Invalid or expired reset token. Please request a new one.');
-  }
-
-  // Update the password using the session obtained from the OTP.
-  const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword });
-  if (updateErr) throw badRequest(updateErr.message);
-
-  clearAuthCookies(res);
-  res.json({ message: 'Password updated successfully. Please log in.' });
 }
 
 // ─── POST /api/auth/verify-email ─────────────────────────────────────────
 
-/** Verify an email address using the OTP token from the verification link. */
+/** Verify an email address. */
 export async function verifyEmail(req: Request, res: Response) {
   const { token } = req.body;
-  if (!token) throw badRequest('Verification token is required');
+  const isOffline = process.env.OFFLINE_MODE === 'true';
 
-  const { data, error } = await supabase.auth.verifyOtp({
-    token_hash: token,
-    type: 'email',
-  });
+  if (isOffline) {
+    res.status(501).json({
+      error: {
+        message: 'Email verification is not supported in offline desktop mode.',
+        code: 'NOT_SUPPORTED',
+      },
+    });
+  } else {
+    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
+    
+    const { data, error } = await cloudSupabase.auth.verifyOtp({
+      token_hash: token,
+      type: 'email',
+    });
 
-  if (error || !data.session) {
-    throw badRequest('Invalid or expired verification token.');
+    if (error || !data.user) {
+      throw badRequest(error?.message || 'Verification failed');
+    }
+
+    res.json({
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        full_name: data.user.user_metadata.full_name || '',
+        role: 'staff',
+      },
+      message: 'Email verified successfully.',
+    });
   }
-
-  const profile = await loadUserProfile(data.user!.id);
-  setAuthCookies(res, data.session.access_token, data.session.refresh_token);
-  res.json({
-    message: 'Email verified successfully.',
-    user: {
-      id: data.user!.id,
-      email: data.user!.email,
-      full_name: profile?.full_name ?? '',
-      role: profile?.role ?? 'staff',
-    },
-  });
 }
 
 // ─── GET /api/auth/oauth/google ───────────────────────────────────────────
 
-/** Return the Supabase Google OAuth authorization URL.
- *  The client navigates to this URL; Google sends the user back to our
- *  backend callback endpoint after consent.
- */
-export async function googleLogin(_req: Request, res: Response) {
-  const callbackUrl = `${process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/auth/callback/google`;
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: callbackUrl,
-    },
-  });
+/** Return the Google OAuth authorization URL. */
+export async function googleLogin(req: Request, res: Response) {
+  const isOffline = process.env.OFFLINE_MODE === 'true';
 
-  if (error || !data.url) {
-    throw badRequest('Failed to generate Google OAuth URL');
+  if (isOffline) {
+    res.status(501).json({
+      error: {
+        message: 'Google Login is not supported in offline desktop mode. Use email and password.',
+        code: 'NOT_SUPPORTED',
+      },
+    });
+  } else {
+    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
+    
+    const { data, error } = await cloudSupabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${req.headers.origin}/api/auth/callback/google`,
+      },
+    });
+
+    if (error) throw badRequest(error.message);
+    res.json({ url: data.url });
   }
-
-  res.json({ url: data.url });
 }
 
 // ─── GET /api/auth/callback/google ───────────────────────────────────────
 
-/**
- * Backend OAuth Callback.
- *
- * PROBLEM (root cause of the broken Google login):
- *   The old flow called `supabase.auth.signInWithOAuth` on the *client*
- *   with `redirectTo: window.location.origin + '/dashboard'`. After Google
- *   consent, Supabase/Google redirects back with tokens in the URL *hash*
- *   (fragment).  React Router's BrowserRouter never sees hash fragments —
- *   only the browser JS can read `window.location.hash`. The hash is also
- *   stripped on server-side redirects, so the tokens are lost entirely.
- *
- * FIX:
- *   The OAuth callback is handled entirely on the backend.
- *   Supabase redirects to /api/auth/callback/google?code=…
- *   We exchange the code for a session using the server-side client,
- *   set HttpOnly cookies, and then perform a clean HTTP redirect to the
- *   frontend dashboard — no tokens in the URL, no hash fragments.
- */
-export async function googleCallback(req: Request, res: Response): Promise<void> {
-  const { code, error: oauthError } = req.query as { code?: string; error?: string };
-  const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+/** Backend OAuth Callback (Redirects to client dashboard). */
+export async function googleCallback(req: Request, res: Response) {
+  res.status(501).json({
+    error: {
+      message: 'Google Login callback handled by frontend router.',
+      code: 'NOT_SUPPORTED',
+    },
+  });
+}
 
-  if (oauthError || !code) {
-    res.redirect(`${clientOrigin}/login?error=oauth_failed`);
-    return;
+// ─── LICENSE ACTIVATION ENDPOINTS ──────────────────────────────────────────
+
+/** GET /api/auth/status — Check if app is activated locally. */
+export async function getActivationStatus(_req: Request, res: Response) {
+  const db = getDb();
+  let status = 'unactivated';
+  let tenant = null;
+
+  try {
+    const stmt = db.prepare('SELECT * FROM tenant_config LIMIT 1');
+    if (stmt.step()) {
+      const config = stmt.getAsObject();
+      status = (config.status as string) || 'unactivated';
+      tenant = {
+        tenant_id: config.tenant_id,
+        name: config.tenant_name,
+        owner_email: config.owner_email,
+      };
+    }
+    stmt.free();
+  } catch (err) {
+    // If table doesn't exist yet, it's considered unactivated
   }
 
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error || !data.session) {
-    res.redirect(`${clientOrigin}/login?error=session_exchange_failed`);
-    return;
+  res.json({ status, tenant });
+}
+
+/** POST /api/auth/activate — Activate app using cloud credentials. */
+export async function activateTenant(req: Request, res: Response) {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    throw badRequest('Email and password are required for activation');
   }
 
-  // Ensure the public.users row exists (handles first-time Google users
-  // whose on_auth_user_created trigger may not have run yet).
-  const { count } = await supabase
+  if (!cloudSupabase) {
+    throw badRequest('Supabase cloud connection not configured in .env');
+  }
+
+  // 1. Authenticate with Supabase Cloud
+  const { data: authData, error: authErr } = await cloudSupabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (authErr || !authData.session) {
+    throw unauthorized('Invalid cloud email or password');
+  }
+
+  const userId = authData.user.id;
+
+  // 2. Load user's tenant_id and role from cloud DB
+  const { data: cloudUser, error: cloudUserErr } = await cloudSupabase
     .from('users')
-    .select('id', { count: 'exact', head: true })
-    .eq('id', data.user.id);
+    .select('id, email, full_name, role, tenant_id')
+    .eq('id', userId)
+    .maybeSingle();
 
-  if (!count) {
-    await supabase.from('users').insert({
-      id: data.user.id,
-      email: data.user.email,
-      full_name:
-        data.user.user_metadata?.full_name ??
-        data.user.user_metadata?.name ??
-        data.user.email?.split('@')[0] ??
-        '',
-      role: 'staff',
-    });
+  if (cloudUserErr || !cloudUser || !cloudUser.tenant_id) {
+    throw unauthorized('This account is not associated with any cyber café tenant');
   }
 
-  setAuthCookies(res, data.session.access_token, data.session.refresh_token);
+  // 3. Load tenant status from cloud DB
+  const { data: tenant, error: tenantErr } = await cloudSupabase
+    .from('tenants')
+    .select('id, name, status')
+    .eq('id', cloudUser.tenant_id)
+    .maybeSingle();
 
-  // Clean redirect — no tokens in the URL.
-  res.redirect(`${clientOrigin}/dashboard`);
+  if (tenantErr || !tenant) {
+    throw unauthorized('Failed to load cyber café tenant profile from cloud');
+  }
+
+  if (tenant.status !== 'active' && tenant.status !== 'trial') {
+    res.status(403).json({
+      error: {
+        message: `Activation failed: This subscription is ${tenant.status}. Please contact support.`,
+        code: 'SUBSCRIPTION_INACTIVE',
+      },
+    });
+    return;
+  }
+
+  // 4. Save to local SQLite database
+  const db = getDb();
+  
+  // Clear any existing configurations
+  db.run('DELETE FROM tenant_config');
+  
+  // Insert new configuration
+  db.run(
+    `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    [tenant.id, tenant.name, email, tenant.status]
+  );
+
+  // Hash password and store user locally so they can log in offline
+  const localHash = hashPassword(password);
+  db.run(
+    `INSERT OR REPLACE INTO users (id, email, full_name, role, password_hash, tenant_id) VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, email, cloudUser.full_name || email.split('@')[0], cloudUser.role, localHash, tenant.id]
+  );
+
+  // 5. Seed devices and products from cloud for instant startup experience
+  try {
+    const { data: cloudDevices } = await cloudSupabase
+      .from('devices')
+      .select('*')
+      .eq('tenant_id', tenant.id);
+
+    if (cloudDevices && cloudDevices.length > 0) {
+      for (const dev of cloudDevices) {
+        db.run(
+          `INSERT OR REPLACE INTO devices (id, name, type, status, specs, hourly_rate, hourly_rate_multi, archived, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            dev.id,
+            dev.name,
+            dev.type,
+            dev.status || 'available',
+            dev.specs ? JSON.stringify(dev.specs) : null,
+            dev.hourly_rate || 0,
+            dev.hourly_rate_multi || dev.hourly_rate || 0,
+            dev.archived ? 1 : 0,
+            tenant.id
+          ]
+        );
+      }
+    }
+
+    const { data: cloudProducts } = await cloudSupabase
+      .from('products')
+      .select('*')
+      .eq('tenant_id', tenant.id);
+
+    if (cloudProducts && cloudProducts.length > 0) {
+      for (const prod of cloudProducts) {
+        db.run(
+          `INSERT OR REPLACE INTO products (id, name, price, tenant_id) VALUES (?, ?, ?, ?)`,
+          [prod.id, prod.name, prod.price || 0, tenant.id]
+        );
+      }
+    }
+  } catch (err: any) {
+    console.warn('[activation] Failed to download initial devices/products:', err.message);
+  }
+
+  saveDatabase();
+
+  res.json({
+    success: true,
+    message: 'Application activated successfully',
+    tenant: {
+      id: tenant.id,
+      name: tenant.name,
+      status: tenant.status,
+    },
+  });
+}
+
+// ─── SUPER ADMIN TENANT REGISTRATION ────────────────────────────────────────
+
+/** POST /api/auth/register-tenant — Registers a new cyber café (tenant) and its owner user. */
+export async function registerTenant(req: Request, res: Response) {
+  const { tenantName, ownerFullName, ownerEmail, ownerPassword, status = 'active', secretKey } = req.body;
+
+  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
+  if (!secretKey || secretKey !== expectedKey) {
+    throw unauthorized('Invalid Super Admin Secret Key passcode');
+  }
+
+  if (!tenantName || !ownerFullName || !ownerEmail || !ownerPassword) {
+    throw badRequest('All fields are required (tenantName, ownerFullName, ownerEmail, ownerPassword)');
+  }
+
+  if (!cloudSupabase) {
+    throw badRequest('Supabase cloud connection not configured in .env (Requires SUPER_ADMIN keys)');
+  }
+
+  // 1. Create User in Supabase Auth
+  const { data: authData, error: authErr } = await cloudSupabase.auth.admin.createUser({
+    email: ownerEmail,
+    password: ownerPassword,
+    email_confirm: true,
+  });
+
+  if (authErr || !authData.user) {
+    throw badRequest(authErr?.message || 'Failed to create user in Supabase Auth');
+  }
+
+  const userId = authData.user.id;
+
+  // 2. Create Tenant
+  const tenantId = crypto.randomUUID();
+  const { error: tenantErr } = await cloudSupabase.from('tenants').insert({
+    id: tenantId,
+    name: tenantName,
+    owner_email: ownerEmail,
+    status,
+  });
+
+  if (tenantErr) {
+    // Rollback user
+    await cloudSupabase.auth.admin.deleteUser(userId);
+    throw badRequest(tenantErr.message || 'Failed to create tenant profile');
+  }
+
+  // 3. Create User Profile (upsert to handle trigger auto-inserts)
+  const { error: userErr } = await cloudSupabase.from('users').upsert({
+    id: userId,
+    email: ownerEmail,
+    full_name: ownerFullName,
+    role: 'admin',
+    tenant_id: tenantId,
+  });
+
+  if (userErr) {
+    // Rollback
+    await cloudSupabase.from('tenants').delete().eq('id', tenantId);
+    await cloudSupabase.auth.admin.deleteUser(userId);
+    throw badRequest(userErr.message || 'Failed to create user profile');
+  }
+
+  res.status(201).json({
+    success: true,
+    message: 'Cyber café registered successfully!',
+    tenant: {
+      id: tenantId,
+      name: tenantName,
+      owner_email: ownerEmail,
+    },
+  });
+}
+
+/** GET /api/auth/tenants — Lists all tenants from Supabase. */
+export async function getTenants(req: Request, res: Response) {
+  const secretKey = req.headers['x-super-admin-key'] as string;
+  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
+  if (!secretKey || secretKey !== expectedKey) {
+    throw unauthorized('Invalid Super Admin Secret Key passcode');
+  }
+
+  if (!cloudSupabase) {
+    throw badRequest('Supabase cloud connection not configured in .env (Requires SUPER_ADMIN keys)');
+  }
+
+  const { data: tenants, error } = await cloudSupabase
+    .from('tenants')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw badRequest(error.message || 'Failed to fetch tenants');
+  }
+
+  res.json({
+    success: true,
+    tenants,
+  });
+}
+
+/** PATCH /api/auth/tenants/:id/status — Updates a tenant's subscription status. */
+export async function updateTenantStatus(req: Request, res: Response) {
+  const secretKey = req.headers['x-super-admin-key'] as string;
+  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
+  if (!secretKey || secretKey !== expectedKey) {
+    throw unauthorized('Invalid Super Admin Secret Key passcode');
+  }
+
+  if (!cloudSupabase) {
+    throw badRequest('Supabase cloud connection not configured in .env (Requires SUPER_ADMIN keys)');
+  }
+
+  const { id } = req.params;
+  const { status } = req.body;
+  const cleanId = id.trim();
+
+  if (!status || !['active', 'trial', 'suspended'].includes(status)) {
+    throw badRequest('Invalid status value. Must be active, trial, or suspended.');
+  }
+
+  console.log(`[SuperAdmin] Updating tenant ${cleanId} status to ${status}`);
+  
+  // 1. Update in Supabase Cloud
+  const { data, error } = await cloudSupabase
+    .from('tenants')
+    .update({ status })
+    .eq('id', cleanId)
+    .select();
+
+  if (error) {
+    console.error('[SuperAdmin] Failed to update tenant status in Supabase:', error);
+    throw badRequest(error.message || 'Failed to update tenant status');
+  }
+
+  console.log(`[SuperAdmin] Supabase returned updated data:`, data);
+  if (!data || data.length === 0) {
+    console.warn(`[SuperAdmin] Retrying update without select filter for ${cleanId}...`);
+    await cloudSupabase.from('tenants').update({ status }).eq('id', cleanId);
+  }
+
+  // 2. Unconditionally sync local SQLite database tenant_config status
+  try {
+    const db = getDb();
+    db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now") WHERE tenant_id = ?', [status, cleanId]);
+    db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now")', [status]);
+    saveDatabase();
+    console.log(`[SuperAdmin] Local tenant_config updated status to ${status}`);
+  } catch (err: any) {
+    console.error('[SuperAdmin] Failed to update local tenant_config status:', err.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Tenant status updated successfully',
+  });
 }
