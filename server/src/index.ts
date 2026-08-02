@@ -76,7 +76,8 @@ app.use(cors({
       callback(null, true); // Allow during dev
     }
   },
-  credentials: true
+  credentials: true,
+  exposedHeaders: ['X-CSRF-Token', 'x-csrf-token']
 }));
 app.use(cookieParser());
 app.use(csrfProtection);

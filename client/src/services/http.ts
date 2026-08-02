@@ -32,12 +32,14 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match.split('=')[1]) : null;
 }
 
+let csrfTokenInMemory = '';
+
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const safeMethods = ['get', 'head', 'options'];
   const method = (config.method ?? '').toLowerCase();
 
   if (!safeMethods.includes(method)) {
-    const csrfToken = getCookie('csrf-token');
+    const csrfToken = csrfTokenInMemory || getCookie('csrf-token');
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }
@@ -56,7 +58,13 @@ function onRefreshComplete(ok: boolean) {
 }
 
 http.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const token = res.headers['x-csrf-token'] || res.headers['X-CSRF-Token'];
+    if (token) {
+      csrfTokenInMemory = token;
+    }
+    return res;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
