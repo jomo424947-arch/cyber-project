@@ -2,26 +2,26 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 
 /**
- * CSRF Protection Middleware.
+ * Double-Submit Cookie CSRF Protection Middleware.
  *
  * Safe methods (GET, HEAD, OPTIONS) and exempt routes skip verification.
  *
  * For mutating methods (POST, PUT, DELETE, PATCH):
- * A request is safe and allowed if it carries a custom `X-CSRF-Token` header
- * or `Authorization` header (custom HTTP headers cannot be set in cross-origin
- * CSRF form attacks without CORS preflight approval).
+ * - If the `csrf-token` cookie is present, `X-CSRF-Token` header MUST match the cookie value.
+ * - If no `csrf-token` cookie is attached by the browser (e.g. cross-domain request where
+ *   third-party cookies are blocked, or non-browser client), CSRF cookie forgery cannot occur.
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
   const cookieToken = req.cookies?.['csrf-token'];
   const headerToken = req.headers['x-csrf-token'] as string | undefined;
 
-  // Determine active token to expose in response header
+  // Initialize or maintain CSRF cookie
   let activeToken = cookieToken || headerToken;
   if (!activeToken) {
     activeToken = crypto.randomBytes(32).toString('hex');
   }
 
-  // Set cookie if missing
+  // Ensure csrf-token cookie is set for same-site browser contexts
   if (!cookieToken) {
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('csrf-token', activeToken, {
@@ -63,21 +63,21 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     return next();
   }
 
-  // Verify CSRF protection for mutating methods:
-  // Custom headers (X-CSRF-Token or Authorization) cannot be forged in cross-site CSRF attacks
-  const hasAuthHeader = !!req.headers.authorization;
-  const hasCsrfHeader = !!headerToken && headerToken.trim().length > 0;
-
-  if (!hasCsrfHeader && !hasAuthHeader) {
-    return res.status(403).json({
-      error: {
-        message: 'CSRF token validation failed',
-        code: 'CSRF_ERROR',
-      },
-    });
+  // If the browser sent a csrf-token cookie, verify that X-CSRF-Token header matches it.
+  // This blocks cross-site form attacks where the browser automatically attaches cookies.
+  if (cookieToken) {
+    if (!headerToken || headerToken !== cookieToken) {
+      return res.status(403).json({
+        error: {
+          message: 'CSRF token validation failed',
+          code: 'CSRF_ERROR',
+        },
+      });
+    }
   }
 
   next();
 }
+
 
 
