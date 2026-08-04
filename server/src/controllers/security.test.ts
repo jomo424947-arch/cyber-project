@@ -17,6 +17,7 @@ describe('CSRF Protection Middleware', () => {
     };
     res = {
       cookie: vi.fn(),
+      setHeader: vi.fn(),
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
     };
@@ -40,6 +41,14 @@ describe('CSRF Protection Middleware', () => {
 
   it('allows POST requests with matching X-CSRF-Token header', () => {
     req.headers = { 'x-csrf-token': 'valid-csrf-token-123' };
+    csrfProtection(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('allows cross-domain POST requests with X-CSRF-Token header when cookies are omitted', () => {
+    req.cookies = {};
+    req.headers = { 'x-csrf-token': 'token-from-storage' };
     csrfProtection(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalled();

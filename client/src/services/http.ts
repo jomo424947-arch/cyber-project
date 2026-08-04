@@ -26,20 +26,45 @@ export const http: AxiosInstance = axios.create({
 
 /** Read a cookie by name from document.cookie. */
 function getCookie(name: string): string | null {
-  const match = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split('=')[1]) : null;
+  try {
+    const match = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.split('=')[1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 let csrfTokenInMemory = '';
+
+function getStoredCsrfToken(): string | null {
+  return (
+    csrfTokenInMemory ||
+    getCookie('csrf-token') ||
+    (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('csrf_token') : null)
+  );
+}
+
+function setStoredCsrfToken(token: string) {
+  if (token) {
+    csrfTokenInMemory = token;
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('csrf_token', token);
+      }
+    } catch {
+      // Ignore storage errors in restricted contexts
+    }
+  }
+}
 
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const safeMethods = ['get', 'head', 'options'];
   const method = (config.method ?? '').toLowerCase();
 
   if (!safeMethods.includes(method)) {
-    const csrfToken = csrfTokenInMemory || getCookie('csrf-token');
+    const csrfToken = getStoredCsrfToken();
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }
@@ -61,7 +86,7 @@ http.interceptors.response.use(
   (res) => {
     const token = res.headers['x-csrf-token'] || res.headers['X-CSRF-Token'];
     if (token) {
-      csrfTokenInMemory = token;
+      setStoredCsrfToken(token);
     }
     return res;
   },
