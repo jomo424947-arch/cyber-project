@@ -35,6 +35,7 @@ import { startSyncEngine } from './lib/sync-engine';
 import { licenseCheck } from './middleware/license';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 const allowedOrigins = [origin, 'http://localhost:5173', 'http://localhost:3000', 'file://', 'null'];

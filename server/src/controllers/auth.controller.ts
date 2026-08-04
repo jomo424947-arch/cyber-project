@@ -111,12 +111,25 @@ export async function login(req: Request, res: Response) {
           if (cloudTenant) {
             try {
               const db = getDb();
-              db.run(
-                `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at)
-                 VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
-                 ON CONFLICT(tenant_id) DO UPDATE SET status = excluded.status, last_checked_at = datetime('now')`,
-                [tenantId, cloudTenant.name || fullName, userEmail, cloudTenant.status]
-              );
+              const existing = db.prepare('SELECT tenant_id FROM tenant_config WHERE tenant_id = ? LIMIT 1');
+              let hasExisting = false;
+              if (existing.step()) {
+                hasExisting = true;
+              }
+              existing.free();
+
+              if (hasExisting) {
+                db.run(
+                  `UPDATE tenant_config SET status = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
+                  [cloudTenant.status, tenantId]
+                );
+              } else {
+                db.run(
+                  `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at)
+                   VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+                  [tenantId, cloudTenant.name || fullName, userEmail, cloudTenant.status]
+                );
+              }
               saveDatabase();
             } catch (e) {
               console.warn('[auth] Failed to update local tenant_config:', e);
