@@ -60,14 +60,12 @@ function setStoredCsrfToken(token: string) {
 }
 
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const safeMethods = ['get', 'head', 'options'];
-  const method = (config.method ?? '').toLowerCase();
-
-  if (!safeMethods.includes(method)) {
-    const csrfToken = getStoredCsrfToken();
-    if (csrfToken) {
-      config.headers['X-CSRF-Token'] = csrfToken;
-    }
+  // Always attach CSRF token on every request so the server can return
+  // a consistent token even on GET responses (critical when third-party
+  // cookies are blocked in cross-domain deployments).
+  const csrfToken = getStoredCsrfToken();
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
   }
   return config;
 });
