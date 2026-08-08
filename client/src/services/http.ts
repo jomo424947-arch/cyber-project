@@ -26,23 +26,46 @@ export const http: AxiosInstance = axios.create({
 
 /** Read a cookie by name from document.cookie. */
 function getCookie(name: string): string | null {
-  const match = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split('=')[1]) : null;
+  try {
+    const match = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.split('=')[1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 let csrfTokenInMemory = '';
 
-http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const safeMethods = ['get', 'head', 'options'];
-  const method = (config.method ?? '').toLowerCase();
+function getStoredCsrfToken(): string | null {
+  return (
+    csrfTokenInMemory ||
+    getCookie('csrf-token') ||
+    (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('csrf_token') : null)
+  );
+}
 
-  if (!safeMethods.includes(method)) {
-    const csrfToken = csrfTokenInMemory || getCookie('csrf-token');
-    if (csrfToken) {
-      config.headers['X-CSRF-Token'] = csrfToken;
+function setStoredCsrfToken(token: string) {
+  if (token) {
+    csrfTokenInMemory = token;
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('csrf_token', token);
+      }
+    } catch {
+      // Ignore storage errors in restricted contexts
     }
+  }
+}
+
+http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Always attach CSRF token on every request so the server can return
+  // a consistent token even on GET responses (critical when third-party
+  // cookies are blocked in cross-domain deployments).
+  const csrfToken = getStoredCsrfToken();
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
   }
   return config;
 });
@@ -61,7 +84,7 @@ http.interceptors.response.use(
   (res) => {
     const token = res.headers['x-csrf-token'] || res.headers['X-CSRF-Token'];
     if (token) {
-      csrfTokenInMemory = token;
+      setStoredCsrfToken(token);
     }
     return res;
   },

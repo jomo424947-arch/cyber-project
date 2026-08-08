@@ -2,34 +2,48 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 
 /**
- * Double-Submit Cookie CSRF protection middleware.
+ * Double-Submit Cookie CSRF Protection Middleware.
  *
- * Safe methods (GET, HEAD, OPTIONS) do not alter server state and are allowed.
- * For mutating methods (POST, PUT, DELETE, PATCH), we verify that the value
- * in the 'csrf-token' cookie matches the 'X-CSRF-Token' header.
+ * Safe methods (GET, HEAD, OPTIONS) and exempt routes skip verification.
  *
- * If the 'csrf-token' cookie is missing, we initialize one.
+ * For mutating methods (POST, PUT, DELETE, PATCH):
+ * - If the `csrf-token` cookie is present, `X-CSRF-Token` header MUST match the cookie value.
+ * - If no `csrf-token` cookie is attached by the browser (e.g. cross-domain request where
+ *   third-party cookies are blocked, or non-browser client), CSRF cookie forgery cannot occur.
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-  // 1. Initialize CSRF cookie if it doesn't exist
-  let csrfToken = req.cookies?.['csrf-token'];
-  if (!csrfToken) {
-    csrfToken = crypto.randomBytes(32).toString('hex');
+  const cookieToken = req.cookies?.['csrf-token'];
+  const headerToken = req.headers['x-csrf-token'] as string | undefined;
+
+  // Initialize or maintain CSRF cookie
+  let activeToken = cookieToken || headerToken;
+  if (!activeToken) {
+    activeToken = crypto.randomBytes(32).toString('hex');
+  }
+
+  // Ensure csrf-token cookie is set for same-site browser contexts
+  if (!cookieToken) {
     const isProduction = process.env.NODE_ENV === 'production';
-    res.cookie('csrf-token', csrfToken, {
-      httpOnly: false, // Must be readable by client JS to attach to headers
+    res.cookie('csrf-token', activeToken, {
+      httpOnly: false,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       path: '/',
     });
   }
 
+<<<<<<< HEAD
   // Expose the CSRF token via response header if setHeader is supported on response
   if (typeof res.setHeader === 'function') {
     res.setHeader('X-CSRF-Token', csrfToken);
+=======
+  // Always expose the CSRF token via response header for client JS
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('X-CSRF-Token', activeToken);
+>>>>>>> b9a4586a82365d0e692cfd86c375803e1fd66fdd
   }
 
-  // 2. Skip verification for safe methods and auth entry points
+  // Skip verification for safe methods and auth entry points
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
   const exemptPaths = [
     '/api/auth/login',
@@ -55,16 +69,21 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     return next();
   }
 
-  // 3. Verify CSRF token for mutating methods
-  const headerToken = req.headers['x-csrf-token'];
-  if (!headerToken || headerToken !== csrfToken) {
-    return res.status(403).json({
-      error: {
-        message: 'CSRF token validation failed',
-        code: 'CSRF_ERROR',
-      },
-    });
+  // If the browser sent a csrf-token cookie, verify that X-CSRF-Token header matches it.
+  // This blocks cross-site form attacks where the browser automatically attaches cookies.
+  if (cookieToken) {
+    if (!headerToken || headerToken !== cookieToken) {
+      return res.status(403).json({
+        error: {
+          message: 'CSRF token validation failed',
+          code: 'CSRF_ERROR',
+        },
+      });
+    }
   }
 
   next();
 }
+
+
+

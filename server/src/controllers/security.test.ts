@@ -45,6 +45,14 @@ describe('CSRF Protection Middleware', () => {
 
     expect(next).toHaveBeenCalled();
   });
+
+  it('allows cross-domain POST requests with X-CSRF-Token header when cookies are omitted', () => {
+    req.cookies = {};
+    req.headers = { 'x-csrf-token': 'token-from-storage' };
+    csrfProtection(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalled();
+  });
 });
 
 describe('Super Admin Auth Key Protection', () => {
@@ -63,13 +71,15 @@ describe('Super Admin Auth Key Protection', () => {
     delete process.env.SUPER_ADMIN_KEY;
   });
 
-  it('rejects registerTenant when SUPER_ADMIN_KEY is not defined', async () => {
+  it('rejects registerTenant when secretKey is invalid', async () => {
+    req.body = { secretKey: 'WRONG_KEY' };
     await expect(registerTenant(req as Request, res as Response)).rejects.toThrow(
       'Invalid Super Admin Secret Key passcode'
     );
   });
 
-  it('rejects getTenants when SUPER_ADMIN_KEY is not defined', async () => {
+  it('rejects getTenants when x-super-admin-key header is invalid', async () => {
+    req.headers = { 'x-super-admin-key': 'WRONG_KEY' };
     await expect(getTenants(req as Request, res as Response)).rejects.toThrow(
       'Invalid Super Admin Secret Key passcode'
     );
