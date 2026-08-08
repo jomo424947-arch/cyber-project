@@ -410,6 +410,10 @@ export async function resetPassword(req: Request, res: Response) {
   const { token, newPassword } = req.body;
   const isOffline = process.env.OFFLINE_MODE === 'true';
 
+  if (!newPassword) {
+    throw badRequest('New password is required');
+  }
+
   if (isOffline) {
     res.status(501).json({
       error: {
@@ -420,7 +424,16 @@ export async function resetPassword(req: Request, res: Response) {
   } else {
     if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
     
-    // Recovery links from Supabase use access_token exchange
+    if (token) {
+      const { error: verifyErr } = await cloudSupabase.auth.verifyOtp({
+        token_hash: token,
+        type: 'recovery',
+      });
+      if (verifyErr) {
+        throw badRequest(verifyErr.message || 'Invalid or expired password reset token');
+      }
+    }
+
     const { error } = await cloudSupabase.auth.updateUser({
       password: newPassword,
     });

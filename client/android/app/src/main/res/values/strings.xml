@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CCMS</string>
+    <string name="title_activity_main">CCMS</string>
+    <string name="package_name">com.ccms.gaminglounge</string>
+    <string name="custom_url_scheme">com.ccms.gaminglounge</string>
+</resources>

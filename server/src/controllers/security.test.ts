@@ -17,6 +17,7 @@ describe('CSRF Protection Middleware', () => {
     };
     res = {
       cookie: vi.fn(),
+      setHeader: vi.fn(),
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
     };

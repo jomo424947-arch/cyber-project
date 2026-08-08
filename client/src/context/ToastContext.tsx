@@ -43,8 +43,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         style={{
           position: 'fixed',
-          bottom: '24px',
-          right: '24px',
+          bottom: 'calc(24px + var(--safe-bottom))',
+          right: 'calc(24px + var(--safe-right))',
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',
@@ -62,8 +62,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              minWidth: '280px',
-              maxWidth: '380px',
+              minWidth: '240px',
+              maxWidth: 'min(380px, 90vw)',
               padding: '12px 16px',
               borderRadius: '8px',
               background: 'var(--bg-elevated)',

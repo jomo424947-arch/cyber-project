@@ -306,7 +306,7 @@ export function EndSessionModal({
   if (session.session_type === 'fixed' && session.scheduled_end) {
     const scheduledMinutes = Math.max(0, Math.ceil((new Date(session.scheduled_end).getTime() - startedTime) / 60000));
     const graceMinutes = Number(session.grace_period_minutes || 0);
-    overtimeMinutes = Math.max(0, billedMinutes - scheduledMinutes - graceMinutes);
+    overtimeMinutes = Math.max(0, rawMinutes - scheduledMinutes - graceMinutes);
     if (overtimeMinutes > 0) {
       overtimeCost = (overtimeMinutes / 60) * rate * 1.0;
     }
@@ -621,9 +621,18 @@ export function EditSessionModal({
     setErrorMsg('');
     try {
       const start = new Date(startedAt);
+      const origStart = new Date(session.started_at);
       const now = new Date();
       if (start.getTime() > now.getTime() + 10000) {
         throw new Error(language === 'ar' ? 'وقت البدء لا يمكن أن يكون في المستقبل' : 'Start time cannot be in the future');
+      }
+
+      if (start.getTime() > origStart.getTime() + 1000) {
+        throw new Error(
+          language === 'ar'
+            ? 'غير مسموح بتقديم وقت البدء لزمن أحدث من الوقت الأصلي لمنع التلاعب بالحسابات (يُسمح فقط بالتأريخ التراجعي Backdate).'
+            : 'Start time cannot be moved forward to a later time than the original start time.'
+        );
       }
 
       const patch: any = {
@@ -672,9 +681,9 @@ export function EditSessionModal({
 
         <Input
           type="datetime-local"
-          label={language === 'ar' ? 'وقت البدء' : 'Start Time'}
+          label={language === 'ar' ? 'وقت البدء (تأريخ تراجعي فقط - Backdate Only)' : 'Start Time (Backdate Only)'}
           value={startedAt}
-          max={toLocalISOString(new Date())}
+          max={toLocalISOString(new Date(session.started_at))}
           onChange={(e) => setStartedAt(e.target.value)}
         />
 

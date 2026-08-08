@@ -1,7 +1,16 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'local-ccms-secret-key-12345';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable must be set in production');
+    }
+    return 'local-ccms-secret-key-12345';
+  }
+  return secret;
+}
 
 export function hashPassword(password: string): string {
   const salt = bcrypt.genSaltSync(10);
@@ -13,17 +22,17 @@ export function verifyPassword(password: string, hash: string): boolean {
 }
 
 export function signToken(payload: { id: string; email: string; role: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '1h' });
 }
 
 export function verifyToken(token: string): { id: string; email: string; role: string } {
-  return jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
+  return jwt.verify(token, getJwtSecret()) as { id: string; email: string; role: string };
 }
 
 export function signRefreshToken(payload: { id: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 }
 
 export function verifyRefreshToken(token: string): { id: string } {
-  return jwt.verify(token, JWT_SECRET) as { id: string };
+  return jwt.verify(token, getJwtSecret()) as { id: string };
 }

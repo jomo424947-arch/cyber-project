@@ -24,8 +24,10 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     });
   }
 
-  // Always expose the CSRF token via response header for cross-domain client JS
-  res.setHeader('X-CSRF-Token', csrfToken);
+  // Expose the CSRF token via response header if setHeader is supported on response
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('X-CSRF-Token', csrfToken);
+  }
 
   // 2. Skip verification for safe methods and auth entry points
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];

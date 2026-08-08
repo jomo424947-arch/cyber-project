@@ -12,13 +12,15 @@ import crypto from 'crypto';
  * Returns local data immediately; cloud sync runs in the background.
  */
 export async function listEmployees(req: Request, res: Response) {
-  const tenantId = req.user!.tenant_id;
+  const tenantId = req.user?.tenant_id;
   const db = getDb();
 
   // Return local data immediately
-  const { data: users, error } = await localDb
-    .from('users')
-    .select('id, email, full_name, role, created_at');
+  let query = localDb.from('users').select('id, email, full_name, role, created_at');
+  if (tenantId) {
+    query = query.eq('tenant_id', tenantId);
+  }
+  const { data: users, error } = await query;
 
   if (error) throw badRequest(error.message);
   res.json(users);
@@ -56,12 +58,12 @@ export async function createEmployee(req: Request, res: Response) {
     } catch (err) {}
   }
 
-  // Check if email already exists locally
-  const { data: existingUser } = await localDb
-    .from('users')
-    .select('id')
-    .eq('email', cleanEmail)
-    .maybeSingle();
+  // Check if email already exists locally in this tenant
+  let checkQuery = localDb.from('users').select('id').eq('email', cleanEmail);
+  if (tenantId) {
+    checkQuery = checkQuery.eq('tenant_id', tenantId);
+  }
+  const { data: existingUser } = await checkQuery.maybeSingle();
 
   if (existingUser) {
     throw conflict('An employee with this email already exists');
@@ -121,6 +123,7 @@ export async function createEmployee(req: Request, res: Response) {
 export async function updateEmployee(req: Request, res: Response) {
   const { id } = req.params;
   const { full_name, role, password } = req.body;
+  const tenantId = req.user?.tenant_id;
   const db = getDb();
 
   if (cloudSupabase) {
@@ -128,7 +131,9 @@ export async function updateEmployee(req: Request, res: Response) {
       if (password) {
         await cloudSupabase.auth.admin.updateUserById(id, { password });
       }
-      await cloudSupabase.from('users').update({ full_name, role }).eq('id', id);
+      let cloudUpdate = cloudSupabase.from('users').update({ full_name, role }).eq('id', id);
+      if (tenantId) cloudUpdate = cloudUpdate.eq('tenant_id', tenantId);
+      await cloudUpdate;
     } catch (err: any) {
       console.warn('[employees] Cloud update failed:', err.message);
     }
@@ -140,14 +145,15 @@ export async function updateEmployee(req: Request, res: Response) {
     patch.password_hash = hashPassword(password);
   }
 
-  const { data, error } = await localDb
-    .from('users')
-    .update(patch)
-    .eq('id', id)
-    .select()
-    .maybeSingle();
+  let localUpdate = localDb.from('users').update(patch).eq('id', id);
+  if (tenantId) {
+    localUpdate = localUpdate.eq('tenant_id', tenantId);
+  }
+
+  const { data, error } = await localUpdate.select().maybeSingle();
 
   if (error) throw badRequest(error.message);
+  if (!data) throw badRequest('Employee not found or access denied');
   saveDatabase();
   res.json(data);
 }
@@ -158,6 +164,7 @@ export async function updateEmployee(req: Request, res: Response) {
  */
 export async function deleteEmployee(req: Request, res: Response) {
   const { id } = req.params;
+  const tenantId = req.user?.tenant_id;
 
   if (id === req.user?.id) {
     throw badRequest('You cannot delete your own account');
@@ -166,7 +173,9 @@ export async function deleteEmployee(req: Request, res: Response) {
   if (cloudSupabase) {
     try {
       await cloudSupabase.auth.admin.deleteUser(id);
-      await cloudSupabase.from('users').delete().eq('id', id);
+      let cloudDel = cloudSupabase.from('users').delete().eq('id', id);
+      if (tenantId) cloudDel = cloudDel.eq('tenant_id', tenantId);
+      await cloudDel;
       console.log(`[employees] Employee ${id} deleted from Supabase Cloud.`);
     } catch (err: any) {
       console.warn('[employees] Cloud delete warning:', err.message);
@@ -174,10 +183,12 @@ export async function deleteEmployee(req: Request, res: Response) {
   }
 
   // Delete locally from SQLite
-  const { error } = await localDb
-    .from('users')
-    .delete()
-    .eq('id', id);
+  let localDel = localDb.from('users').delete().eq('id', id);
+  if (tenantId) {
+    localDel = localDel.eq('tenant_id', tenantId);
+  }
+
+  const { error } = await localDel;
 
   if (error) throw badRequest(error.message);
   saveDatabase();
@@ -204,13 +215,15 @@ export async function listEmployeesPublic(req: Request, res: Response) {
     stmt.free();
   } catch (err) {}
 
-  // 2. Return local data immediately (no blocking on cloud)
-  const { data: users, error } = await localDb
-    .from('users')
-    .select('id, email, full_name, role');
+  // 2. Return local data immediately (scoped to local active tenant if available)
+  let query = localDb.from('users').select('id, email, full_name, role');
+  if (tenantId) {
+    query = query.eq('tenant_id', tenantId);
+  }
+  const { data: users, error } = await query;
 
   if (error) throw badRequest(error.message);
-  res.json({ users });
+  res.json({ users: users || [] });
 
   // 3. Fire-and-forget: sync employees from cloud in the background
   if (cloudSupabase && tenantId) {

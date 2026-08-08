@@ -32,9 +32,17 @@ export async function createReservation(req: Request, res: Response) {
   // 1. Resolve / create the customer.
   let finalCustomerId = customer_id as string | null;
   if (!finalCustomerId && customer_name) {
+    const cleanName = customer_name.trim().replace(/[^a-zA-Z0-9_]/g, '') || 'customer';
+    const uniqueSuffix = Math.random().toString(36).substring(2, 6);
+    const generatedUsername = `${cleanName}_${uniqueSuffix}`.toLowerCase().substring(0, 30);
+
     const { data: newCustomer, error: cErr } = await supabase
       .from('customers')
-      .insert({ name: customer_name })
+      .insert({ 
+        username: generatedUsername,
+        name: customer_name,
+        tenant_id: req.user!.tenant_id
+      })
       .select('id')
       .single();
     if (cErr) throw cErr;

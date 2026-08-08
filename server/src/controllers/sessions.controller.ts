@@ -86,7 +86,8 @@ export async function startSession(req: Request, res: Response) {
         .insert({ 
           username: customer_username,
           name: customer_name || customer_username, 
-          phone: customer_phone ?? null 
+          phone: customer_phone ?? null,
+          tenant_id: req.user!.tenant_id
         })
         .select('id')
         .single();
@@ -112,7 +113,8 @@ export async function startSession(req: Request, res: Response) {
       .insert({ 
         username: generatedUsername,
         name: nameToUse, 
-        phone: customer_phone ?? null 
+        phone: customer_phone ?? null,
+        tenant_id: req.user!.tenant_id
       })
       .select('id')
       .single();
@@ -265,10 +267,18 @@ export async function editSession(req: Request, res: Response) {
 
   if (started_at !== undefined) {
     const newStart = new Date(started_at);
+    const oldStart = new Date(session.started_at);
     const nowTime = new Date().getTime();
     if (newStart.getTime() > nowTime + 10000) {
       throw badRequest('Start time cannot be in the future');
     }
+
+    // THEFT / FRAUD PREVENTION:
+    // Moving start time forward (e.g. 2:00 PM -> 3:00 PM) deletes played time and enables theft.
+    if (newStart.getTime() > oldStart.getTime() + 1000) {
+      throw badRequest('Start time cannot be moved forward to a later time than the original start time');
+    }
+
     const backdateMs = nowTime - newStart.getTime();
     if (backdateMs > 60000 && req.user?.role !== 'admin') {
       throw forbidden('Only admins can backdate session start times');

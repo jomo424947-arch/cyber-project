@@ -21,15 +21,26 @@ export interface BillingResult {
 
 const MIN_BILLING_MINUTES = 30;
 
+/** Utility for consistent monetary rounding to 2 decimal places */
+function roundCurrency(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
 /**
- * standalone, pure billing logic function that computes CCMS session costs
- * according to rules:
- *  - minimum billed duration is 30 minutes
- *  - ceiling-to-minute rounding
- *  - hourly_rate_override takes precedence
- *  - overtime/grace-period calculation for fixed-duration sessions
+ * Standalone, pure billing logic function that computes CCMS session costs.
+ * 
+ * Rules:
+ *  - Minimum billed duration is 30 minutes.
+ *  - Ceiling-to-minute rounding for partial minutes.
+ *  - hourlyRateOverride takes precedence over deviceHourlyRate.
+ *  - Overtime applies to fixed-type sessions and evaluates real elapsed time (rawMinutes).
+ *  - Monetary amounts are rounded consistently to 2 decimal places.
  */
 export function calculateSessionCost(params: BillingParams): BillingResult {
+  if (!params || !params.startedAt || !params.endedAt) {
+    throw new Error('startedAt and endedAt dates are required');
+  }
+
   const startMs = new Date(params.startedAt).getTime();
   const endMs = new Date(params.endedAt).getTime();
 
@@ -39,6 +50,38 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
 
   if (endMs < startMs) {
     throw new Error('Session end time cannot be before start time');
+  }
+
+  if (typeof params.deviceHourlyRate !== 'number' || isNaN(params.deviceHourlyRate) || params.deviceHourlyRate < 0) {
+    throw new Error('Device hourly rate must be a non-negative number');
+  }
+
+  if (params.hourlyRateOverride !== undefined && params.hourlyRateOverride !== null) {
+    if (typeof params.hourlyRateOverride !== 'number' || isNaN(params.hourlyRateOverride) || params.hourlyRateOverride < 0) {
+      throw new Error('Hourly rate override must be a non-negative number');
+    }
+  }
+
+  if (params.gracePeriodMinutes !== undefined && params.gracePeriodMinutes !== null) {
+    if (typeof params.gracePeriodMinutes !== 'number' || isNaN(params.gracePeriodMinutes) || params.gracePeriodMinutes < 0) {
+      throw new Error('Grace period minutes cannot be negative');
+    }
+  }
+
+  if (params.overtimeRateMultiplier !== undefined && params.overtimeRateMultiplier !== null) {
+    if (typeof params.overtimeRateMultiplier !== 'number' || isNaN(params.overtimeRateMultiplier) || params.overtimeRateMultiplier < 0) {
+      throw new Error('Overtime rate multiplier must be a non-negative number');
+    }
+  }
+
+  if (params.sessionType === 'fixed') {
+    if (!params.scheduledEnd) {
+      throw new Error('Fixed-duration sessions require a valid scheduledEnd date');
+    }
+    const scheduledMs = new Date(params.scheduledEnd).getTime();
+    if (isNaN(scheduledMs)) {
+      throw new Error('Invalid scheduled end date provided for session calculation');
+    }
   }
 
   const rawMinutes = Math.max(0, Math.ceil((endMs - startMs) / 60000));
@@ -56,34 +99,35 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
 
   if (params.sessionType === 'fixed' && params.scheduledEnd) {
     const scheduledMs = new Date(params.scheduledEnd).getTime();
-    if (isNaN(scheduledMs)) {
-      throw new Error('Invalid scheduled end date provided for session calculation');
-    }
     const scheduledMinutes = Math.max(
       0,
       Math.ceil((scheduledMs - startMs) / 60000)
     );
     const graceMinutes = Number(params.gracePeriodMinutes || 0);
 
-    overtimeMinutes = Math.max(0, billedMinutes - scheduledMinutes - graceMinutes);
+    overtimeMinutes = Math.max(0, rawMinutes - scheduledMinutes - graceMinutes);
     if (overtimeMinutes > 0) {
       isOvertime = true;
-      const multiplier = Number(params.overtimeRateMultiplier || 1.0);
-      overtimeCost = (overtimeMinutes / 60) * effectiveRate * multiplier;
+      const multiplier = Number(
+        params.overtimeRateMultiplier !== undefined && params.overtimeRateMultiplier !== null
+          ? params.overtimeRateMultiplier
+          : 1.0
+      );
+      overtimeCost = roundCurrency((overtimeMinutes / 60) * effectiveRate * multiplier);
     }
   }
 
   const baseMinutes = billedMinutes - overtimeMinutes;
-  const baseCost = (baseMinutes / 60) * effectiveRate;
-  const totalCost = Number((baseCost + overtimeCost).toFixed(2));
+  const baseCost = roundCurrency((baseMinutes / 60) * effectiveRate);
+  const totalCost = roundCurrency(baseCost + overtimeCost);
 
   return {
     rawMinutes,
     billedMinutes,
-    baseCost: Number(baseCost.toFixed(2)),
+    baseCost,
     overtimeMinutes,
     isOvertime,
-    overtimeCost: Number(overtimeCost.toFixed(2)),
+    overtimeCost,
     totalCost,
   };
 }

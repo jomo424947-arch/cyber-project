@@ -72,12 +72,13 @@ app.use(cors({
   origin: (requestOrigin, callback) => {
     if (!requestOrigin || allowedOrigins.includes(requestOrigin) || requestOrigin.startsWith('file://')) {
       callback(null, true);
+    } else if (process.env.NODE_ENV !== 'production') {
+      callback(null, true);
     } else {
-      callback(null, true); // Allow during dev
+      callback(new Error('Not allowed by CORS'), false);
     }
   },
   credentials: true,
-  exposedHeaders: ['X-CSRF-Token', 'x-csrf-token']
 }));
 app.use(cookieParser());
 app.use(csrfProtection);
