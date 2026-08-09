@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS products (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
   price       REAL NOT NULL DEFAULT 0,
+  stock       INTEGER NOT NULL DEFAULT 0,
   tenant_id   TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   synced      INTEGER NOT NULL DEFAULT 0,
@@ -262,6 +263,20 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
   } catch (err: any) {
     console.error('[database] Auto-migration check failed:', err.message);
   }
+
+  // Auto-migration helper for products stock column
+  try {
+    const prodInfo = _db.exec("PRAGMA table_info(products)");
+    const prodCols = prodInfo[0]?.values.map(v => v[1] as string) || [];
+    if (!prodCols.includes('stock')) {
+      console.log('[database] Running database migration: adding stock column to products...');
+      _db.run('ALTER TABLE products ADD COLUMN stock INTEGER NOT NULL DEFAULT 0;');
+      console.log('[database] Products stock migration completed successfully.');
+    }
+  } catch (pErr: any) {
+    console.error('[database] Products stock auto-migration failed:', pErr.message);
+  }
+
 
   try {
     const devicesTableInfo = _db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='devices'");

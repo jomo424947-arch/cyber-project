@@ -15,6 +15,7 @@ import type {
   CustomerProfileData,
   Customer,
   Product,
+  ProductSalesReport,
   SessionOrder,
   PricingTier,
 } from '../types';
@@ -82,9 +83,10 @@ export interface DataService {
 
   // cafe / products
   listProducts(): Promise<Product[]>;
-  createProduct(payload: { name: string; price: number }): Promise<Product>;
-  updateProduct(id: string, patch: { name?: string; price?: number }): Promise<Product>;
+  createProduct(payload: { name: string; price: number; stock?: number }): Promise<Product>;
+  updateProduct(id: string, patch: { name?: string; price?: number; stock?: number }): Promise<Product>;
   deleteProduct(id: string): Promise<void>;
+  getProductSalesReport(): Promise<ProductSalesReport>;
   addSessionOrder(sessionId: string, productId: string, quantity: number): Promise<SessionOrder>;
   listSessionOrders(sessionId: string): Promise<SessionOrder[]>;
 

@@ -59,11 +59,15 @@ export function AddCafeModal({
     return products.filter((p) => p.name.toLowerCase().includes(q));
   }, [products, searchQuery]);
 
-  const handleIncrement = (productId: string) => {
-    setQuantities((prev) => ({
-      ...prev,
-      [productId]: (prev[productId] || 1) + 1,
-    }));
+  const handleIncrement = (product: Product) => {
+    setQuantities((prev) => {
+      const current = prev[product.id] || 1;
+      const maxStock = Number(product.stock ?? 0);
+      return {
+        ...prev,
+        [product.id]: Math.min(maxStock, current + 1),
+      };
+    });
   };
 
   const handleDecrement = (productId: string) => {
@@ -73,10 +77,11 @@ export function AddCafeModal({
     }));
   };
 
-  const handleQuantityChange = (productId: string, val: number) => {
+  const handleQuantityChange = (product: Product, val: number) => {
+    const maxStock = Number(product.stock ?? 0);
     setQuantities((prev) => ({
       ...prev,
-      [productId]: Math.max(1, val),
+      [product.id]: Math.min(maxStock, Math.max(1, val)),
     }));
   };
 
@@ -87,6 +92,13 @@ export function AddCafeModal({
     try {
       await dataService.addSessionOrder(session.id, product.id, qty);
       
+      // Update local product stock copy so catalog updates instantly
+      setProducts((prev) =>
+        prev
+          ? prev.map((p) => (p.id === product.id ? { ...p, stock: Math.max(0, p.stock - qty) } : p))
+          : prev
+      );
+
       // Reset quantity back to 1 for this product
       setQuantities((prev) => ({ ...prev, [product.id]: 1 }));
       
@@ -155,7 +167,9 @@ export function AddCafeModal({
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
               {filteredProducts.map((p) => {
-                const qty = quantities[p.id] || 1;
+                const stockNum = Number(p.stock ?? 0);
+                const isOutOfStock = stockNum <= 0;
+                const qty = isOutOfStock ? 0 : Math.min(stockNum, quantities[p.id] || 1);
                 const isSubmitting = submittingId === p.id;
                 
                 return (
@@ -170,10 +184,26 @@ export function AddCafeModal({
                       background: 'var(--bg-surface)',
                       borderRadius: '8px',
                       border: '1px solid var(--border-default)',
+                      opacity: isOutOfStock ? 0.7 : 1,
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {p.name}
+                        {isOutOfStock ? (
+                          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(255, 68, 102, 0.15)', color: 'var(--accent-red)', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
+                            {language === 'ar' ? 'نفذت الكمية' : 'Out of stock'}
+                          </span>
+                        ) : stockNum <= 5 ? (
+                          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(255, 170, 0, 0.15)', color: '#ffaa00', border: '1px solid rgba(255, 170, 0, 0.3)' }}>
+                            {language === 'ar' ? `متبقي ${stockNum}` : `Only ${stockNum} left`}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(0, 194, 255, 0.1)', color: 'var(--accent-cyan)', border: '1px solid rgba(0, 194, 255, 0.2)' }}>
+                            {language === 'ar' ? `المخزون: ${stockNum}` : `Stock: ${stockNum}`}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '12px', color: 'var(--accent-cyan)', fontFamily: 'JetBrains Mono, monospace', marginTop: '2px' }}>
                         {formatCurrency(p.price)} {language === 'ar' ? 'للوحدة' : 'each'}
                       </div>
@@ -181,60 +211,64 @@ export function AddCafeModal({
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       {/* Quantity Selector */}
-                      <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-default)', borderRadius: '6px', background: 'var(--bg-input)', overflow: 'hidden' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleDecrement(p.id)}
-                          style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                          disabled={isSubmitting}
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          value={qty}
-                          onChange={(e) => handleQuantityChange(p.id, parseInt(e.target.value, 10) || 1)}
-                          style={{
-                            width: '40px',
-                            textAlign: 'center',
-                            border: 'none',
-                            background: 'transparent',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            outline: 'none',
-                            MozAppearance: 'textfield',
-                            color: '#fff',
-                          }}
-                          disabled={isSubmitting}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleIncrement(p.id)}
-                          style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                          disabled={isSubmitting}
-                        >
-                          +
-                        </button>
-                      </div>
+                      {!isOutOfStock && (
+                        <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-default)', borderRadius: '6px', background: 'var(--bg-input)', overflow: 'hidden' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleDecrement(p.id)}
+                            style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                            disabled={isSubmitting || qty <= 1}
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            value={qty}
+                            onChange={(e) => handleQuantityChange(p, parseInt(e.target.value, 10) || 1)}
+                            style={{
+                              width: '40px',
+                              textAlign: 'center',
+                              border: 'none',
+                              background: 'transparent',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              outline: 'none',
+                              MozAppearance: 'textfield',
+                              color: '#fff',
+                            }}
+                            disabled={isSubmitting}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleIncrement(p)}
+                            style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--text-secondary)', transition: 'background 0.2s', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                            disabled={isSubmitting || qty >= stockNum}
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
 
                       {/* Add Button */}
                       <button
                         type="button"
-                        className="ccms-btn ccms-btn-primary"
+                        className={`ccms-btn ${isOutOfStock ? 'ccms-btn-ghost' : 'ccms-btn-primary'}`}
                         style={{
                           minHeight: '34px',
                           padding: '6px 16px',
                           fontSize: '11px',
                           borderRadius: '6px',
                           fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-                          cursor: 'pointer',
+                          cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                         }}
                         onClick={() => handleAddProduct(p)}
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isOutOfStock}
                       >
                         {isSubmitting 
                           ? (language === 'ar' ? 'إضافة...' : 'Adding...') 
-                          : (language === 'ar' ? 'إضافة' : 'Add')}
+                          : isOutOfStock
+                            ? (language === 'ar' ? 'غير متوفر' : 'Unavailable')
+                            : (language === 'ar' ? 'إضافة' : 'Add')}
                       </button>
                     </div>
                   </div>

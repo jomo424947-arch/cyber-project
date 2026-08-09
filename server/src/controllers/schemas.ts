@@ -96,11 +96,13 @@ export const updateReservationSchema = z.object({
 export const createProductSchema = z.object({
   name: z.string().min(1, 'Name required').max(100),
   price: z.number().nonnegative('Price must be a positive number'),
+  stock: z.number().int().nonnegative('Stock must be a non-negative integer').optional().default(0),
 });
 
 export const updateProductSchema = z.object({
   name: z.string().min(1, 'Name required').max(100).optional(),
   price: z.number().nonnegative('Price must be a positive number').optional(),
+  stock: z.number().int().nonnegative('Stock must be a non-negative integer').optional(),
 });
 
 export const addSessionOrderSchema = z.object({

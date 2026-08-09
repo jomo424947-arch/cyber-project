@@ -184,7 +184,30 @@ export interface Product {
   id: string;
   name: string;
   price: number;
+  stock: number;
   created_at: string;
+}
+
+export interface ProductSalesSummary {
+  total_revenue: number;
+  total_items_sold: number;
+  top_selling_product: string | null;
+  out_of_stock_count: number;
+  low_stock_count: number;
+}
+
+export interface ProductSalesItem {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  sold_quantity: number;
+  total_revenue: number;
+}
+
+export interface ProductSalesReport {
+  summary: ProductSalesSummary;
+  items: ProductSalesItem[];
 }
 
 export interface SessionOrder {

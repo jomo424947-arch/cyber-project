@@ -617,10 +617,10 @@ export async function addSessionOrder(req: Request, res: Response) {
     throw badRequest('Cannot add café orders to an ended session');
   }
 
-  // 2. Fetch product price for tenant
+  // 2. Fetch product details for tenant
   const { data: product, error: pErr } = await supabase
     .from('products')
-    .select('id, price')
+    .select('id, name, price, stock')
     .eq('id', product_id)
     .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
@@ -628,8 +628,15 @@ export async function addSessionOrder(req: Request, res: Response) {
   if (pErr) throw pErr;
   if (!product) throw notFound('Product not found');
 
+  const requestedQty = Number(quantity);
+  const currentStock = Number(product.stock ?? 0);
+
+  if (currentStock < requestedQty) {
+    throw badRequest(`الكمية المتاحة بالمخزون للمنتج "${product.name}" غير كافية. المتاح حالياً: ${currentStock}`);
+  }
+
   const unitPrice = Number(product.price);
-  const totalPrice = Math.round(unitPrice * Number(quantity) * 100) / 100;
+  const totalPrice = Math.round(unitPrice * requestedQty * 100) / 100;
 
   // 3. Insert order
   const { data: order, error: insErr } = await supabase
@@ -637,14 +644,26 @@ export async function addSessionOrder(req: Request, res: Response) {
     .insert({
       session_id: sessionId,
       product_id,
-      quantity,
+      quantity: requestedQty,
       unit_price: unitPrice,
       total_price: totalPrice,
     })
-    .select('*, product:products(id,name,price)')
+    .select('*, product:products(id,name,price,stock)')
     .single();
 
   if (insErr) throw insErr;
+
+  // 4. Decrement product stock
+  const { error: stockErr } = await supabase
+    .from('products')
+    .update({ stock: Math.max(0, currentStock - requestedQty) })
+    .eq('id', product_id)
+    .eq('tenant_id', req.user!.tenant_id);
+
+  if (stockErr) {
+    console.error('[session] Failed to update product stock:', stockErr.message);
+  }
+
   res.status(201).json({ data: order });
 }
 

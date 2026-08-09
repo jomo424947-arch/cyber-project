@@ -5,20 +5,29 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
+import { StatCard } from '../components/StatCard';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
-import type { Product } from '../types';
+import type { Product, ProductSalesReport } from '../types';
 
 export default function ProductsPage() {
   const { toast } = useToast();
-  const { t, language } = useLanguage();
+  const { t, language, isRtl } = useLanguage();
+
+  const [activeTab, setActiveTab] = useState<'catalog' | 'report'>('catalog');
 
   const { data: products, loading, refetch } = useAsync(() => dataService.listProducts(), []);
+  const { data: salesReport, loading: loadingReport, refetch: refetchReport } = useAsync<ProductSalesReport>(
+    () => dataService.getProductSalesReport(),
+    []
+  );
+
   const [search, setSearch] = useState('');
+  const [reportSearch, setReportSearch] = useState('');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
@@ -28,83 +37,285 @@ export default function ProductsPage() {
     ? allProducts.filter((p) => p.name.toLowerCase().includes(search.toLowerCase().trim()))
     : allProducts;
 
+  const reportItems = salesReport?.items ?? [];
+  const filteredReportItems = reportSearch.trim()
+    ? reportItems.filter((item) => item.name.toLowerCase().includes(reportSearch.toLowerCase().trim()))
+    : reportItems;
+
+  const handleRefreshAll = () => {
+    refetch();
+    refetchReport();
+  };
+
   return (
     <Layout
-      title={t('products')}
+      title={language === 'ar' ? 'دليل ومخزون المنتجات' : 'Products & Inventory'}
       subtitle={
         language === 'ar'
-          ? `${allProducts.length} منتجات بوفيه متاحة حالياً`
-          : `${allProducts.length} café product${allProducts.length === 1 ? '' : 's'} available`
+          ? `${allProducts.length} منتج كافيه متاح بالمخزون حالياً`
+          : `${allProducts.length} café product${allProducts.length === 1 ? '' : 's'} in inventory`
       }
       actions={
-        <Button
-          onClick={() => setCreating(true)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-          {language === 'ar' ? 'إضافة منتج' : 'Add Product'}
-        </Button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Button
+            onClick={() => setCreating(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+            {language === 'ar' ? 'إضافة منتج جديد' : 'Add Product'}
+          </Button>
+        </div>
       }
     >
-      {loading ? (
-        <LoadingSpinner label={t('loading')} />
-      ) : allProducts.length === 0 ? (
-        <div className="ccms-card">
-          <EmptyState
-            icon="local_cafe"
-            title={language === 'ar' ? 'لا توجد منتجات' : 'No products yet'}
-            description={language === 'ar' ? 'أضف أول منتج كافيه لبدء البيع.' : 'Add your first café product to start selling.'}
-            action={<Button onClick={() => setCreating(true)}>{language === 'ar' ? 'إضافة منتج' : 'Add Product'}</Button>}
-          />
-        </div>
-      ) : (
-        <>
-          {/* Search bar */}
-          <div style={{ marginBottom: '24px', maxWidth: '400px' }}>
-            <Input
-              placeholder={language === 'ar' ? 'بحث عن منتجات...' : 'Search products…'}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+      {/* Navigation Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '24px',
+          borderBottom: '1px solid var(--border-default)',
+          paddingBottom: '12px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('catalog')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: activeTab === 'catalog' ? '1px solid var(--accent-cyan)' : '1px solid transparent',
+            background: activeTab === 'catalog' ? 'rgba(0, 194, 255, 0.1)' : 'transparent',
+            color: activeTab === 'catalog' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.2s',
+            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>inventory_2</span>
+          {language === 'ar' ? 'دليل المنتجات والمخزون' : 'Catalog & Inventory'}
+        </button>
 
-          {filtered.length === 0 ? (
-            <div className="ccms-card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-              {language === 'ar' ? `لا توجد منتجات تطابق "${search}"` : `No products matching "${search}"`}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('report');
+            refetchReport();
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: activeTab === 'report' ? '1px solid var(--accent-green)' : '1px solid transparent',
+            background: activeTab === 'report' ? 'rgba(0, 230, 153, 0.1)' : 'transparent',
+            color: activeTab === 'report' ? 'var(--accent-green)' : 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.2s',
+            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>analytics</span>
+          {language === 'ar' ? 'تقرير مبيعات المنتجات' : 'Sales Report'}
+        </button>
+      </div>
+
+      {activeTab === 'catalog' ? (
+        <>
+          {loading ? (
+            <LoadingSpinner label={t('loading')} />
+          ) : allProducts.length === 0 ? (
+            <div className="ccms-card">
+              <EmptyState
+                icon="local_cafe"
+                title={language === 'ar' ? 'لا توجد منتجات' : 'No products yet'}
+                description={language === 'ar' ? 'أضف أول منتج كافيه لبدء البيع ومتابعة المخزون.' : 'Add your first café product to track stock and sell.'}
+                action={<Button onClick={() => setCreating(true)}>{language === 'ar' ? 'إضافة منتج' : 'Add Product'}</Button>}
+              />
             </div>
           ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))',
-                gap: '20px',
-              }}
-            >
-              {filtered.map((product, i) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  index={i}
-                  onEdit={() => setEditing(product)}
-                  onDelete={() => setDeleting(product)}
+            <>
+              {/* Search bar */}
+              <div style={{ marginBottom: '24px', maxWidth: '400px' }}>
+                <Input
+                  placeholder={language === 'ar' ? 'بحث عن منتجات...' : 'Search products…'}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
-              ))}
-            </div>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div className="ccms-card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                  {language === 'ar' ? `لا توجد منتجات تطابق "${search}"` : `No products matching "${search}"`}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(270px, 100%), 1fr))',
+                    gap: '20px',
+                  }}
+                >
+                  {filtered.map((product, i) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      index={i}
+                      onEdit={() => setEditing(product)}
+                      onDelete={() => setDeleting(product)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
+      ) : (
+        /* ─── Sales Report Tab ─── */
+        <div>
+          {loadingReport ? (
+            <LoadingSpinner label={language === 'ar' ? 'جاري تجميع تقرير المبيعات...' : 'Generating sales report…'} />
+          ) : (
+            <>
+              {/* Summary Stat Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px',
+                  marginBottom: '28px',
+                }}
+              >
+                <StatCard
+                  label={language === 'ar' ? 'إجمالي إيراد المنتجات' : 'Total Café Revenue'}
+                  value={formatCurrency(salesReport?.summary.total_revenue ?? 0)}
+                  icon="payments"
+                  accent="var(--accent-green)"
+                  index={0}
+                />
+                <StatCard
+                  label={language === 'ar' ? 'إجمالي القطع المباعة' : 'Total Items Sold'}
+                  value={`${salesReport?.summary.total_items_sold ?? 0} ${language === 'ar' ? 'قطعة' : 'items'}`}
+                  icon="shopping_bag"
+                  accent="var(--accent-cyan)"
+                  index={1}
+                />
+                <StatCard
+                  label={language === 'ar' ? 'المنتج الأكثر مبيعاً' : 'Top Selling Item'}
+                  value={salesReport?.summary.top_selling_product || (language === 'ar' ? 'لا يوجد مبيعات' : 'None')}
+                  icon="stars"
+                  accent="#ffaa00"
+                  index={2}
+                />
+                <StatCard
+                  label={language === 'ar' ? 'تنبيهات المخزون' : 'Stock Alerts'}
+                  value={
+                    language === 'ar'
+                      ? `${salesReport?.summary.out_of_stock_count ?? 0} نافذ / ${salesReport?.summary.low_stock_count ?? 0} منخفض`
+                      : `${salesReport?.summary.out_of_stock_count ?? 0} Out / ${salesReport?.summary.low_stock_count ?? 0} Low`
+                  }
+                  icon="warning"
+                  accent="var(--accent-red)"
+                  index={3}
+                />
+              </div>
+
+              {/* Table Card */}
+              <div className="ccms-card" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                  <h3 className="ccms-eyebrow" style={{ fontSize: '14px', margin: 0, fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+                    {language === 'ar' ? 'تفاصيل أداء ومبيعات كل منتج' : 'Product Sales & Stock Breakdown'}
+                  </h3>
+                  <div style={{ maxWidth: '300px', width: '100%' }}>
+                    <Input
+                      placeholder={language === 'ar' ? 'فلترة التقرير باسم المنتج...' : 'Filter report by item…'}
+                      value={reportSearch}
+                      onChange={(e) => setReportSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {filteredReportItems.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
+                    {language === 'ar' ? 'لا توجد بيانات مبيعات مطابقة' : 'No matching sales records'}
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="ccms-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-default)', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                          <th style={{ padding: '12px 16px' }}>{language === 'ar' ? 'اسم المنتج' : 'Product'}</th>
+                          <th style={{ padding: '12px 16px' }}>{language === 'ar' ? 'السعر الفردي' : 'Unit Price'}</th>
+                          <th style={{ padding: '12px 16px' }}>{language === 'ar' ? 'المخزون المتبقي' : 'Current Stock'}</th>
+                          <th style={{ padding: '12px 16px' }}>{language === 'ar' ? 'الكمية المباعة' : 'Units Sold'}</th>
+                          <th style={{ padding: '12px 16px' }}>{language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredReportItems.map((item) => {
+                          const isOut = item.stock <= 0;
+                          const isLow = item.stock > 0 && item.stock <= 5;
+
+                          return (
+                            <tr key={item.id} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                              <td style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {item.name}
+                              </td>
+                              <td style={{ padding: '14px 16px', fontFamily: 'JetBrains Mono, monospace' }}>
+                                {formatCurrency(item.price)}
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                {isOut ? (
+                                  <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '12px', background: 'rgba(255, 68, 102, 0.15)', color: 'var(--accent-red)', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
+                                    {language === 'ar' ? 'نفذت الكمية (0)' : 'Out of Stock (0)'}
+                                  </span>
+                                ) : isLow ? (
+                                  <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '12px', background: 'rgba(255, 170, 0, 0.15)', color: '#ffaa00', border: '1px solid rgba(255, 170, 0, 0.3)' }}>
+                                    {language === 'ar' ? `كمية منخفضة (${item.stock})` : `Low Stock (${item.stock})`}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '12px', background: 'rgba(0, 194, 255, 0.1)', color: 'var(--accent-cyan)', border: '1px solid rgba(0, 194, 255, 0.2)' }}>
+                                    {language === 'ar' ? `متوفر (${item.stock})` : `In Stock (${item.stock})`}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px 16px', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
+                                {item.sold_quantity} {language === 'ar' ? 'قطعة' : 'units'}
+                              </td>
+                              <td style={{ padding: '14px 16px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                {formatCurrency(item.total_revenue)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* Create modal */}
       {creating && (
         <ProductFormModal
-          title={language === 'ar' ? 'إضافة منتج جديد' : 'Add New Product'}
+          title={language === 'ar' ? 'إضافة منتج جديد وتحديد المخزون' : 'Add New Product & Stock'}
           initial={null}
           onClose={() => setCreating(false)}
           onDone={async (payload) => {
             try {
-              await dataService.createProduct(payload as { name: string; price: number });
-              toast(language === 'ar' ? 'تم إضافة المنتج' : 'Product added', 'success');
-              refetch();
+              await dataService.createProduct(payload);
+              toast(language === 'ar' ? 'تم إضافة المنتج وإعداد المخزون' : 'Product & stock added', 'success');
+              handleRefreshAll();
               setCreating(false);
             } catch (err) {
               toast(apiErrorMessage(err, 'Could not create product'), 'error');
@@ -116,14 +327,14 @@ export default function ProductsPage() {
       {/* Edit modal */}
       {editing && (
         <ProductFormModal
-          title={language === 'ar' ? `تعديل · ${editing.name}` : `Edit · ${editing.name}`}
+          title={language === 'ar' ? `تعديل البيانات والمخزون · ${editing.name}` : `Edit Item & Stock · ${editing.name}`}
           initial={editing}
           onClose={() => setEditing(null)}
           onDone={async (payload) => {
             try {
               await dataService.updateProduct(editing.id, payload);
-              toast(language === 'ar' ? 'تم تحديث المنتج' : 'Product updated', 'success');
-              refetch();
+              toast(language === 'ar' ? 'تم تحديث المنتج والمخزون' : 'Product & stock updated', 'success');
+              handleRefreshAll();
               setEditing(null);
             } catch (err) {
               toast(apiErrorMessage(err, 'Could not update product'), 'error');
@@ -147,7 +358,7 @@ export default function ProductsPage() {
                   try {
                     await dataService.deleteProduct(deleting.id);
                     toast(language === 'ar' ? 'تم إزالة المنتج' : 'Product removed', 'success');
-                    refetch();
+                    handleRefreshAll();
                     setDeleting(null);
                   } catch (err) {
                     toast(apiErrorMessage(err, 'Could not delete product'), 'error');
@@ -209,6 +420,10 @@ function ProductCard({
   const icon = getProductIcon(product.name);
   const { language, isRtl } = useLanguage();
 
+  const stockNum = Number(product.stock ?? 0);
+  const isOutOfStock = stockNum <= 0;
+  const isLowStock = stockNum > 0 && stockNum <= 5;
+
   return (
     <div
       className="ccms-card ccms-card-hover ccms-stagger"
@@ -220,6 +435,7 @@ function ProductCard({
         animationDelay: `${index * 50}ms`,
         position: 'relative',
         overflow: 'hidden',
+        border: isOutOfStock ? '1px solid rgba(255, 68, 102, 0.3)' : isLowStock ? '1px solid rgba(255, 170, 0, 0.3)' : '1px solid var(--border-default)',
       }}
     >
       {/* Decorative gradient blob */}
@@ -232,7 +448,11 @@ function ProductCard({
           width: '100px',
           height: '100px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(0,194,255,0.08) 0%, transparent 70%)',
+          background: isOutOfStock
+            ? 'radial-gradient(circle, rgba(255,68,102,0.1) 0%, transparent 70%)'
+            : isLowStock
+              ? 'radial-gradient(circle, rgba(255,170,0,0.1) 0%, transparent 70%)'
+              : 'radial-gradient(circle, rgba(0,194,255,0.08) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
@@ -244,8 +464,8 @@ function ProductCard({
             width: '44px',
             height: '44px',
             borderRadius: '12px',
-            background: 'rgba(0, 194, 255, 0.08)',
-            border: '1px solid rgba(0, 194, 255, 0.15)',
+            background: isOutOfStock ? 'rgba(255, 68, 102, 0.1)' : 'rgba(0, 194, 255, 0.08)',
+            border: isOutOfStock ? '1px solid rgba(255, 68, 102, 0.2)' : '1px solid rgba(0, 194, 255, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -254,7 +474,7 @@ function ProductCard({
         >
           <span
             className="material-symbols-outlined"
-            style={{ fontSize: '22px', color: 'var(--accent-cyan)' }}
+            style={{ fontSize: '22px', color: isOutOfStock ? 'var(--accent-red)' : 'var(--accent-cyan)' }}
           >
             {icon}
           </span>
@@ -288,7 +508,66 @@ function ProductCard({
         </div>
       </div>
 
-      {/* Price */}
+      {/* Stock Status Badge */}
+      <div style={{ textAlign: isRtl ? 'right' : 'left' }}>
+        {isOutOfStock ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: '20px',
+              background: 'rgba(255, 68, 102, 0.12)',
+              color: 'var(--accent-red)',
+              border: '1px solid rgba(255, 68, 102, 0.25)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+            {language === 'ar' ? 'نفذت الكمية بالكامل' : 'Out of Stock'}
+          </span>
+        ) : isLowStock ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: '20px',
+              background: 'rgba(255, 170, 0, 0.12)',
+              color: '#ffaa00',
+              border: '1px solid rgba(255, 170, 0, 0.25)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>warning</span>
+            {language === 'ar' ? `كمية منخفضة (${stockNum} قطعة متبقية)` : `Low Stock (${stockNum} left)`}
+          </span>
+        ) : (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: '20px',
+              background: 'rgba(0, 194, 255, 0.1)',
+              color: 'var(--accent-cyan)',
+              border: '1px solid rgba(0, 194, 255, 0.2)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+            {language === 'ar' ? `متوفر في المخزون (${stockNum})` : `In Stock (${stockNum})`}
+          </span>
+        )}
+      </div>
+
+      {/* Price & Stock info */}
       <div
         style={{
           padding: '12px 16px',
@@ -321,7 +600,7 @@ function ProductCard({
           style={{ flex: 1, padding: '8px 12px', fontSize: '11px', minHeight: '34px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '14px', marginRight: isRtl ? 0 : '6px', marginLeft: isRtl ? '6px' : 0, verticalAlign: 'middle' }}>edit</span>
-          {language === 'ar' ? 'تعديل' : 'Edit'}
+          {language === 'ar' ? 'تعديل المخزون' : 'Edit Stock'}
         </Button>
         <Button
           variant="danger"
@@ -347,14 +626,22 @@ function ProductFormModal({
   title: string;
   initial: Product | null;
   onClose: () => void;
-  onDone: (payload: { name: string; price: number }) => void;
+  onDone: (payload: { name: string; price: number; stock: number }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [price, setPrice] = useState(initial ? String(initial.price) : '');
+  const [stock, setStock] = useState(initial ? String(initial.stock ?? 0) : '0');
   const [loading, setLoading] = useState(false);
   const { t, language } = useLanguage();
 
-  const isValid = name.trim() && price.trim() && !Number.isNaN(parseFloat(price)) && parseFloat(price) >= 0;
+  const isValid =
+    name.trim() &&
+    price.trim() &&
+    !Number.isNaN(parseFloat(price)) &&
+    parseFloat(price) >= 0 &&
+    stock.trim() &&
+    !Number.isNaN(parseInt(stock, 10)) &&
+    parseInt(stock, 10) >= 0;
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -362,6 +649,7 @@ function ProductFormModal({
       await onDone({
         name: name.trim(),
         price: parseFloat(price),
+        stock: parseInt(stock, 10),
       });
     } catch {
       // handled by parent
@@ -380,7 +668,7 @@ function ProductFormModal({
         <>
           <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button loading={loading} disabled={!isValid} onClick={handleSubmit}>
-            {initial ? t('save') : (language === 'ar' ? 'إضافة منتج' : 'Add Product')}
+            {initial ? t('save') : (language === 'ar' ? 'حفظ وإضافة للمخزون' : 'Save & Add Stock')}
           </Button>
         </>
       }
@@ -388,19 +676,28 @@ function ProductFormModal({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <Input
           label={language === 'ar' ? 'اسم المنتج' : 'Product Name'}
-          placeholder={language === 'ar' ? 'مثال: قهوة تركي' : 'e.g. Turkish Coffee'}
+          placeholder={language === 'ar' ? 'مثال: بيبسي كانز / قهوة تركي' : 'e.g. Cola Can / Coffee'}
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
         />
         <Input
-          label={language === 'ar' ? 'السعر ($)' : 'Price ($)'}
+          label={language === 'ar' ? 'سعر البيع' : 'Selling Price'}
           type="number"
-          step="0.01"
+          step="0.5"
           min="0"
-          placeholder="e.g. 2.50"
+          placeholder="e.g. 15.00"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
+        />
+        <Input
+          label={language === 'ar' ? 'الكمية المتاحة في المخزون (القطع)' : 'Available Stock Quantity (Units)'}
+          type="number"
+          step="1"
+          min="0"
+          placeholder="e.g. 50"
+          value={stock}
+          onChange={(e) => setStock(e.target.value)}
         />
       </div>
     </Modal>

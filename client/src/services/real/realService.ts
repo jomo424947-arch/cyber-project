@@ -16,6 +16,7 @@ import type {
   CustomerProfileData,
   Customer,
   Product,
+  ProductSalesReport,
   SessionOrder,
   PricingTier,
 } from '../../types';
@@ -251,16 +252,20 @@ export const realService: DataService = {
     const { data } = await http.get<ListWrap<Product>>('/api/products');
     return data.data;
   },
-  async createProduct(payload: { name: string; price: number }) {
+  async createProduct(payload: { name: string; price: number; stock?: number }) {
     const { data } = await http.post<OneWrap<Product>>('/api/products', payload);
     return data.data;
   },
-  async updateProduct(id: string, patch: { name?: string; price?: number }) {
+  async updateProduct(id: string, patch: { name?: string; price?: number; stock?: number }) {
     const { data } = await http.patch<OneWrap<Product>>(`/api/products/${id}`, patch);
     return data.data;
   },
   async deleteProduct(id: string) {
     await http.delete(`/api/products/${id}`);
+  },
+  async getProductSalesReport() {
+    const { data } = await http.get<OneWrap<ProductSalesReport>>('/api/products/sales-report');
+    return data.data;
   },
   async addSessionOrder(sessionId, productId, quantity) {
     const { data } = await http.post<OneWrap<SessionOrder>>(`/api/sessions/${sessionId}/orders`, {
