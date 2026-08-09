@@ -20,7 +20,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
   const { systemName, systemLogoUrl } = useSystemSettings();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Determine initial view from URL search params (e.g. ?view=reset&token=…)
   const initialView = (searchParams.get('view') as View | null) ?? 'login';
@@ -260,7 +260,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                 <p className="auth-form-subtitle">{t('sign_in_subtitle')}</p>
 
                 <form onSubmit={handleLogin} className="auth-form" noValidate>
-                  <Field label={t('employee_email')}>
+                  <Field label={employees.length > 0 ? (language === 'ar' ? 'اسم الموظف' : 'Employee Name') : t('employee_email')}>
                     {employees.length > 0 ? (
                       <select
                         id="auth-email"
@@ -276,7 +276,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                       >
                         {employees.map((emp) => (
                           <option key={emp.id} value={emp.email} style={{ background: 'var(--bg-surface)' }}>
-                            {emp.full_name} ({emp.email})
+                            {emp.full_name || emp.email}
                           </option>
                         ))}
                       </select>

@@ -70,32 +70,8 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          {/* Left panel: connection status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span 
-                style={{ 
-                  width: '8px', 
-                  height: '8px', 
-                  borderRadius: '50%', 
-                  background: 'var(--accent-green)', 
-                  display: 'inline-block',
-                  boxShadow: '0 0 8px var(--accent-green)'
-                }} 
-              />
-              <span 
-                style={{ 
-                  color: 'var(--accent-cyan)', 
-                  fontWeight: 700, 
-                  fontSize: '10px', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.15em' 
-                }}
-              >
-                {t('network_latency')}
-              </span>
-            </div>
-          </div>
+          {/* Left panel */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }} />
 
           {/* Right panel: User controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -206,33 +182,37 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
           marginLeft: isRtl ? 0 : (isMobile ? 0 : 'var(--sidebar-width)'),
           marginRight: isRtl ? (isMobile ? 0 : 'var(--sidebar-width)') : 0,
           padding: isMobile ? '16px' : '32px',
-          paddingTop: isMobile ? 'calc(16px + var(--safe-top))' : '96px', // offset fixed top app bar (64px + 32px padding)
+          paddingTop: isMobile ? 'calc(16px + var(--safe-top))' : (title || subtitle ? '96px' : '74px'), // offset fixed top app bar
           paddingBottom: isMobile ? 'calc(80px + var(--safe-bottom))' : '32px',
           minHeight: '100vh',
           flex: 1,
         }}
       >
         {/* Page header */}
-        <header
-          style={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: '16px',
-            marginBottom: '40px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div>
-            <h1 className="ccms-page-title">{title}</h1>
-            {subtitle && (
-              <p style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '16px', fontFamily: 'Inter, sans-serif', opacity: 0.8 }}>
-                {subtitle}
-              </p>
+        {(title || subtitle || actions) && (
+          <header
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: (title || subtitle) ? 'space-between' : 'flex-end',
+              gap: '16px',
+              marginBottom: (title || subtitle) ? '32px' : '16px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {(title || subtitle) && (
+              <div>
+                {title && <h1 className="ccms-page-title">{title}</h1>}
+                {subtitle && (
+                  <p style={{ color: 'var(--text-secondary)', marginTop: '6px', fontSize: '15px', fontFamily: 'Inter, sans-serif', opacity: 0.8 }}>
+                    {subtitle}
+                  </p>
+                )}
+              </div>
             )}
-          </div>
-          {actions && <div style={{ display: 'flex', gap: '16px', flexShrink: 0 }}>{actions}</div>}
-        </header>
+            {actions && <div style={{ display: 'flex', gap: '16px', flexShrink: 0, marginLeft: isRtl ? 'auto' : 0, marginRight: isRtl ? 0 : 'auto' }}>{actions}</div>}
+          </header>
+        )}
 
         {/* Page body */}
         <div>{children}</div>

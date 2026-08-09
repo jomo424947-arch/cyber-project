@@ -15,7 +15,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { formatElapsed, formatCurrency, formatDateTime } from '../utils/format';
 import { AddCafeModal } from '../components/AddCafeModal';
-import type { Device, Session, Invoice, Reservation } from '../types';
+import type { Session } from '../types';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -27,31 +27,39 @@ export default function DashboardPage() {
 
   // Fetch everything in parallel via a single async wrapper.
   const { data, loading, error, refetch } = useAsync(async () => {
-    const [devices, sessions, invoices, reservations] = await Promise.all([
+    const [devices, sessions, invoices, reservations, revReport, salesReport] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
       dataService.listInvoices(),
       dataService.listReservations(),
+      dataService.revenueReport().catch(() => null),
+      dataService.getProductSalesReport().catch(() => null),
     ]);
-    return { devices, sessions, invoices, reservations } as {
-      devices: Device[];
-      sessions: Session[];
-      invoices: Invoice[];
-      reservations: Reservation[];
-    };
+    return { devices, sessions, invoices, reservations, revReport, salesReport };
   }, []);
 
   const stats = useMemo(() => {
-    if (!data) return { active: 0, available: 0, revenue: 0, pending: 0 };
+    if (!data) return { active: 0, available: 0, revenue: 0, deviceRevenue: 0, cafeRevenue: 0, pending: 0 };
     const active = data.sessions.length;
     const available = data.devices.filter((d) => d.status === 'available').length;
+    
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+
     const revenue = data.invoices
       .filter((i) => i.paid && i.paid_at && new Date(i.paid_at) >= todayStart)
       .reduce((sum, i) => sum + i.amount, 0);
+
+    let cafeRevenue = data.revReport?.totals?.today_cafe ?? (data.salesReport?.summary?.total_revenue ?? 0);
+    if (cafeRevenue > revenue) cafeRevenue = revenue;
+
+    let deviceRevenue = data.revReport?.totals?.today_device ?? Math.max(0, revenue - cafeRevenue);
+    if (deviceRevenue + cafeRevenue > revenue && revenue > 0) {
+      deviceRevenue = Math.max(0, revenue - cafeRevenue);
+    }
+
     const pending = data.reservations.filter((r) => r.status === 'pending').length;
-    return { active, available, revenue, pending };
+    return { active, available, revenue, deviceRevenue, cafeRevenue, pending };
   }, [data]);
 
   if (loading) {
@@ -98,13 +106,13 @@ export default function DashboardPage() {
 
   return (
     <Layout
-      title={t('dashboard_title')}
-      subtitle={t('dashboard_subtitle')}
+      title=""
+      subtitle=""
       actions={
         <button 
           className="ccms-btn ccms-btn-ghost" 
           onClick={refetch}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '34px', fontSize: '12px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
           {language === 'ar' ? 'تحديث' : 'Refresh'}
@@ -112,18 +120,31 @@ export default function DashboardPage() {
       }
     >
       {/* Stat cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '24px',
-          marginBottom: '48px',
-        }}
-      >
-        <StatCard index={0} icon="history_toggle_off" label={t('active_sessions_title')} value={stats.active} accent="var(--accent-red)" />
-        <StatCard index={1} icon="devices" label={language === 'ar' ? 'الأجهزة المتاحة' : 'Available PCs'} value={stats.available} accent="var(--accent-green)" />
-        <StatCard index={2} icon="payments" label={t('revenue_today')} value={formatCurrency(stats.revenue)} accent="var(--accent-cyan)" />
-        <StatCard index={3} icon="event_upcoming" label={language === 'ar' ? 'الحجوزات المعلقة' : 'Pending Reservations'} value={stats.pending} accent="var(--accent-yellow)" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+        {/* Row 1: Operations (2 Cards) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '14px',
+          }}
+        >
+          <StatCard index={0} icon="history_toggle_off" label={t('active_sessions_title')} value={stats.active} accent="var(--accent-red)" />
+          <StatCard index={1} icon="devices" label={language === 'ar' ? 'الأجهزة المتاحة' : 'Available PCs'} value={stats.available} accent="var(--accent-green)" />
+        </div>
+
+        {/* Row 2: Financial Breakdown (3 Cards) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px',
+          }}
+        >
+          <StatCard index={2} icon="sports_esports" label={language === 'ar' ? 'أرباح الأجهزة اليوم' : 'Device Revenue Today'} value={formatCurrency(stats.deviceRevenue)} accent="#8b5cf6" />
+          <StatCard index={3} icon="local_cafe" label={language === 'ar' ? 'أرباح الكافيه اليوم' : 'Café Revenue Today'} value={formatCurrency(stats.cafeRevenue)} accent="#ffaa00" />
+          <StatCard index={4} icon="payments" label={language === 'ar' ? 'إجمالي أرباح اليوم' : 'Total Revenue Today'} value={formatCurrency(stats.revenue)} accent="var(--accent-cyan)" />
+        </div>
       </div>
 
       {/* Active sessions */}

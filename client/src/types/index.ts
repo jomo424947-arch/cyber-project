@@ -99,7 +99,7 @@ export interface Reservation {
 
 // ----- Reports -----
 export interface RevenueReport {
-  totals: { today: number; week: number; month: number };
+  totals: { today: number; today_device?: number; today_cafe?: number; week: number; month: number };
   daily: { date: string; total: number }[];
 }
 

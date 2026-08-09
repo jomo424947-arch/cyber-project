@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { DeviceCard } from '../components/DeviceCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -18,7 +18,7 @@ import {
   EndSessionModal, 
   EditSessionModal 
 } from '../components/SessionModals';
-import type { Device, DeviceType, Session } from '../types';
+import type { Device, DeviceType, Session, PricingTier } from '../types';
 
 export default function DevicesPage() {
   const now = useNow(1000);
@@ -197,6 +197,7 @@ export default function DevicesPage() {
         <DeviceFormModal
           title={language === 'ar' ? 'تسجيل جهاز جديد' : 'Register New Device'}
           initial={null}
+          existingDevices={data.devices}
           onClose={() => setCreating(false)}
           onDone={async (patch) => {
             try {
@@ -239,23 +240,75 @@ export default function DevicesPage() {
 function DeviceFormModal({
   title,
   initial,
+  existingDevices = [],
   onClose,
   onDone,
 }: {
   title: string;
   initial: Device | null;
+  existingDevices?: Device[];
   onClose: () => void;
   onDone: (patch: Record<string, unknown>) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [type, setType] = useState<DeviceType>(initial?.type ?? 'pc');
-  const [hourlyRate, setHourlyRate] = useState(String(initial?.hourly_rate ?? '5'));
-  const [hourlyRateMulti, setHourlyRateMulti] = useState(String(initial?.hourly_rate_multi ?? '5'));
+  const [hourlyRate, setHourlyRate] = useState(String(initial?.hourly_rate ?? ''));
+  const [hourlyRateMulti, setHourlyRateMulti] = useState(String(initial?.hourly_rate_multi ?? ''));
   const [specsCpu, setSpecsCpu] = useState((initial?.specs as Record<string, string>)?.CPU ?? '');
   const [specsGpu, setSpecsGpu] = useState((initial?.specs as Record<string, string>)?.GPU ?? '');
   const [specsRam, setSpecsRam] = useState((initial?.specs as Record<string, string>)?.RAM ?? '');
   const [loading, setLoading] = useState(false);
+  const [pricingTiers, setPricingTiers] = useState<Record<string, { rate: number; rateMulti: number }>>({});
   const { t, language } = useLanguage();
+
+  const getFallbackFromDevices = (devType: string) => {
+    const match = existingDevices.find((d) => d.type === devType);
+    if (match) {
+      return { rate: match.hourly_rate, rateMulti: match.hourly_rate_multi };
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    async function loadPricing() {
+      try {
+        const tiers = await dataService.getPricing();
+        const map: Record<string, { rate: number; rateMulti: number }> = {};
+        tiers.forEach((tier: PricingTier) => {
+          map[tier.type] = { rate: tier.hourly_rate, rateMulti: tier.hourly_rate_multi };
+        });
+        setPricingTiers(map);
+
+        if (!initial) {
+          const defaultTier = map[type] || getFallbackFromDevices(type);
+          if (defaultTier) {
+            setHourlyRate(String(defaultTier.rate));
+            setHourlyRateMulti(String(defaultTier.rateMulti));
+          }
+        }
+      } catch {
+        if (!initial) {
+          const defaultTier = getFallbackFromDevices(type);
+          if (defaultTier) {
+            setHourlyRate(String(defaultTier.rate));
+            setHourlyRateMulti(String(defaultTier.rateMulti));
+          }
+        }
+      }
+    }
+    loadPricing();
+  }, []);
+
+  const handleTypeChange = (newType: DeviceType) => {
+    setType(newType);
+    if (!initial) {
+      const tier = pricingTiers[newType] || getFallbackFromDevices(newType);
+      if (tier) {
+        setHourlyRate(String(tier.rate));
+        setHourlyRateMulti(String(tier.rateMulti));
+      }
+    }
+  };
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -264,8 +317,8 @@ function DeviceFormModal({
       if (specsCpu) specs.CPU = specsCpu;
       if (specsGpu) specs.GPU = specsGpu;
       if (specsRam) specs.RAM = specsRam;
-      const rate = parseFloat(hourlyRate);
-      const rateMulti = parseFloat(hourlyRateMulti);
+      const rate = parseFloat(hourlyRate || '0');
+      const rateMulti = parseFloat(hourlyRateMulti || '0');
       if (Number.isNaN(rate) || rate < 0 || Number.isNaN(rateMulti) || rateMulti < 0) {
         throw new Error('Invalid hourly rate');
       }
@@ -303,7 +356,7 @@ function DeviceFormModal({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <Input label={language === 'ar' ? 'معرّف الجهاز (الاسم)' : 'Device Name'} placeholder="e.g. PS 5, PC-05" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <Select label={language === 'ar' ? 'القسم / النوع' : 'Category'} value={type} onChange={(e) => setType(e.target.value as DeviceType)}>
+        <Select label={language === 'ar' ? 'القسم / النوع' : 'Category'} value={type} onChange={(e) => handleTypeChange(e.target.value as DeviceType)}>
           <option value="pc">{language === 'ar' ? 'كمبيوتر مكتبى (PC)' : 'PC'}</option>
           <option value="console">{language === 'ar' ? 'منصة ألعاب (Console)' : 'Console'}</option>
           <option value="vr">{language === 'ar' ? 'واقع افتراضي (VR)' : 'VR'}</option>

@@ -161,9 +161,9 @@ export async function runSync(): Promise<void> {
         db.run('UPDATE sync_queue SET synced = 1, error = NULL WHERE id = ?', [queueId]);
         console.log(`[sync] Synced ${operation} for ${tableName}:${recordId}`);
       } else {
-        // Log error and increment failure status if FK/unique constraint violation so it doesn't loop infinitely
-        const isFkOrDuplicate = errorMsg.includes('foreign key') || errorMsg.includes('unique constraint') || errorMsg.includes('duplicate key');
-        if (isFkOrDuplicate) {
+        // Log error and increment failure status if FK/schema mismatch so it doesn't loop infinitely
+        const isFkOrSchemaError = errorMsg.includes('foreign key') || errorMsg.includes('unique constraint') || errorMsg.includes('duplicate key') || errorMsg.includes('schema cache') || errorMsg.includes('column');
+        if (isFkOrSchemaError) {
           db.run('UPDATE sync_queue SET synced = 2, error = ? WHERE id = ?', [`Skipped: ${errorMsg}`, queueId]);
         } else {
           db.run('UPDATE sync_queue SET error = ? WHERE id = ?', [errorMsg, queueId]);

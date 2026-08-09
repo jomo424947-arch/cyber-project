@@ -42,6 +42,29 @@ export async function revenueReport(req: Request, res: Response) {
   const week = sum(sessions, startOfWeekZoned);
   const month = sum(sessions, startOfMonthZoned);
 
+  // Calculate today's cafe revenue from session_orders
+  let todayCafe = 0;
+  const todaySessionIds = (sessions ?? [])
+    .filter((r: any) => {
+      if (!r.ended_at) return false;
+      const endedZoned = toZonedTime(new Date(r.ended_at), tz);
+      return endedZoned.getTime() >= startOfDayZoned.getTime();
+    })
+    .map((r: any) => r.id);
+
+  if (todaySessionIds.length > 0) {
+    const { data: orders } = await supabase
+      .from('session_orders')
+      .select('total_price')
+      .in('session_id', todaySessionIds);
+
+    if (orders) {
+      todayCafe = orders.reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
+    }
+  }
+
+  const todayDevice = Math.max(0, today - todayCafe);
+
   // Daily breakdown for the chart (last 14 days).
   const daily: { date: string; total: number }[] = [];
   for (let i = 13; i >= 0; i--) {
@@ -65,6 +88,8 @@ export async function revenueReport(req: Request, res: Response) {
     data: {
       totals: {
         today: Number(today.toFixed(2)),
+        today_device: Number(todayDevice.toFixed(2)),
+        today_cafe: Number(todayCafe.toFixed(2)),
         week: Number(week.toFixed(2)),
         month: Number(month.toFixed(2)),
       },
