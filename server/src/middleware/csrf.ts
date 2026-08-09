@@ -32,15 +32,9 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     });
   }
 
-<<<<<<< HEAD
-  // Expose the CSRF token via response header if setHeader is supported on response
-  if (typeof res.setHeader === 'function') {
-    res.setHeader('X-CSRF-Token', csrfToken);
-=======
   // Always expose the CSRF token via response header for client JS
   if (typeof res.setHeader === 'function') {
     res.setHeader('X-CSRF-Token', activeToken);
->>>>>>> b9a4586a82365d0e692cfd86c375803e1fd66fdd
   }
 
   // Skip verification for safe methods and auth entry points
@@ -56,8 +50,8 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     '/health',
   ];
 
-  const isSuperAdminExempt = 
-    req.path === '/api/auth/register-tenant' || 
+  const isSuperAdminExempt =
+    req.path === '/api/auth/register-tenant' ||
     (req.path.startsWith('/api/auth/tenants/') && req.path.endsWith('/status'));
 
   if (
@@ -84,6 +78,3 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
 
   next();
 }
-
-
-

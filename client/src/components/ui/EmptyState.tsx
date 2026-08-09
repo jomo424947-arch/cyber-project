@@ -41,7 +41,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
           }}
         >
           {typeof icon === 'string' ? (
-            <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
               {icon}
             </span>
           ) : (

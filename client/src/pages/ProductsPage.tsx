@@ -41,7 +41,7 @@ export default function ProductsPage() {
           onClick={() => setCreating(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
           {language === 'ar' ? 'إضافة منتج' : 'Add Product'}
         </Button>
       }

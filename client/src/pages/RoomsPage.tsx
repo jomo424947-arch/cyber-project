@@ -211,7 +211,7 @@ export default function RoomsPage() {
             }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
             {language === 'ar' ? 'إضافة غرفة جديدة' : 'Add New Room'}
           </Button>
 
@@ -220,7 +220,7 @@ export default function RoomsPage() {
             onClick={refetch}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
             {language === 'ar' ? 'تحديث' : 'Refresh'}
           </button>
         </div>
@@ -244,7 +244,7 @@ export default function RoomsPage() {
                 }}
                 style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>add</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>add</span>
                 {language === 'ar' ? 'إضافة غرفة جديدة' : 'Add New Room'}
               </Button>
             }
@@ -373,7 +373,7 @@ export default function RoomsPage() {
                       onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-cyan)')}
                       onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
                     </button>
 
                     <button
@@ -389,7 +389,7 @@ export default function RoomsPage() {
                       onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-red)')}
                       onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
                     </button>
                   </div>
                 </div>
@@ -681,7 +681,7 @@ export default function RoomsPage() {
                               handleAction(device);
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>
                               play_arrow
                             </span>
                             {language === 'ar' ? 'بدء اللعب' : 'Start Session'}
@@ -700,7 +700,7 @@ export default function RoomsPage() {
                             }}
                             onClick={() => handleAction(device)}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: isRtl ? 0 : '8px', marginLeft: isRtl ? '8px' : 0 }}>
                               stop_circle
                             </span>
                             {language === 'ar' ? 'إنهاء الجلسة' : 'End Session'}
@@ -935,7 +935,7 @@ function RoomFormModal({
                   boxShadow: icon === item.id ? '0 0 10px rgba(0, 194, 255, 0.3)' : 'none',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>{item.id}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{item.id}</span>
               </button>
             ))}
           </div>
@@ -954,7 +954,7 @@ function RoomFormModal({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
               payments
             </span>
             <span

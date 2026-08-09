@@ -102,7 +102,7 @@ export default function BillingPage() {
             onClick={() => toast(language === 'ar' ? 'تم تصدير كشف الحساب بنجاح' : 'Excel summary sheet exported.', 'success')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>receipt_long</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
             {language === 'ar' ? 'إنشاء كشف حساب' : 'Generate Receipt'}
           </button>
           <button 
@@ -110,7 +110,7 @@ export default function BillingPage() {
             onClick={() => toast(language === 'ar' ? 'جاري انتظار تأكيد الدفع الإلكتروني...' : 'Gateway scanner listening for payments...', 'info')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>account_balance_wallet</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance_wallet</span>
             {language === 'ar' ? 'تسجيل دفعة جديدة' : 'Process Payment'}
           </button>
         </>
@@ -172,7 +172,7 @@ export default function BillingPage() {
               top: '50%', 
               transform: 'translateY(-50%)', 
               color: 'var(--text-muted)', 
-              fontSize: '18px' 
+              fontSize: '16px' 
             }}
           >
             search
@@ -350,7 +350,7 @@ export default function BillingPage() {
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>info</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
                     </button>
 
                     {/* More Actions Menu */}
@@ -364,7 +364,7 @@ export default function BillingPage() {
                         onMouseEnter={(e) => e.currentTarget.style.color = '#00C2FF'}
                         onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>more_vert</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>more_vert</span>
                       </button>
                       {activeMenuId === i.id && (
                         <>
@@ -411,7 +411,7 @@ export default function BillingPage() {
                               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-surface)'}
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
+                              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>info</span>
                               {language === 'ar' ? 'تفاصيل الفاتورة' : 'View Details'}
                             </button>
                             {!i.paid ? (
@@ -436,7 +436,7 @@ export default function BillingPage() {
                                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-surface)'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
-                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check_circle</span>
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
                                 {payingId === i.id 
                                   ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...') 
                                   : (language === 'ar' ? 'تأكيد السداد' : 'Mark as Paid')}
@@ -495,7 +495,7 @@ export default function BillingPage() {
                   background: 'none',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{isRtl ? 'chevron_right' : 'chevron_left'}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{isRtl ? 'chevron_right' : 'chevron_left'}</span>
               </button>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-primary)', fontSize: '14px', fontWeight: 500 }}>
                 {currentPage} / {totalPages}
@@ -515,7 +515,7 @@ export default function BillingPage() {
                   background: 'none',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{isRtl ? 'chevron_left' : 'chevron_right'}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{isRtl ? 'chevron_left' : 'chevron_right'}</span>
               </button>
             </div>
           </div>
@@ -549,7 +549,7 @@ export default function BillingPage() {
             <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
               {language === 'ar' ? 'ساعات ذروة التشغيل والضغط' : 'Peak Utilization Hours'}
             </h3>
-            <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '24px' }}>equalizer</span>
+            <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '20px' }}>equalizer</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'end', gap: '8px', height: '192px', direction: 'ltr' }}>

@@ -67,7 +67,7 @@ export default function ReservationsPage() {
           onClick={() => setShowCreate(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
           {language === 'ar' ? 'حجز جديد' : 'New Reservation'}
         </Button>
       }
@@ -121,7 +121,7 @@ export default function ReservationsPage() {
                 header: language === 'ar' ? 'الجهاز' : 'Device',
                 render: (r: Reservation) => (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
                       {r.device?.type === 'pc' ? 'desktop_windows' : r.device?.type === 'console' ? 'sports_esports' : r.device?.type === 'vr' ? 'smart_display' : 'sports_tennis'}
                     </span>
                     <strong>{r.device?.name ?? '—'}</strong>

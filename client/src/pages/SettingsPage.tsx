@@ -39,7 +39,7 @@ export default function SettingsPage() {
           onClick={() => setCreating(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
           {language === 'ar' ? 'إضافة جهاز' : 'Add Device'}
         </Button>
       }
@@ -77,7 +77,7 @@ export default function SettingsPage() {
                   header: language === 'ar' ? 'معرّف الجهاز' : 'Node Identifier',
                   render: (d: Device) => (
                     <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
                         {d.type === 'pc' ? 'desktop_windows' : d.type === 'console' ? 'sports_esports' : d.type === 'vr' ? 'smart_display' : 'sports_tennis'}
                       </span>
                       {d.name}
@@ -354,7 +354,7 @@ function SystemBrandingSection() {
   return (
     <Card style={{ padding: '24px', marginBottom: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)', paddingBottom: '16px' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--accent-cyan)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent-cyan)' }}>
           badge
         </span>
         <div>
@@ -388,7 +388,7 @@ function SystemBrandingSection() {
                 style={{ flex: 1 }}
               />
               <label className="ccms-btn ccms-btn-ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>upload_file</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>upload_file</span>
                 {isAr ? 'رفع صورة' : 'Upload'}
                 <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
               </label>
@@ -397,7 +397,7 @@ function SystemBrandingSection() {
 
           <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '8px' }}>
             <Button onClick={handleSave} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>save</span>
               {isAr ? 'حفظ إعدادات الهوية' : 'Save Identity Settings'}
             </Button>
           </div>
@@ -438,7 +438,7 @@ function SystemBrandingSection() {
             {logoUrl ? (
               <img src={logoUrl} alt="Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             ) : (
-              <span className="material-symbols-outlined" style={{ fontSize: '40px', color: 'var(--accent-cyan)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '34px', color: 'var(--accent-cyan)' }}>
                 storefront
               </span>
             )}
@@ -502,7 +502,7 @@ function PaymentSettingsSection() {
   return (
     <Card style={{ padding: '24px', marginBottom: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)', paddingBottom: '16px' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--accent-green)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent-green)' }}>
           qr_code_2
         </span>
         <div>
@@ -533,7 +533,7 @@ function PaymentSettingsSection() {
                 style={{ flex: 1, minWidth: '220px' }}
               />
               <label className="ccms-btn ccms-btn-ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>upload_file</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>upload_file</span>
                 {isAr ? 'رفع صورة QR' : 'Upload QR'}
                 <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
               </label>
@@ -589,7 +589,7 @@ function PaymentSettingsSection() {
 
           <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '8px' }}>
             <Button onClick={handleSave} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>save</span>
               {isAr ? 'حفظ إعدادات الدفع' : 'Save Payment Settings'}
             </Button>
           </div>
@@ -611,7 +611,7 @@ function PaymentSettingsSection() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-green)', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>account_balance_wallet</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance_wallet</span>
             {isAr ? 'معاينة شاشة السداد للمحفظة' : 'Wallet Checkout Preview'}
           </div>
 
@@ -634,7 +634,7 @@ function PaymentSettingsSection() {
               <img src={qrUrl} alt="Wallet QR Code" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#666', gap: '6px', textAlign: 'center', padding: '10px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#888' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '40px', color: '#888' }}>
                   qr_code_2_add
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: '#444' }}>
@@ -669,7 +669,7 @@ function ThemeSettingsSection() {
   return (
     <Card style={{ padding: '24px', marginBottom: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)', paddingBottom: '16px' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--accent-cyan)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent-cyan)' }}>
           palette
         </span>
         <div>
@@ -710,7 +710,7 @@ function ThemeSettingsSection() {
               color: 'var(--accent-cyan)',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>dark_mode</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>dark_mode</span>
           </div>
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -749,7 +749,7 @@ function ThemeSettingsSection() {
               color: 'var(--accent-cyan)',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>light_mode</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>light_mode</span>
           </div>
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>

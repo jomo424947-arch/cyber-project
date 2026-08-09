@@ -84,7 +84,7 @@ export function Modal({ open, title, onClose, children, footer, width = 480 }: M
             {title}
           </h2>
           <Button variant="ghost" onClick={onClose} aria-label="Close" style={{ padding: '6px 10px', minHeight: '36px', display: 'inline-flex', alignItems: 'center' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
           </Button>
         </div>
 

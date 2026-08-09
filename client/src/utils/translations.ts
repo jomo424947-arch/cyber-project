@@ -23,6 +23,7 @@ export const translations: Record<string, Record<string, string>> = {
     dark_mode: 'Dark Mode',
     light_mode: 'Light Mode',
     toggle_theme: 'Toggle Dark/Light Mode',
+    more: 'More',
 
     // Common Actions
     save: 'Save',
@@ -145,6 +146,7 @@ export const translations: Record<string, Record<string, string>> = {
     dark_mode: 'الوضع الداكن (أسود)',
     light_mode: 'الوضع الفاتح (أبيض)',
     toggle_theme: 'تغيير الوضع (أسود/أبيض)',
+    more: 'المزيد',
 
     // Common Actions
     save: 'حفظ',

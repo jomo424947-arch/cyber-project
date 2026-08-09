@@ -78,14 +78,14 @@ export function StatCard({ icon, label, value, accent, hint, index = 0 }: StatCa
         className="absolute top-0 right-0 p-4 opacity-[0.06] group-hover:opacity-10 transition-opacity"
         style={{ color: accent }}
       >
-        <span className="material-symbols-outlined text-[72px] leading-none">
+        <span className="material-symbols-outlined text-[60px] leading-none">
           {iconName}
         </span>
       </div>
 
       {/* Top Header Label */}
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-[16px] leading-none" style={{ color: accent }}>
+        <span className="material-symbols-outlined text-[14px] leading-none" style={{ color: accent }}>
           {iconName}
         </span>
         <span className="font-label-caps text-label-caps text-text-secondary leading-none">

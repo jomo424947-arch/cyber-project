@@ -116,7 +116,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 }}
                 title={t('toggle_theme')}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                   {theme === 'dark' ? 'light_mode' : 'dark_mode'}
                 </span>
               </button>
@@ -147,7 +147,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-cyan)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>notifications</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>notifications</span>
               </button>
               <button 
                 onClick={() => navigate('/settings')} 
@@ -155,7 +155,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-cyan)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>settings</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>settings</span>
               </button>
             </div>
 
@@ -279,7 +279,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                   textShadow: isActive ? '0 0 10px rgba(0, 212, 255, 0.2)' : 'none',
                 })}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{item.icon}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{item.icon}</span>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '8px' }}>{item.label}</span>
               </NavLink>
             ))}
@@ -301,8 +301,8 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                 transition: 'color 0.2s ease',
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>menu</span>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '8px' }}>More</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>menu</span>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '8px' }}>{t('more')}</span>
             </button>
           </nav>
 
@@ -358,8 +358,64 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600 }}>{user?.full_name ?? 'User'}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{user?.role ?? 'staff'}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      {user?.role === 'admin' ? t('administrator') : t('staff_operator')}
+                    </div>
                   </div>
+                </div>
+
+                {/* Theme & Language Toggles for Mobile Drawer */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <button 
+                    onClick={toggleTheme}
+                    style={{ 
+                      flex: 1,
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 14px', 
+                      color: theme === 'dark' ? '#F59E0B' : 'var(--accent-cyan)', 
+                      background: theme === 'dark' ? 'rgba(245, 158, 11, 0.12)' : 'var(--accent-cyan-dim)',
+                      border: theme === 'dark' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-glow)',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      minHeight: '44px',
+                      cursor: 'pointer',
+                    }}
+                    title={t('toggle_theme')}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+                    </span>
+                    <span>{theme === 'dark' ? t('light_mode') : t('dark_mode')}</span>
+                  </button>
+
+                  <button 
+                    onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+                    style={{ 
+                      flex: 1,
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 14px', 
+                      color: 'var(--accent-cyan)', 
+                      background: 'var(--accent-cyan-dim)',
+                      border: '1px solid var(--border-glow)',
+                      borderRadius: '8px',
+                      fontWeight: 700, 
+                      fontSize: '13px', 
+                      minHeight: '44px',
+                      cursor: 'pointer',
+                      fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif'
+                    }}
+                    title={language === 'en' ? 'Arabic' : 'English'}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>language</span>
+                    <span>{language === 'en' ? 'العربية' : 'English'}</span>
+                  </button>
                 </div>
 
                 <NavLink
@@ -379,7 +435,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                     minHeight: '44px',
                   })}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>inventory_2</span> Products
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>inventory_2</span> {t('products')}
                 </NavLink>
 
                 <NavLink
@@ -399,7 +455,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                     minHeight: '44px',
                   })}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>event_upcoming</span> Reservations
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_upcoming</span> {t('reservations')}
                 </NavLink>
 
                 <NavLink
@@ -419,7 +475,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                     minHeight: '44px',
                   })}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>payments</span> Financials
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>payments</span> {t('billing')}
                 </NavLink>
 
                 <NavLink
@@ -439,7 +495,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                     minHeight: '44px',
                   })}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>query_stats</span> Intelligence Reports
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>query_stats</span> {t('reports')}
                 </NavLink>
 
                 {isAdmin && (
@@ -461,7 +517,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                         minHeight: '44px',
                       })}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>badge</span> Employees
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>badge</span> {t('employees')}
                     </NavLink>
                     <NavLink
                       to="/settings"
@@ -480,7 +536,7 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                         minHeight: '44px',
                       })}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>security</span> Security Settings
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>security</span> {t('settings')}
                     </NavLink>
                   </>
                 )}
@@ -498,12 +554,12 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                     color: 'var(--accent-red)',
                     fontSize: '14px',
                     fontWeight: 600,
-                    textAlign: 'left',
+                    textAlign: isRtl ? 'right' : 'left',
                     minHeight: '44px',
                     background: 'rgba(255, 68, 102, 0.05)',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span> Sign Out
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>logout</span> {t('logout')}
                 </button>
               </div>
             </>

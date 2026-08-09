@@ -36,7 +36,7 @@ export default function EmployeesPage() {
           onClick={() => setCreating(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
           {t('add_employee')}
         </Button>
       }
@@ -70,7 +70,7 @@ export default function EmployeesPage() {
                   header: t('employee_name'),
                   render: (emp: User) => (
                     <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
                         person
                       </span>
                       {emp.full_name || emp.email.split('@')[0]}

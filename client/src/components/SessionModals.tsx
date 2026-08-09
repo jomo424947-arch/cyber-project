@@ -459,7 +459,7 @@ export function EndSessionModal({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>qr_code_2</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
                         {language === 'ar' ? 'سداد عبر المحفظة الإلكترونية (فودافون كاش)' : 'Pay via E-Wallet (Vodafone Cash)'}
                       </span>
                       {walletQrUrl && (
@@ -519,7 +519,7 @@ export function EndSessionModal({
                 {paymentMethod === 'card' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(0, 194, 255, 0.05)', border: '1px solid rgba(0, 194, 255, 0.2)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>credit_card</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>credit_card</span>
                       {language === 'ar' ? 'دفع عبر ماكينة الفيزا (POS)' : 'Card Terminal (POS)'}
                     </div>
                     <Input
@@ -535,7 +535,7 @@ export function EndSessionModal({
                 {paymentMethod === 'transfer' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#c084fc' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>account_balance</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance</span>
                       {language === 'ar' ? 'تحويل بنكي / InstaPay' : 'Bank Transfer / InstaPay'}
                     </div>
                     {bankDetails ? (

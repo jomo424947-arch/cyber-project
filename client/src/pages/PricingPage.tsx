@@ -162,14 +162,14 @@ export default function PricingPage() {
           onClick={fetchPricing}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
           {language === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
       }
     >
       {sortedTiers.length === 0 ? (
         <div className="ccms-card" style={{ padding: '60px 24px', textAlign: 'center' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--text-muted)', display: 'block', marginBottom: '16px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '40px', color: 'var(--text-muted)', display: 'block', marginBottom: '16px' }}>
             devices
           </span>
           <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
@@ -231,7 +231,7 @@ export default function PricingPage() {
                         boxShadow: `0 0 20px ${meta.color}15`,
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '28px', color: meta.color }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '24px', color: meta.color }}>
                         {meta.icon}
                       </span>
                     </div>
@@ -280,7 +280,7 @@ export default function PricingPage() {
                   }}>
                     <div>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>person</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--accent-cyan)' }}>person</span>
                         {language === 'ar' ? 'سعر الساعة الفردي (Single)' : 'Single Player Rate'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -361,7 +361,7 @@ export default function PricingPage() {
                   }}>
                     <div>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-purple)' }}>group</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--accent-purple)' }}>group</span>
                         {language === 'ar' ? 'سعر الساعة الجماعي (Multi)' : 'Multiplayer Rate'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -453,7 +453,7 @@ export default function PricingPage() {
                     }}
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
                         {isExpanded ? 'expand_less' : 'expand_more'}
                       </span>
                       {language === 'ar' ? 'أسعار الأجهزة الفردية التفصيلية' : 'Individual Device Pricing'}
@@ -483,7 +483,7 @@ export default function PricingPage() {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: meta.color, opacity: 0.6 }}>{meta.icon}</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: meta.color, opacity: 0.6 }}>{meta.icon}</span>
                           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{device.name}</span>
                         </div>
 

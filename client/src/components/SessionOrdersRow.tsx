@@ -84,7 +84,7 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
               <span
                 className="material-symbols-outlined"
                 style={{
-                  fontSize: '16px',
+                  fontSize: '14px',
                   color: 'var(--accent-cyan)',
                   opacity: 0.8,
                 }}
@@ -168,7 +168,7 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
                     fontStyle: 'italic',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px', opacity: 0.5, color: 'var(--accent-cyan)' }}>local_cafe</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px', opacity: 0.5, color: 'var(--accent-cyan)' }}>local_cafe</span>
                   No café orders yet — click "+ Café" to add drinks & snacks
                 </div>
                 {onEndSession && (
@@ -251,7 +251,7 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
                       <span
                         className="material-symbols-outlined"
                         style={{
-                          fontSize: '18px',
+                          fontSize: '16px',
                           color: 'var(--accent-cyan)',
                         }}
                       >

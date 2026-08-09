@@ -103,7 +103,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
               e.currentTarget.style.transform = 'none';
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
               chat
             </span>
             <div style={{ textAlign: 'center' }}>
@@ -146,7 +146,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
               e.currentTarget.style.transform = 'none';
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
               chat
             </span>
             <div style={{ textAlign: 'center' }}>
@@ -176,7 +176,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--accent-green)', fontSize: '22px' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--accent-green)', fontSize: '18px' }}>
                 call
               </span>
               <div>
@@ -189,7 +189,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
               </div>
             </div>
             <Button variant="ghost" onClick={() => handleCopy(phone1)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>content_copy</span>
               {isAr ? 'نسخ' : 'Copy'}
             </Button>
           </div>
@@ -208,7 +208,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '22px' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '18px' }}>
                 call
               </span>
               <div>
@@ -221,7 +221,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
               </div>
             </div>
             <Button variant="ghost" onClick={() => handleCopy(phone2)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>content_copy</span>
               {isAr ? 'نسخ' : 'Copy'}
             </Button>
           </div>

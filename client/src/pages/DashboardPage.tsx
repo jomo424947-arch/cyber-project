@@ -76,7 +76,7 @@ export default function DashboardPage() {
             textAlign: 'center',
           }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--accent-red)' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '40px', color: 'var(--accent-red)' }}>
             warning
           </span>
           <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, fontFamily: 'Space Grotesk, sans-serif' }}>
@@ -86,7 +86,7 @@ export default function DashboardPage() {
             {error ?? 'An unexpected error occurred.'}
           </p>
           <button className="ccms-btn ccms-btn-primary" onClick={refetch} style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
             {t('try_again')}
           </button>
         </div>
@@ -106,7 +106,7 @@ export default function DashboardPage() {
           onClick={refetch}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
           {language === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
       }

@@ -68,7 +68,7 @@ export default function CustomerProfilePage() {
           onClick={() => navigate(-1)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
           {language === 'ar' ? 'رجوع' : 'Back'}
         </button>
       }
@@ -139,13 +139,13 @@ export default function CustomerProfilePage() {
             className="absolute top-0 right-0 p-4 opacity-[0.06] group-hover:opacity-10 transition-opacity"
             style={{ color: 'var(--accent-yellow)', left: isRtl ? '0' : 'auto', right: isRtl ? 'auto' : '0' }}
           >
-            <span className="material-symbols-outlined style-icon text-[72px] leading-none">
+            <span className="material-symbols-outlined style-icon text-[60px] leading-none">
               target
             </span>
           </div>
 
           <div className="flex items-center gap-2 mb-4" style={{ justifyContent: isRtl ? 'flex-start' : undefined }}>
-            <span className="material-symbols-outlined text-[16px] leading-none" style={{ color: 'var(--accent-yellow)' }}>
+            <span className="material-symbols-outlined text-[14px] leading-none" style={{ color: 'var(--accent-yellow)' }}>
               stars
             </span>
             <span className="font-label-caps text-label-caps text-text-secondary leading-none" style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
@@ -168,7 +168,7 @@ export default function CustomerProfilePage() {
             >
               {favoriteMeta ? (
                 <>
-                  <span className="material-symbols-outlined" style={{ color: 'var(--accent-yellow)', fontSize: '24px' }}>
+                  <span className="material-symbols-outlined" style={{ color: 'var(--accent-yellow)', fontSize: '20px' }}>
                     {stats.favorite_device_type === 'pc' ? 'desktop_windows' : stats.favorite_device_type === 'console' ? 'sports_esports' : stats.favorite_device_type === 'vr' ? 'smart_display' : 'sports_tennis'}
                   </span>
                   <span>{localizedFavLabel}</span>
@@ -215,7 +215,7 @@ export default function CustomerProfilePage() {
                 header: language === 'ar' ? 'الجهاز' : 'Device',
                 render: (s: Session) => (
                   <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
                       {s.device?.type === 'pc' ? 'desktop_windows' : s.device?.type === 'console' ? 'sports_esports' : s.device?.type === 'vr' ? 'smart_display' : 'sports_tennis'}
                     </span>
                     <span>{s.device?.name ?? (language === 'ar' ? 'جهاز محذوف' : 'Deleted Device')}</span>

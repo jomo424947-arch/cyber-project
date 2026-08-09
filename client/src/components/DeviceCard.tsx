@@ -176,7 +176,7 @@ export function DeviceCard({
     >
       {/* Header: type icon + name */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '22px', color: 'var(--accent-cyan)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
           {typeIcon}
         </span>
         <span

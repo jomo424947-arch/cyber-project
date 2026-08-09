@@ -65,7 +65,7 @@ export default function SessionsPage() {
           onClick={refetch}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sync</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
           {language === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
       }
