@@ -34,15 +34,7 @@ export default function SettingsPage() {
     <Layout
       title={t('settings')}
       subtitle={language === 'ar' ? 'لوحة التحكم الأمنية للمدير — إدارة الأجهزة، الأسعار، وإعدادات النظام.' : 'Admin control console — manage terminal nodes, rates, and fleet permissions'}
-      actions={
-        <Button 
-          onClick={() => setCreating(true)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-          {language === 'ar' ? 'إضافة جهاز' : 'Add Device'}
-        </Button>
-      }
+
     >
       <ThemeSettingsSection />
       <SystemBrandingSection />

@@ -16,8 +16,8 @@ const router = Router();
 router.use(verifyJWT);
 
 router.get('/', asyncHandler(listDevices));
-router.post('/', requireRole('admin'), validate(createDeviceSchema), asyncHandler(createDevice));
+router.post('/', validate(createDeviceSchema), asyncHandler(createDevice));
 router.patch('/:id', validate(updateDeviceSchema), asyncHandler(updateDevice));
-router.delete('/:id', requireRole('admin'), asyncHandler(deleteDevice));
+router.delete('/:id', asyncHandler(deleteDevice));
 
 export default router;
