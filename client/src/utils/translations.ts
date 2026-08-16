@@ -23,6 +23,16 @@ export const translations: Record<string, Record<string, string>> = {
     dark_mode: 'Dark Mode',
     light_mode: 'Light Mode',
     toggle_theme: 'Toggle Dark/Light Mode',
+    visual_scaling_title: 'High-Precision Font & Icon Scaling',
+    visual_scaling_desc: 'Adjust exact font and icon sizes across the application and website with high precision',
+    font_scale: 'Font Size Scale',
+    icon_scale: 'Icon Size Scale',
+    preset_small: 'Compact (85%)',
+    preset_default: 'Default (100%)',
+    preset_large: 'Large (115%)',
+    preset_xlarge: 'Extra Large (130%)',
+    live_preview: 'Live Interactive Preview',
+    reset_scaling: 'Reset to Default (100%)',
     more: 'More',
 
     // Common Actions
@@ -146,6 +156,16 @@ export const translations: Record<string, Record<string, string>> = {
     dark_mode: 'الوضع الداكن (أسود)',
     light_mode: 'الوضع الفاتح (أبيض)',
     toggle_theme: 'تغيير الوضع (أسود/أبيض)',
+    visual_scaling_title: 'تحكم بدقة عالية في حجم الخط والأيقونات',
+    visual_scaling_desc: 'ضبط دقيق ومباشر بنسبة مئوية لأحجام النصوص والأيقونات في كامل النظام والموقع الإلكتروني',
+    font_scale: 'مقياس حجم الخط',
+    icon_scale: 'مقياس حجم الأيقونات',
+    preset_small: 'صغير (85%)',
+    preset_default: 'افتراضي (100%)',
+    preset_large: 'كبير (115%)',
+    preset_xlarge: 'كبير جداً (130%)',
+    live_preview: 'معاينة تفاعلية حية',
+    reset_scaling: 'إعادة الضبط للافتراضي (100%)',
     more: 'المزيد',
 
     // Common Actions

@@ -37,12 +37,16 @@
 
   --sidebar-width: 240px;
 
-  --icon-size-xs: 12px;
-  --icon-size-sm: 14px;
-  --icon-size-md: 16px;
-  --icon-size-lg: 18px;
-  --icon-size-xl: 20px;
-  --icon-size-2xl: 24px;
+  /* Precision visual scaling multipliers */
+  --font-scale: 1;
+  --icon-scale: 1;
+
+  --icon-size-xs: calc(12px * var(--icon-scale, 1));
+  --icon-size-sm: calc(14px * var(--icon-scale, 1));
+  --icon-size-md: calc(16px * var(--icon-scale, 1));
+  --icon-size-lg: calc(18px * var(--icon-scale, 1));
+  --icon-size-xl: calc(20px * var(--icon-scale, 1));
+  --icon-size-2xl: calc(24px * var(--icon-scale, 1));
 
   /* Safe Area variables for mobile devices wrapped in Capacitor */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -98,17 +102,26 @@
   padding: 0;
 }
 
+html {
+  font-size: calc(16px * var(--font-scale, 1));
+}
+
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
+}
+
+#root {
+  zoom: var(--font-scale, 1);
+  transition: zoom 0.15s ease-out;
 }
 
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: 'Alexandria', 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale, 1));
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -143,7 +156,7 @@ html[dir="rtl"] .ccms-eyebrow {
   letter-spacing: normal !important;
 }
 
-/* Ensure Material Symbols icon font is never overridden */
+/* Ensure Material Symbols icon font is never overridden & supports precision scaling */
 .material-symbols-outlined,
 .material-symbols-sharp,
 .material-symbols-rounded,
@@ -151,7 +164,6 @@ html[dir="rtl"] .ccms-eyebrow {
   font-family: 'Material Symbols Outlined' !important;
   font-weight: normal;
   font-style: normal;
-  font-size: 24px;
   line-height: 1;
   letter-spacing: normal;
   text-transform: none;
@@ -160,6 +172,9 @@ html[dir="rtl"] .ccms-eyebrow {
   word-wrap: normal;
   direction: ltr !important;
   -webkit-font-smoothing: antialiased;
+  transform: scale(calc(var(--icon-scale, 1) / var(--font-scale, 1)));
+  transform-origin: center center;
+  transition: transform 0.15s ease-out;
 }
 
 a {

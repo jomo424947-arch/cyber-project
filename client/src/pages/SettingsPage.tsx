@@ -654,31 +654,73 @@ function PaymentSettingsSection() {
 }
 
 function ThemeSettingsSection() {
-  const { theme, setTheme } = useTheme();
-  const { language } = useLanguage();
+  const { theme, setTheme, fontScale, iconScale, setFontScale, setIconScale, resetVisualScale } = useTheme();
+  const { language, t } = useLanguage();
   const isAr = language === 'ar';
+
+  const fontPresets = [
+    { label: isAr ? 'صغير' : 'Compact', value: 85 },
+    { label: isAr ? 'افتراضي' : 'Default', value: 100 },
+    { label: isAr ? 'كبير' : 'Large', value: 115 },
+    { label: isAr ? 'كبير جداً' : 'X-Large', value: 130 },
+  ];
+
+  const iconPresets = [
+    { label: isAr ? 'مصغر' : 'Small', value: 85 },
+    { label: isAr ? 'افتراضي' : 'Default', value: 100 },
+    { label: isAr ? 'مكبر' : 'Large', value: 115 },
+    { label: isAr ? 'بارز' : 'X-Large', value: 130 },
+  ];
 
   return (
     <Card style={{ padding: '24px', marginBottom: '24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-default)', paddingBottom: '16px' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent-cyan)' }}>
-          palette
-        </span>
-        <div>
-          <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-            {isAr ? 'إعدادات مظهر الواجهة والوضع (أسود / أبيض)' : 'UI Theme & Visual Mode'}
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
-            {isAr ? 'التبديل الفوري بين الوضع الداكن والوضع الفاتح للنظام بالكامل مع حفظ اختيارك تلقائياً.' : 'Switch between Dark Mode and Light Mode seamlessly across all system screens.'}
-          </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '1px solid var(--border-default)', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '22px', color: 'var(--accent-cyan)' }}>
+            palette
+          </span>
+          <div>
+            <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+              {t('visual_scaling_title')}
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+              {t('visual_scaling_desc')}
+            </p>
+          </div>
         </div>
+        {(fontScale !== 100 || iconScale !== 100) && (
+          <button
+            onClick={resetVisualScale}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              background: 'rgba(239, 68, 68, 0.12)',
+              color: 'var(--accent-red)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
+            {t('reset_scaling')}
+          </button>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+      {/* Dark / Light Theme Mode Selectors */}
+      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>
+        {isAr ? 'نمط الواجهة (أسود / أبيض)' : 'Visual Mode (Dark / Light)'}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '32px' }}>
         <div
           onClick={() => setTheme('dark')}
           style={{
-            padding: '20px',
+            padding: '16px 20px',
             borderRadius: '12px',
             background: 'var(--bg-base)',
             border: theme === 'dark' ? '2px solid var(--accent-cyan)' : '1px solid var(--border-default)',
@@ -692,8 +734,8 @@ function ThemeSettingsSection() {
         >
           <div
             style={{
-              width: '44px',
-              height: '44px',
+              width: '40px',
+              height: '40px',
               borderRadius: '10px',
               background: 'rgba(0, 194, 255, 0.1)',
               display: 'flex',
@@ -717,7 +759,7 @@ function ThemeSettingsSection() {
         <div
           onClick={() => setTheme('light')}
           style={{
-            padding: '20px',
+            padding: '16px 20px',
             borderRadius: '12px',
             background: 'var(--bg-base)',
             border: theme === 'light' ? '2px solid var(--accent-cyan)' : '1px solid var(--border-default)',
@@ -731,8 +773,8 @@ function ThemeSettingsSection() {
         >
           <div
             style={{
-              width: '44px',
-              height: '44px',
+              width: '40px',
+              height: '40px',
               borderRadius: '10px',
               background: 'var(--accent-cyan-dim)',
               display: 'flex',
@@ -752,6 +794,201 @@ function ThemeSettingsSection() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Visual Precision Controls Section */}
+      <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '28px' }}>
+
+          {/* Font Scale Precision Control */}
+          <div style={{ background: 'var(--bg-base)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-default)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent-cyan)' }}>format_size</span>
+                <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{t('font_scale')}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="number"
+                  min={70}
+                  max={160}
+                  value={fontScale}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) setFontScale(val);
+                  }}
+                  style={{
+                    width: '60px',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-glow)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                  }}
+                />
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>%</span>
+              </div>
+            </div>
+
+            {/* Slider */}
+            <input
+              type="range"
+              min={75}
+              max={150}
+              step={1}
+              value={fontScale}
+              onChange={(e) => setFontScale(Number(e.target.value))}
+              style={{
+                width: '100%',
+                accentColor: 'var(--accent-cyan)',
+                cursor: 'pointer',
+                marginBottom: '14px',
+              }}
+            />
+
+            {/* Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {fontPresets.map((preset) => (
+                <button
+                  key={preset.value}
+                  onClick={() => setFontScale(preset.value)}
+                  style={{
+                    flex: 1,
+                    minWidth: '60px',
+                    padding: '6px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: fontScale === preset.value ? 700 : 500,
+                    background: fontScale === preset.value ? 'var(--accent-cyan)' : 'var(--bg-surface)',
+                    color: fontScale === preset.value ? '#000' : 'var(--text-secondary)',
+                    border: fontScale === preset.value ? 'none' : '1px solid var(--border-default)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Icon Scale Precision Control */}
+          <div style={{ background: 'var(--bg-base)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-default)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent-cyan)' }}>grid_view</span>
+                <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{t('icon_scale')}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="number"
+                  min={70}
+                  max={160}
+                  value={iconScale}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) setIconScale(val);
+                  }}
+                  style={{
+                    width: '60px',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-glow)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                  }}
+                />
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>%</span>
+              </div>
+            </div>
+
+            {/* Slider */}
+            <input
+              type="range"
+              min={75}
+              max={150}
+              step={1}
+              value={iconScale}
+              onChange={(e) => setIconScale(Number(e.target.value))}
+              style={{
+                width: '100%',
+                accentColor: 'var(--accent-cyan)',
+                cursor: 'pointer',
+                marginBottom: '14px',
+              }}
+            />
+
+            {/* Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {iconPresets.map((preset) => (
+                <button
+                  key={preset.value}
+                  onClick={() => setIconScale(preset.value)}
+                  style={{
+                    flex: 1,
+                    minWidth: '60px',
+                    padding: '6px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: iconScale === preset.value ? 700 : 500,
+                    background: iconScale === preset.value ? 'var(--accent-cyan)' : 'var(--bg-surface)',
+                    color: iconScale === preset.value ? '#000' : 'var(--text-secondary)',
+                    border: iconScale === preset.value ? 'none' : '1px solid var(--border-default)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Live Interactive Preview Box */}
+        <div style={{ marginTop: '24px', background: 'var(--bg-surface)', borderRadius: '12px', padding: '20px', border: '1px dashed var(--border-glow)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>preview</span>
+              {t('live_preview')}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {isAr ? `الخط: ${fontScale}% | الأيقونات: ${iconScale}%` : `Font: ${fontScale}% | Icons: ${iconScale}%`}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', background: 'var(--bg-base)', padding: '16px', borderRadius: '10px', transition: 'all 0.15s ease' }}>
+            <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: `${24 * (iconScale / 100)}px` }}>
+              sports_esports
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: `${14 * (fontScale / 100)}px` }}>
+                {isAr ? 'جهاز VIP-01 (PlayStation 5)' : 'Device VIP-01 (PlayStation 5)'}
+              </div>
+              <div style={{ color: 'var(--text-secondary)', marginTop: '2px', fontSize: `${12 * (fontScale / 100)}px` }}>
+                {isAr ? 'الجلسة نشطة — الوقت المتبقي: 01:45:00' : 'Session Active — Time Remaining: 01:45:00'}
+              </div>
+            </div>
+            <div style={{ marginLeft: isAr ? 'none' : 'auto', marginRight: isAr ? 'auto' : 'none', display: 'flex', gap: '8px' }}>
+              <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--accent-green)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: `${12 * (fontScale / 100)}px` }}>
+                <span className="material-symbols-outlined" style={{ fontSize: `${16 * (iconScale / 100)}px` }}>check_circle</span>
+                {isAr ? 'متاح' : 'Available'}
+              </span>
+              <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(0, 194, 255, 0.15)', color: 'var(--accent-cyan)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: `${12 * (fontScale / 100)}px` }}>
+                <span className="material-symbols-outlined" style={{ fontSize: `${16 * (iconScale / 100)}px` }}>tune</span>
+                {isAr ? 'إجبار الحجم' : 'Scaled'}
+              </span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </Card>
   );

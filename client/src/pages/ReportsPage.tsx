@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
+import { StatCard } from '../components/StatCard';
 import { BarChart } from '../components/charts/BarChart';
 import { UsageBars } from '../components/charts/UsageBars';
 import { HeatStrip } from '../components/charts/HeatStrip';
@@ -74,13 +75,37 @@ export default function ReportsPage() {
           marginBottom: '32px',
         }}
       >
-        <RevenueTile label={language === 'ar' ? 'اليوم' : 'Today'} value={formatCurrency(revenue.totals.today)} accent="var(--accent-cyan)" />
-        <RevenueTile label={language === 'ar' ? 'هذا الأسبوع' : 'This Week'} value={formatCurrency(revenue.totals.week)} accent="var(--accent-green)" />
-        <RevenueTile label={language === 'ar' ? 'هذا الشهر' : 'This Month'} value={formatCurrency(revenue.totals.month)} accent="var(--accent-purple)" />
-        <RevenueTile
+        <StatCard
+          icon="payments"
+          label={language === 'ar' ? 'إيراد اليوم' : 'Today Revenue'}
+          value={formatCurrency(revenue.totals.today)}
+          accent="var(--accent-cyan)"
+          hint={language === 'ar' ? 'إيراد اليوم' : 'Today total'}
+          index={0}
+        />
+        <StatCard
+          icon="payments"
+          label={language === 'ar' ? 'إيراد هذا الأسبوع' : 'This Week Revenue'}
+          value={formatCurrency(revenue.totals.week)}
+          accent="var(--accent-green)"
+          hint={language === 'ar' ? 'إيراد الأسبوع' : 'Weekly total'}
+          index={1}
+        />
+        <StatCard
+          icon="payments"
+          label={language === 'ar' ? 'إيراد هذا الشهر' : 'This Month Revenue'}
+          value={formatCurrency(revenue.totals.month)}
+          accent="var(--accent-purple)"
+          hint={language === 'ar' ? 'إيراد الشهر' : 'Monthly total'}
+          index={2}
+        />
+        <StatCard
+          icon="timer"
           label={language === 'ar' ? 'ساعة الذروة' : 'Peak Hour'}
           value={peakHour ? `${peakHour.hour}:00` : '—'}
           accent="var(--accent-yellow)"
+          hint={language === 'ar' ? 'أعلى إقبال' : 'Busiest time'}
+          index={3}
         />
       </div>
 
@@ -147,39 +172,6 @@ export default function ReportsPage() {
   );
 }
 
-function RevenueTile({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent: string;
-}) {
-  const { isRtl } = useLanguage();
-  return (
-    <div 
-      className="ccms-card" 
-      style={{ 
-        padding: '24px', 
-        borderTop: `1px solid ${accent}`
-      }}
-    >
-      <div className="ccms-eyebrow" style={{ marginBottom: '12px', textAlign: isRtl ? 'right' : 'left' }}>{label}</div>
-      <div
-        style={{
-          fontFamily: 'JetBrains Mono, monospace',
-          fontSize: '32px',
-          fontWeight: 700,
-          color: 'var(--text-primary)',
-          textAlign: isRtl ? 'right' : 'left',
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
 
 function LeaderboardWidget() {
   const { language } = useLanguage();

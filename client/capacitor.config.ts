@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'CCMS',
   webDir: 'dist',
   server: {
-    url: 'http://64.202.188.31',
+    url: 'http://148.66.152.6',
     cleartext: true,
   },
   android: {

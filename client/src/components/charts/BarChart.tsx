@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatCurrency } from '../../utils/format';
 
 interface BarDatum {
@@ -12,95 +13,155 @@ interface BarChartProps {
   valueFormat?: (v: number) => string;
 }
 
-/** Redesigned vertical bar chart (SVG) following Sentinels Enterprise rules. */
 export function BarChart({
   data,
   height = 220,
   valueFormat = (v) => formatCurrency(v),
 }: BarChartProps) {
+  const [activeBar, setActiveBar] = useState<number | null>(null);
   const max = Math.max(1, ...data.map((d) => d.value));
-  const barCount = data.length || 1;
-  const gap = 12;
-  const labelH = 24;
-  const chartH = height - labelH;
+
+  // Helper for compact representation above bars so text never overlaps
+  const formatCompact = (val: number) => {
+    if (val <= 0) return '';
+    if (val >= 10000) return `${(val / 1000).toFixed(0)}k`;
+    if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+    return Math.round(val).toString();
+  };
 
   return (
-    <div style={{ width: '100%' }}>
-      <svg
-        viewBox={`0 0 ${barCount * 40} ${height}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height }}
+    <div style={{ width: '100%', position: 'relative' }}>
+      {/* Chart container */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: '6px',
+          height: `${height - 32}px`,
+          paddingBottom: '8px',
+          borderBottom: '1px solid var(--border-default)',
+          position: 'relative',
+        }}
       >
         {data.map((d, i) => {
-          const barH = (d.value / max) * (chartH - 20); // offset slightly for top labels
-          const x = i * 40 + gap / 2;
-          const w = 40 - gap;
-          const y = chartH - barH;
+          const fillRatio = d.value / max;
+          const barHeightPercent = d.value > 0 ? Math.max(10, fillRatio * 85) : 3;
           const isMax = d.value === max && d.value > 0;
-          
-          // Redesign Spec: 10% accent opacity for standard, bloom/glow for peaks
-          const barColor = isMax ? 'rgba(0, 194, 255, 0.45)' : 'rgba(0, 194, 255, 0.15)';
-          const hoverColor = isMax ? 'rgba(0, 194, 255, 0.65)' : 'rgba(0, 194, 255, 0.35)';
+          const isHovered = activeBar === i;
 
           return (
-            <g key={i} className="group cursor-pointer">
-              {/* Invisible trigger bar for hover area */}
-              <rect
-                x={x - gap/2}
-                y={0}
-                width={40}
-                height={chartH}
-                fill="transparent"
-              />
-              
-              {/* Actual bar */}
-              <rect
-                x={x}
-                y={y}
-                width={w}
-                height={barH}
-                rx={4}
-                fill={barColor}
-                style={{ 
-                  transition: 'all 0.2s ease',
-                  filter: isMax ? 'drop-shadow(0 0 4px rgba(0, 194, 255, 0.3))' : 'none'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.setAttribute('fill', hoverColor);
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.setAttribute('fill', barColor);
-                }}
-              />
-              
+            <div
+              key={i}
+              onMouseEnter={() => setActiveBar(i)}
+              onMouseLeave={() => setActiveBar(null)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                height: '100%',
+                position: 'relative',
+                cursor: 'pointer',
+              }}
+            >
+              {/* Compact bar value above top */}
               {d.value > 0 && (
-                <text
-                  x={x + w / 2}
-                  y={y - 8}
-                  textAnchor="middle"
-                  fontSize={10}
-                  fontFamily="JetBrains Mono, monospace"
-                  fontWeight={isMax ? 'bold' : 'normal'}
-                  fill={isMax ? 'var(--accent-cyan)' : 'var(--text-secondary)'}
+                <span
+                  style={{
+                    fontSize: 'calc(10px * var(--font-scale, 1))',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontWeight: isMax ? 700 : 500,
+                    color: isMax ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                    marginBottom: '4px',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
-                  {valueFormat(d.value)}
-                </text>
+                  {formatCompact(d.value)}
+                </span>
               )}
-              
-              <text
-                x={x + w / 2}
-                y={chartH + 16}
-                textAnchor="middle"
-                fontSize={10}
-                fontFamily="JetBrains Mono, monospace"
-                fill="var(--text-muted)"
-              >
-                {d.label}
-              </text>
-            </g>
+
+              {/* Bar element */}
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: '28px',
+                  height: `${barHeightPercent}%`,
+                  borderRadius: '6px 6px 2px 2px',
+                  background: isHovered
+                    ? 'linear-gradient(to top, rgba(0, 194, 255, 0.5), #00C2FF)'
+                    : isMax
+                    ? 'linear-gradient(to top, rgba(0, 194, 255, 0.35), rgba(0, 194, 255, 0.85))'
+                    : d.value > 0
+                    ? 'linear-gradient(to top, rgba(0, 194, 255, 0.12), rgba(0, 194, 255, 0.35))'
+                    : 'rgba(255, 255, 255, 0.04)',
+                  borderTop: isMax || isHovered ? '1px solid #00C2FF' : 'none',
+                  boxShadow: isMax || isHovered ? '0 0 12px rgba(0, 194, 255, 0.4)' : 'none',
+                  transition: 'all 0.2s ease',
+                  transform: isHovered ? 'scaleY(1.04)' : 'none',
+                  transformOrigin: 'bottom',
+                }}
+              />
+            </div>
           );
         })}
-      </svg>
+      </div>
+
+      {/* X-axis labels */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '6px',
+          marginTop: '8px',
+        }}
+      >
+        {data.map((d, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontSize: 'calc(10px * var(--font-scale, 1))',
+              fontFamily: 'JetBrains Mono, monospace',
+              color: activeBar === i ? 'var(--accent-cyan)' : 'var(--text-muted)',
+              fontWeight: activeBar === i ? 700 : 400,
+            }}
+          >
+            {d.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Hover Floating Tooltip */}
+      {activeBar !== null && data[activeBar] && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '-36px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--accent-cyan)',
+            padding: '6px 14px',
+            borderRadius: '8px',
+            boxShadow: 'var(--shadow-glow-strong)',
+            fontSize: 'calc(12px * var(--font-scale, 1))',
+            fontFamily: 'JetBrains Mono, monospace',
+            color: 'var(--text-primary)',
+            pointerEvents: 'none',
+            zIndex: 20,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span style={{ color: 'var(--text-secondary)' }}>يوم {data[activeBar].label}:</span>
+          <strong style={{ color: 'var(--accent-cyan)' }}>{valueFormat(data[activeBar].value)}</strong>
+        </div>
+      )}
     </div>
   );
 }

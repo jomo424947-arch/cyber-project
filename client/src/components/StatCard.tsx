@@ -70,25 +70,42 @@ export function StatCard({ icon, label, value, accent, hint, index = 0 }: StatCa
       className="ccms-card-stat ccms-card-stat-hover ccms-stagger group"
       style={{
         animationDelay: `${index * 80}ms`,
-        borderTop: `1px solid ${accent}`, // Redesign spec Level 2 Inner Glow
+        borderTop: `1px solid ${accent}`,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {/* Background Decorative Icon */}
       <div
         className="absolute top-0 right-0 p-4 opacity-[0.06] group-hover:opacity-10 transition-opacity"
-        style={{ color: accent }}
+        style={{ color: accent, pointerEvents: 'none' }}
       >
-        <span className="material-symbols-outlined text-[60px] leading-none">
+        <span
+          className="material-symbols-outlined leading-none"
+          style={{ fontSize: 'calc(54px * var(--icon-scale, 1))' }}
+        >
           {iconName}
         </span>
       </div>
 
       {/* Top Header Label */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-[14px] leading-none" style={{ color: accent }}>
+      <div className="flex items-center gap-2 mb-3">
+        <span
+          className="material-symbols-outlined leading-none"
+          style={{ color: accent, fontSize: 'calc(16px * var(--icon-scale, 1))' }}
+        >
           {iconName}
         </span>
-        <span className="font-label-caps text-label-caps text-text-secondary leading-none">
+        <span
+          style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 'calc(12px * var(--font-scale, 1))',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--text-secondary)',
+          }}
+        >
           {label}
         </span>
       </div>
@@ -98,10 +115,11 @@ export function StatCard({ icon, label, value, accent, hint, index = 0 }: StatCa
         <div
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: '36px',
+            fontSize: 'calc(30px * var(--font-scale, 1))',
             fontWeight: 700,
             lineHeight: 1.1,
             color: 'var(--text-primary)',
+            transition: 'font-size 0.15s ease',
           }}
         >
           {value}
@@ -109,7 +127,7 @@ export function StatCard({ icon, label, value, accent, hint, index = 0 }: StatCa
         {displayHint && (
           <span 
             style={{ 
-              fontSize: '12px', 
+              fontSize: 'calc(12px * var(--font-scale, 1))', 
               color: label.toLowerCase().includes('outstanding') ? 'var(--text-secondary)' : `${accent}b3`,
               opacity: 0.8
             }}
