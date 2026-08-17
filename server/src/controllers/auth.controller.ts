@@ -160,12 +160,12 @@ export async function login(req: Request, res: Response) {
           console.warn('[auth] Failed to cache cloud user locally:', e);
         }
 
-        const accessToken = signToken({ id: userId, email: userEmail, role });
+        const accessToken = signToken({ id: userId, email: userEmail, role, tenant_id: tenantId });
         const refreshToken = signRefreshToken({ id: userId });
         setAuthCookies(res, accessToken, refreshToken, rememberMe);
 
         res.json({
-          user: { id: userId, email: userEmail, full_name: fullName, role },
+          user: { id: userId, email: userEmail, full_name: fullName, role, tenant_id: tenantId },
         });
         return;
       }
@@ -190,7 +190,8 @@ export async function login(req: Request, res: Response) {
     throw unauthorized('Invalid email or password');
   }
 
-  const accessToken = signToken({ id: user.id, email: user.email, role: user.role });
+  // FIX: Include tenant_id in token so each café only sees its own data
+  const accessToken = signToken({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id ?? null });
   const refreshToken = signRefreshToken({ id: user.id });
   setAuthCookies(res, accessToken, refreshToken, rememberMe);
 
@@ -200,6 +201,7 @@ export async function login(req: Request, res: Response) {
       email: user.email,
       full_name: user.full_name ?? user.email.split('@')[0],
       role: user.role,
+      tenant_id: user.tenant_id ?? null,
     },
   });
 }
@@ -356,7 +358,8 @@ export async function refresh(req: Request, res: Response) {
     throw unauthorized('User profile not found.');
   }
 
-  const newAccessToken = signToken({ id: profile.id, email: profile.email, role: profile.role });
+  // FIX: Include tenant_id in the refreshed token
+  const newAccessToken = signToken({ id: profile.id, email: profile.email, role: profile.role, tenant_id: (profile as any).tenant_id ?? null });
   const newRefreshToken = signRefreshToken({ id: profile.id });
 
   const remember = !!req.cookies?.['sb-refresh-token'];
@@ -368,6 +371,7 @@ export async function refresh(req: Request, res: Response) {
       email: profile.email,
       full_name: profile.full_name ?? profile.email.split('@')[0],
       role: profile.role,
+      tenant_id: (profile as any).tenant_id ?? null,
     },
   });
 }

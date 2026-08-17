@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import type { DbSession } from '../lib/types';
 import { calculateSessionCost } from '../lib/billing';
+import { getDb, saveDatabase, setSuppressSave } from '../lib/database';
 
 
 /**
@@ -473,6 +474,14 @@ export async function endSession(req: Request, res: Response) {
     throw badRequest('Session end time cannot be in the future');
   }
 
+  // FIX: Check backdate permission BEFORE any DB writes.
+  // Previously this check came AFTER session update + invoice creation, meaning
+  // a non-admin could end with a backdated time and data would already be saved.
+  const isEndBackdated = ended_at && (new Date().getTime() - sessionEnd.getTime() > 60000);
+  if (isEndBackdated && req.user?.role !== 'admin') {
+    throw forbidden('Only admins can backdate session end times');
+  }
+
   const deviceHourlyRate = session.play_mode === 'multiplayer' 
     ? Number(session.device?.hourly_rate_multi ?? 0) 
     : Number(session.device?.hourly_rate ?? 0);
@@ -515,73 +524,113 @@ export async function endSession(req: Request, res: Response) {
   }
   const finalTotalCost = Math.round((totalCost + cafeTotalCost) * 100) / 100;
 
-  // 3. End the session atomically.
-  // Using status check in update prevents duplicate ending race condition.
-  const { data: ended, error: endErr } = await supabase
-    .from('sessions')
-    .update({
-      ended_at: sessionEnd.toISOString(),
-      duration_minutes: billedMinutes,
-      total_cost: finalTotalCost,
-      status: 'ended',
-      is_overtime: isOvertime,
-      overtime_minutes: overtimeMinutes > 0 ? overtimeMinutes : null,
-    })
-    .eq('id', id)
-    .eq('status', 'active')
-    .eq('tenant_id', req.user!.tenant_id)
-    .select(
-      '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)'
-    )
-    .maybeSingle();
-
-  if (endErr) throw endErr;
-  if (!ended) {
-    throw conflict('Session already ended or not found', 'SESSION_ENDED');
+  // FIX: Use SQLite transaction (offline mode) to keep all writes atomic.
+  // If invoice creation or device update fails, the session update is rolled back.
+  // In cloud (Supabase) mode, transactions are not available via REST API, but
+  // we use a try/finally to guarantee the device is always freed.
+  const isOfflineMode = process.env.OFFLINE_MODE === 'true';
+  let rawDb: any = null;
+  if (isOfflineMode) {
+    rawDb = getDb();
+    setSuppressSave(true); // suppress intermediate disk saves during transaction
+    rawDb.run('BEGIN');
   }
 
-  // 4. Auto-generate an invoice.
-  const { data: invoice, error: invErr } = await supabase
-    .from('invoices')
-    .insert({
-      session_id: id,
-      amount: finalTotalCost,
-      paid: !!mark_paid,
-      payment_method,
-      paid_at: mark_paid ? sessionEnd.toISOString() : null,
-      tenant_id: req.user!.tenant_id,
-    })
-    .select('*')
-    .single();
-  if (invErr) throw invErr;
+  let ended: any = null;
+  let invoice: any = null;
 
-  // 5. Audit end backdating if applicable
-  const isEndBackdated = ended_at && (new Date().getTime() - sessionEnd.getTime() > 60000);
-  if (isEndBackdated) {
-    if (req.user?.role !== 'admin') {
-      throw forbidden('Only admins can backdate session end times');
-    }
-    const { error: auditErr } = await supabase
-      .from('session_audit_log')
+  try {
+    // 3. End the session atomically.
+    // Using status check in update prevents duplicate ending race condition.
+    const { data: endedData, error: endErr } = await supabase
+      .from('sessions')
+      .update({
+        ended_at: sessionEnd.toISOString(),
+        duration_minutes: billedMinutes,
+        total_cost: finalTotalCost,
+        status: 'ended',
+        is_overtime: isOvertime,
+        overtime_minutes: overtimeMinutes > 0 ? overtimeMinutes : null,
+      })
+      .eq('id', id)
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .select(
+        '*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)'
+      )
+      .maybeSingle();
+
+    if (endErr) throw endErr;
+    if (!endedData) throw conflict('Session already ended or not found', 'SESSION_ENDED');
+    ended = endedData;
+
+    // 4. Auto-generate an invoice.
+    const { data: invoiceData, error: invErr } = await supabase
+      .from('invoices')
       .insert({
         session_id: id,
-        edited_by: req.user!.id,
-        field_changed: 'ended_at',
-        old_value: null,
-        new_value: sessionEnd.toISOString(),
-      });
-    if (auditErr) {
-      console.error('[audit] failed to insert end backdate log:', auditErr.message);
-    }
-  }
+        amount: finalTotalCost,
+        paid: !!mark_paid,
+        payment_method,
+        paid_at: mark_paid ? sessionEnd.toISOString() : null,
+        tenant_id: req.user!.tenant_id,
+      })
+      .select('*')
+      .single();
+    if (invErr) throw invErr;
+    invoice = invoiceData;
 
-  // 6. Free the device.
-  const { error: devErr } = await supabase
-    .from('devices')
-    .update({ status: 'available' })
-    .eq('id', session.device_id)
-    .eq('tenant_id', req.user!.tenant_id);
-  if (devErr) throw devErr;
+    // 5. Audit end backdating if applicable
+    if (isEndBackdated) {
+      const { error: auditErr } = await supabase
+        .from('session_audit_log')
+        .insert({
+          session_id: id,
+          edited_by: req.user!.id,
+          field_changed: 'ended_at',
+          old_value: null,
+          new_value: sessionEnd.toISOString(),
+        });
+      if (auditErr) {
+        console.error('[audit] failed to insert end backdate log:', auditErr.message);
+      }
+    }
+
+    // 6. Free the device.
+    const { error: devErr } = await supabase
+      .from('devices')
+      .update({ status: 'available' })
+      .eq('id', session.device_id)
+      .eq('tenant_id', req.user!.tenant_id);
+    if (devErr) throw devErr;
+
+    // Commit & persist
+    if (rawDb) {
+      rawDb.run('COMMIT');
+      setSuppressSave(false);
+      saveDatabase();
+    }
+  } catch (err) {
+    // Rollback on any failure — device and session stay consistent
+    if (rawDb) {
+      try { rawDb.run('ROLLBACK'); } catch { /* ignore rollback errors */ }
+      setSuppressSave(false);
+    } else {
+      // Cloud mode: try to free the device even if invoice creation failed,
+      // so the device doesn't get stuck in 'in_use' state.
+      if (ended) {
+        supabase
+          .from('devices')
+          .update({ status: 'available' })
+          .eq('id', session.device_id)
+          .eq('tenant_id', req.user!.tenant_id)
+          .then(({ error: freeErr }: { error: any }) => {
+            if (freeErr) console.error('[session] Failed to free device after error:', freeErr.message);
+          });
+      }
+    }
+    throw err;
+  }
 
   res.json({
     data: ended as unknown as DbSession,

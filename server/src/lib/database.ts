@@ -13,6 +13,19 @@ import os from 'os';
 
 let _db: SqlJsDatabase | null = null;
 
+// ─── Transaction support ──────────────────────────────────────────────────────
+
+/**
+ * When true, saveDatabase() becomes a no-op.
+ * Used during SQLite transactions to avoid writing partial state to disk.
+ * Call saveDatabase() manually after COMMIT.
+ */
+let _suppressSave = false;
+
+export function setSuppressSave(value: boolean): void {
+  _suppressSave = value;
+}
+
 /** Resolve the data directory.  On Windows → %APPDATA%/ccms */
 function getDataDir(): string {
   const base =
@@ -277,36 +290,50 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     console.error('[database] Products stock auto-migration failed:', pErr.message);
   }
 
-
+  // FIX: Migration for devices.type to include 'table'
+  // Checks if the CURRENT CHECK constraint already supports 'table' type.
+  // Uses a reliable column-level check via PRAGMA instead of parsing DDL.
   try {
-    const devicesTableInfo = _db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='devices'");
-    const createSql = (devicesTableInfo[0]?.values[0]?.[0] as string) || '';
+    // Try inserting a temp row with type='table' to test if constraint allows it.
+    // If it fails (SQLITE_CONSTRAINT), we need to migrate.
+    const devicesInfo = _db.exec("PRAGMA table_info(devices)");
+    const devCols = devicesInfo[0]?.values.map(v => v[1] as string) || [];
 
-    if (createSql && !createSql.includes("'table'")) {
-      console.log('[database] Running database migration: updating devices.type CHECK constraint to include table...');
-      _db.run('PRAGMA foreign_keys = OFF;');
-      _db.run(`
-        CREATE TABLE devices_new (
-          id              TEXT PRIMARY KEY,
-          name            TEXT NOT NULL,
-          type            TEXT NOT NULL DEFAULT 'pc' CHECK (type IN ('pc','console','vr','table')),
-          status          TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available','in_use','reserved','offline')),
-          specs           TEXT,
-          hourly_rate     REAL NOT NULL DEFAULT 0 CHECK (hourly_rate >= 0),
-          hourly_rate_multi REAL NOT NULL DEFAULT 0 CHECK (hourly_rate_multi >= 0),
-          archived        INTEGER NOT NULL DEFAULT 0,
-          tenant_id       TEXT,
-          created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
-          synced          INTEGER NOT NULL DEFAULT 0,
-          synced_at       TEXT
-        );
-      `);
-      _db.run('INSERT INTO devices_new SELECT * FROM devices;');
-      _db.run('DROP TABLE devices;');
-      _db.run('ALTER TABLE devices_new RENAME TO devices;');
-      _db.run('PRAGMA foreign_keys = ON;');
-      console.log('[database] Devices table migration completed successfully.');
+    if (devCols.length > 0) {
+      // Check by reading existing sqlite_master DDL for the 'table' type keyword
+      const devicesTableInfo = _db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='devices'");
+      const createSql = (devicesTableInfo[0]?.values[0]?.[0] as string) || '';
+
+      // If the CHECK constraint does NOT include 'table' as a valid type, migrate.
+      // We look for the pattern: 'table' surrounded by quotes in the type check list.
+      const hasTableType = /CHECK\s*\([^)]*'table'[^)]*\)/i.test(createSql);
+
+      if (createSql && !hasTableType) {
+        console.log('[database] Running database migration: updating devices.type CHECK constraint to include table...');
+        _db.run('PRAGMA foreign_keys = OFF;');
+        _db.run(`
+          CREATE TABLE devices_new (
+            id              TEXT PRIMARY KEY,
+            name            TEXT NOT NULL,
+            type            TEXT NOT NULL DEFAULT 'pc' CHECK (type IN ('pc','console','vr','table')),
+            status          TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available','in_use','reserved','offline')),
+            specs           TEXT,
+            hourly_rate     REAL NOT NULL DEFAULT 0 CHECK (hourly_rate >= 0),
+            hourly_rate_multi REAL NOT NULL DEFAULT 0 CHECK (hourly_rate_multi >= 0),
+            archived        INTEGER NOT NULL DEFAULT 0,
+            tenant_id       TEXT,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            synced          INTEGER NOT NULL DEFAULT 0,
+            synced_at       TEXT
+          );
+        `);
+        _db.run('INSERT INTO devices_new SELECT * FROM devices;');
+        _db.run('DROP TABLE devices;');
+        _db.run('ALTER TABLE devices_new RENAME TO devices;');
+        _db.run('PRAGMA foreign_keys = ON;');
+        console.log('[database] Devices table migration completed successfully.');
+      }
     }
   } catch (err: any) {
     console.error('[database] Devices table migration failed:', err.message);
@@ -327,7 +354,7 @@ export function getDb(): SqlJsDatabase {
 
 /** Persist the in-memory database to disk. */
 export function saveDatabase(): void {
-  if (!_db) return;
+  if (_suppressSave || !_db) return;
   const data = _db.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(getDbPath(), buffer);

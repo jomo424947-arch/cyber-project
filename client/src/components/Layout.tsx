@@ -418,25 +418,6 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
                   <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>inventory_2</span> {t('products')}
                 </NavLink>
 
-                <NavLink
-                  to="/reservations"
-                  onClick={() => setShowMoreMenu(false)}
-                  style={({ isActive }) => ({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                    background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
-                    textDecoration: 'none',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    minHeight: '44px',
-                  })}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_upcoming</span> {t('reservations')}
-                </NavLink>
 
                 <NavLink
                   to="/billing"

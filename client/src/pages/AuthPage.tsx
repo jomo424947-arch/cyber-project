@@ -62,6 +62,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
 
   // Auto-detect reset password token from URL hash (Supabase email links)
   const [employees, setEmployees] = useState<User[]>([]);
+  const [useManualEmail, setUseManualEmail] = useState(false);
 
   useEffect(() => {
     if (view === 'login') {
@@ -69,7 +70,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
         try {
           const list = await dataService.listPublicEmployees();
           setEmployees(list);
-          if (list.length > 0) {
+          if (list.length > 0 && !useManualEmail) {
             setEmail(list[0].email);
           }
         } catch (err) {
@@ -78,7 +79,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
       }
       fetchEmployees();
     }
-  }, [view]);
+  }, [view, useManualEmail]);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -97,7 +98,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
         handleVerifyToken(tokenHash);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSuccess = (u: User) => {
@@ -260,37 +261,64 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                 <p className="auth-form-subtitle">{t('sign_in_subtitle')}</p>
 
                 <form onSubmit={handleLogin} className="auth-form" noValidate>
-                  <Field label={employees.length > 0 ? (language === 'ar' ? 'اسم الموظف' : 'Employee Name') : t('employee_email')}>
-                    {employees.length > 0 ? (
-                      <select
-                        id="auth-email"
-                        className="ccms-input"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        autoFocus
-                        style={{
-                          background: 'var(--bg-input)',
-                          color: 'var(--text-primary)',
-                          border: '1px solid var(--text-muted)'
-                        }}
-                      >
-                        {employees.map((emp) => (
-                          <option key={emp.id} value={emp.email} style={{ background: 'var(--bg-surface)' }}>
-                            {emp.full_name || emp.email}
+                  <Field label={employees.length > 0 && !useManualEmail ? (language === 'ar' ? 'اسم الموظف' : 'Employee Name') : t('employee_email')}>
+                    {employees.length > 0 && !useManualEmail ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <select
+                          id="auth-email"
+                          className="ccms-input"
+                          value={email}
+                          onChange={(e) => {
+                            if (e.target.value === '__manual__') {
+                              setUseManualEmail(true);
+                              setEmail('');
+                            } else {
+                              setEmail(e.target.value);
+                            }
+                          }}
+                          autoFocus
+                          style={{
+                            background: 'var(--bg-input)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--text-muted)'
+                          }}
+                        >
+                          {employees.map((emp) => (
+                            <option key={emp.id} value={emp.email} style={{ background: 'var(--bg-surface)' }}>
+                              {emp.full_name || emp.email}
+                            </option>
+                          ))}
+                          <option value="__manual__" style={{ background: 'var(--bg-surface)', fontStyle: 'italic', color: 'var(--accent-cyan)' }}>
+                            {language === 'ar' ? ' أدخل بريد إلكتروني آخر...' : ' Enter another email...'}
                           </option>
-                        ))}
-                      </select>
+                        </select>
+                      </div>
                     ) : (
-                      <input
-                        id="auth-email"
-                        type="email"
-                        className="ccms-input"
-                        placeholder="you@cafe.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        autoComplete="email"
-                        autoFocus
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <input
+                          id="auth-email"
+                          type="email"
+                          className="ccms-input"
+                          placeholder="you@cafe.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          autoComplete="email"
+                          autoFocus
+                        />
+                        {employees.length > 0 && (
+                          <button
+                            type="button"
+                            className="auth-link-btn"
+                            onClick={() => {
+                              setUseManualEmail(false);
+                              if (employees.length > 0) setEmail(employees[0].email);
+                            }}
+                            style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--text-muted)' }}
+                          >
+                            {language === 'ar' ? '← العودة لقائمة الموظفين' : '← Back to employees list'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </Field>
 
@@ -331,6 +359,17 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                     {t('sign_in')}
                   </button>
                 </form>
+
+                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    className="auth-link-btn"
+                    onClick={() => switchView('activate')}
+                    style={{ fontSize: '13px', color: 'var(--accent-cyan)', fontWeight: 600 }}
+                  >
+                    {language === 'ar' ? ' تفعيل ترخيص / حساب سايبر جديد على هذا الجهاز' : ' Activate new license / cafe account on this device'}
+                  </button>
+                </div>
               </>
             )}
 
@@ -524,11 +563,21 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
             {/* ── License Activation ── */}
             {view === 'activate' && (
               <>
-                <h2 className="auth-form-title">Activate CCMS License</h2>
-                <p className="auth-form-subtitle">Enter your cloud owner credentials to link and activate this cyber café device.</p>
+                <button className="auth-back-btn" onClick={() => switchView('login')}>
+                  {language === 'ar' ? '← العودة لتسجيل الدخول' : '← Back to sign in'}
+                </button>
+
+                <h2 className="auth-form-title">
+                  {language === 'ar' ? 'تفعيل ترخيص السايبر (CCMS)' : 'Activate CCMS License'}
+                </h2>
+                <p className="auth-form-subtitle">
+                  {language === 'ar'
+                    ? 'أدخل البريد الإلكتروني للمالك وكلمة المرور السحابية لربط وتفعيل هذا الجهاز بالحساب المطلوب.'
+                    : 'Enter your cloud owner credentials to link and activate this cyber café device.'}
+                </p>
 
                 <form onSubmit={handleActivate} className="auth-form" noValidate>
-                  <Field label="Owner Email">
+                  <Field label={language === 'ar' ? 'البريد الإلكتروني للمالك' : 'Owner Email'}>
                     <input
                       id="auth-activate-email"
                       type="email"
@@ -541,7 +590,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                     />
                   </Field>
 
-                  <Field label="Cloud Password">
+                  <Field label={language === 'ar' ? 'كلمة المرور السحابية' : 'Cloud Password'}>
                     <div className="password-wrapper">
                       <input
                         id="auth-activate-password"
@@ -563,7 +612,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
 
                   <button type="submit" className="ccms-btn ccms-btn-primary auth-submit" disabled={loading}>
                     {loading ? <Spinner /> : null}
-                    Activate Software
+                    {language === 'ar' ? 'تفعيل وتأكيد الجهاز' : 'Activate Software'}
                   </button>
                 </form>
               </>
@@ -662,10 +711,10 @@ function getPasswordScore(pwd: string): number {
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
     </svg>
   );
 }
@@ -673,8 +722,8 @@ function GoogleIcon() {
 function EyeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -682,9 +731,9 @@ function EyeIcon() {
 function EyeOffIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
+      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+      <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   );
 }

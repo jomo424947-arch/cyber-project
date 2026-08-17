@@ -242,7 +242,7 @@ async function syncEmployeesFromCloud(db: ReturnType<typeof getDb>, tenantId: st
   const timer = setTimeout(() => controller.abort(), 3000);
 
   try {
-    const { data: cloudUsers } = await cloudSupabase
+    const { data: cloudUsers, error: cloudErr } = await cloudSupabase
       .from('users')
       .select('id, email, full_name, role, tenant_id')
       .eq('tenant_id', tenantId)
@@ -250,32 +250,58 @@ async function syncEmployeesFromCloud(db: ReturnType<typeof getDb>, tenantId: st
 
     clearTimeout(timer);
 
-    if (cloudUsers !== null) {
-      if (cloudUsers.length > 0) {
-        const cloudIds = cloudUsers.map((u) => u.id);
-        const placeholders = cloudIds.map(() => '?').join(',');
-        db.run(`DELETE FROM users WHERE tenant_id = ? AND id NOT IN (${placeholders})`, [tenantId, ...cloudIds]);
-
-        for (const cu of cloudUsers) {
-          const stmtCheck = db.prepare('SELECT password_hash FROM users WHERE id = ?');
-          stmtCheck.bind([cu.id]);
-          let existingHash: string | null = null;
-          if (stmtCheck.step()) {
-            existingHash = stmtCheck.getAsObject().password_hash as string;
-          }
-          stmtCheck.free();
-
-          db.run(
-            `INSERT OR REPLACE INTO users (id, email, full_name, role, password_hash, tenant_id) VALUES (?, ?, ?, ?, ?, ?)`,
-            [cu.id, cu.email, cu.full_name || cu.email.split('@')[0], cu.role, existingHash || null, cu.tenant_id]
-          );
-        }
-      } else {
-        db.run(`DELETE FROM users WHERE tenant_id = ?`, [tenantId]);
-      }
-      saveDatabase();
-      console.log(`[employees-public] Synced ${cloudUsers.length} user(s) from cloud.`);
+    // FIX: Guard against empty result due to network errors, RLS misconfigurations,
+    // or temporary cloud issues. If cloud returns null or an error, skip the sync
+    // entirely to prevent deleting all local users.
+    if (cloudErr) {
+      console.warn('[employees-public] Cloud sync skipped due to error:', cloudErr.message);
+      return;
     }
+
+    if (cloudUsers === null) {
+      console.warn('[employees-public] Cloud returned null users list. Skipping sync to prevent data loss.');
+      return;
+    }
+
+    // FIX: If cloud returns an EMPTY array, this could mean:
+    // 1. RLS policy is blocking the query (returns 0 rows instead of error)
+    // 2. All users were genuinely deleted from cloud
+    // To be safe, we ONLY delete local users if cloud returned at least 1 user.
+    // Deleting all local users when offline would lock everyone out.
+    if (cloudUsers.length === 0) {
+      console.warn(
+        `[employees-public] Cloud returned 0 users for tenant ${tenantId}. ` +
+        'Skipping local delete to prevent accidental lockout. ' +
+        'If intentional, delete users manually from the admin panel.'
+      );
+      return;
+    }
+
+    // Safe to sync: cloud returned valid user data
+    const cloudIds = cloudUsers.map((u) => u.id);
+    const placeholders = cloudIds.map(() => '?').join(',');
+
+    // Remove local users that no longer exist in cloud
+    db.run(`DELETE FROM users WHERE tenant_id = ? AND id NOT IN (${placeholders})`, [tenantId, ...cloudIds]);
+
+    for (const cu of cloudUsers) {
+      // Preserve existing local password_hash so the user can still log in offline
+      const stmtCheck = db.prepare('SELECT password_hash FROM users WHERE id = ?');
+      stmtCheck.bind([cu.id]);
+      let existingHash: string | null = null;
+      if (stmtCheck.step()) {
+        existingHash = stmtCheck.getAsObject().password_hash as string;
+      }
+      stmtCheck.free();
+
+      db.run(
+        `INSERT OR REPLACE INTO users (id, email, full_name, role, password_hash, tenant_id) VALUES (?, ?, ?, ?, ?, ?)`,
+        [cu.id, cu.email, cu.full_name || cu.email.split('@')[0], cu.role, existingHash || null, cu.tenant_id]
+      );
+    }
+
+    saveDatabase();
+    console.log(`[employees-public] Synced ${cloudUsers.length} user(s) from cloud.`);
   } catch (err: any) {
     clearTimeout(timer);
     console.warn('[employees-public] Cloud sync skipped:', err.message);

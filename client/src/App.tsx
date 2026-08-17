@@ -9,7 +9,6 @@ import DevicesPage from './pages/DevicesPage';
 import SessionsPage from './pages/SessionsPage';
 import ProductsPage from './pages/ProductsPage';
 import BillingPage from './pages/BillingPage';
-import ReservationsPage from './pages/ReservationsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import PricingPage from './pages/PricingPage';
@@ -232,7 +231,6 @@ export default function App() {
       <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
       <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
-      <Route path="/reservations" element={<ProtectedRoute><ReservationsPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
       <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />

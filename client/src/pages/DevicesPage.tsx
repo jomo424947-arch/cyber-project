@@ -26,10 +26,12 @@ export default function DevicesPage() {
   const { t, language } = useLanguage();
 
   const { data, loading, refetch } = useAsync(async () => {
-    const [devices, sessions] = await Promise.all([
+    const [allDevices, sessions] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
     ]);
+    // Filter out 'table' type devices — they belong to the Rooms/Game Halls page only
+    const devices = allDevices.filter((d: Device) => d.type !== 'table');
     return { devices, sessions } as { devices: Device[]; sessions: Session[] };
   }, []);
 
@@ -360,7 +362,6 @@ function DeviceFormModal({
           <option value="pc">{language === 'ar' ? 'كمبيوتر مكتبى (PC)' : 'PC'}</option>
           <option value="console">{language === 'ar' ? 'منصة ألعاب (Console)' : 'Console'}</option>
           <option value="vr">{language === 'ar' ? 'واقع افتراضي (VR)' : 'VR'}</option>
-          <option value="table">{language === 'ar' ? 'طربيزة (بلياردو / تنس)' : 'Table (Billiard/Tennis)'}</option>
         </Select>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <Input

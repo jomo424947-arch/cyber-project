@@ -161,7 +161,13 @@ class QueryBuilder {
   // ─── Filters ─────────────────────────────────────────────────────────────
 
   eq(col: string, val: any): this {
-    this._where.push({ col, op: '=', val });
+    // FIX: When val is null/undefined, use IS NULL semantics (not = NULL which
+    // is always false in SQL). This matches both SQLite and Supabase PostgREST behavior.
+    if (val === null || val === undefined) {
+      this._where.push({ col, op: 'IS', val: null });
+    } else {
+      this._where.push({ col, op: '=', val });
+    }
     return this;
   }
 
@@ -215,6 +221,8 @@ class QueryBuilder {
   }
 
   or(clause: string): this {
+    // FIX: Parse Supabase-style OR clause e.g. "name.ilike.%foo%,phone.ilike.%foo%"
+    // and store for use in _buildWhere().
     this._orClauses.push(clause);
     return this;
   }
@@ -428,6 +436,59 @@ class QueryBuilder {
       }
     }
 
+    // FIX: Apply OR clauses. Each clause is a Supabase-style string like:
+    //   "name.ilike.%foo%,phone.ilike.%foo%,email.eq.bar@test.com"
+    // We parse each filter and combine them with OR.
+    if (this._orClauses.length > 0) {
+      const orParts: string[] = [];
+      for (const orClause of this._orClauses) {
+        // Split on commas that are NOT inside parentheses
+        const filters = orClause.split(',');
+        for (const filter of filters) {
+          const trimmed = filter.trim();
+          // Format: column.operator.value  or  column.operator
+          const dotIdx1 = trimmed.indexOf('.');
+          if (dotIdx1 === -1) continue;
+          const col = trimmed.substring(0, dotIdx1);
+          const rest = trimmed.substring(dotIdx1 + 1);
+          const dotIdx2 = rest.indexOf('.');
+          if (dotIdx2 === -1) continue;
+          const op = rest.substring(0, dotIdx2).toLowerCase();
+          const val = rest.substring(dotIdx2 + 1);
+          const qualCol = `"${this._table}"."${col}"`;
+          if (op === 'ilike' || op === 'like') {
+            orParts.push(`${qualCol} LIKE ?`);
+            params.push(val);
+          } else if (op === 'eq') {
+            orParts.push(`${qualCol} = ?`);
+            params.push(val);
+          } else if (op === 'neq') {
+            orParts.push(`${qualCol} != ?`);
+            params.push(val);
+          } else if (op === 'is') {
+            orParts.push(`${qualCol} IS NULL`);
+          } else if (op === 'isnot') {
+            orParts.push(`${qualCol} IS NOT NULL`);
+          } else if (op === 'gt') {
+            orParts.push(`${qualCol} > ?`);
+            params.push(val);
+          } else if (op === 'gte') {
+            orParts.push(`${qualCol} >= ?`);
+            params.push(val);
+          } else if (op === 'lt') {
+            orParts.push(`${qualCol} < ?`);
+            params.push(val);
+          } else if (op === 'lte') {
+            orParts.push(`${qualCol} <= ?`);
+            params.push(val);
+          }
+        }
+      }
+      if (orParts.length > 0) {
+        clauses.push(`(${orParts.join(' OR ')})`);
+      }
+    }
+
     return { whereClause: clauses.join(' AND '), whereParams: params };
   }
 
@@ -455,41 +516,50 @@ class QueryBuilder {
       }
 
       const cols = join.columns.map(c => `"${c}"`).join(', ');
+      // FIX: Wrap in try/finally to guarantee stmt.free() is always called,
+      // preventing memory leaks when exceptions are thrown.
       const stmt = db.prepare(`SELECT ${cols} FROM "${join.table}" WHERE "id" = ?`);
-      stmt.bind([row[fkCol]]);
+      try {
+        stmt.bind([row[fkCol]]);
 
-      if (stmt.step()) {
-        const joinRow = stmt.getAsObject();
-        // Resolve nested joins if any
-        const nestedJoins = this._nestedJoins.get(join.alias);
-        if (nestedJoins) {
-          for (const nested of nestedJoins) {
-            const nestedFkMap = FK_MAP[join.table] || NESTED_FK_MAP[join.table];
-            if (!nestedFkMap) continue;
-            let nestedFkCol: string | null = null;
-            for (const [col, tbl] of Object.entries(nestedFkMap)) {
-              if (tbl === nested.table) { nestedFkCol = col; break; }
-            }
-            if (nestedFkCol && joinRow[nestedFkCol]) {
-              const nestedCols = nested.columns.map(c => `"${c}"`).join(', ');
-              const nestedStmt = db.prepare(`SELECT ${nestedCols} FROM "${nested.table}" WHERE "id" = ?`);
-              nestedStmt.bind([joinRow[nestedFkCol]]);
-              if (nestedStmt.step()) {
-                (joinRow as any)[nested.alias] = this._convertTypes(nestedStmt.getAsObject());
+        if (stmt.step()) {
+          const joinRow = stmt.getAsObject();
+          // Resolve nested joins if any
+          const nestedJoins = this._nestedJoins.get(join.alias);
+          if (nestedJoins) {
+            for (const nested of nestedJoins) {
+              const nestedFkMap = FK_MAP[join.table] || NESTED_FK_MAP[join.table];
+              if (!nestedFkMap) continue;
+              let nestedFkCol: string | null = null;
+              for (const [col, tbl] of Object.entries(nestedFkMap)) {
+                if (tbl === nested.table) { nestedFkCol = col; break; }
+              }
+              if (nestedFkCol && joinRow[nestedFkCol]) {
+                const nestedCols = nested.columns.map(c => `"${c}"`).join(', ');
+                // FIX: Also wrap nested statements in try/finally
+                const nestedStmt = db.prepare(`SELECT ${nestedCols} FROM "${nested.table}" WHERE "id" = ?`);
+                try {
+                  nestedStmt.bind([joinRow[nestedFkCol]]);
+                  if (nestedStmt.step()) {
+                    (joinRow as any)[nested.alias] = this._convertTypes(nestedStmt.getAsObject());
+                  } else {
+                    (joinRow as any)[nested.alias] = null;
+                  }
+                } finally {
+                  nestedStmt.free();
+                }
               } else {
                 (joinRow as any)[nested.alias] = null;
               }
-              nestedStmt.free();
-            } else {
-              (joinRow as any)[nested.alias] = null;
             }
           }
+          result[join.alias] = this._convertTypes(joinRow);
+        } else {
+          result[join.alias] = null;
         }
-        result[join.alias] = this._convertTypes(joinRow);
-      } else {
-        result[join.alias] = null;
+      } finally {
+        stmt.free();
       }
-      stmt.free();
     }
 
     return result;

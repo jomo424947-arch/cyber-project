@@ -22,7 +22,6 @@ export const NAV: NavItem[] = [
   { to: '/sessions', label: 'Active Sessions', key: 'sessions', icon: 'p2p' },
   { to: '/products', label: 'Product Catalog', key: 'products', icon: 'inventory_2' },
   { to: '/billing', label: 'Financials', key: 'billing', icon: 'payments' },
-  { to: '/reservations', label: 'Reservations', key: 'reservations', icon: 'event_upcoming' },
   { to: '/reports', label: 'Intelligence Reports', key: 'reports', icon: 'query_stats' },
   { to: '/employees', label: 'Employees', key: 'employees', icon: 'badge', adminOnly: true },
   { to: '/settings', label: 'Security Settings', key: 'settings', icon: 'security', adminOnly: true },

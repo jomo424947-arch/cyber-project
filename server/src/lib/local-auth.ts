@@ -21,12 +21,17 @@ export function verifyPassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
 }
 
-export function signToken(payload: { id: string; email: string; role: string }): string {
+/**
+ * FIX: tenant_id is now embedded in the JWT payload.
+ * Previously it was missing, causing the server to rely on a global
+ * tenant_config fallback that could mix up data between different cafés.
+ */
+export function signToken(payload: { id: string; email: string; role: string; tenant_id?: string | null }): string {
   return jwt.sign(payload, getJwtSecret(), { expiresIn: '1h' });
 }
 
-export function verifyToken(token: string): { id: string; email: string; role: string } {
-  return jwt.verify(token, getJwtSecret()) as { id: string; email: string; role: string };
+export function verifyToken(token: string): { id: string; email: string; role: string; tenant_id?: string | null } {
+  return jwt.verify(token, getJwtSecret()) as { id: string; email: string; role: string; tenant_id?: string | null };
 }
 
 export function signRefreshToken(payload: { id: string }): string {

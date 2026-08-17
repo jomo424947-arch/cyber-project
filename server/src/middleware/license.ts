@@ -13,15 +13,16 @@ export function licenseCheck(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
+  // Allow all authentication and tenant routes to be accessed even if unactivated
+  if (req.path.startsWith('/api/auth')) {
+    return next();
+  }
+
   const exemptPaths = [
     '/health',
-    '/api/auth/status',
-    '/api/auth/activate',
-    '/api/auth/register-tenant',
   ];
 
   if (
-    req.path.startsWith('/api/auth/tenants') ||
     exemptPaths.includes(req.path) ||
     exemptPaths.includes(req.originalUrl)
   ) {
