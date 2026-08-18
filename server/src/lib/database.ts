@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   is_overtime           INTEGER NOT NULL DEFAULT 0,
   overtime_minutes      INTEGER,
   edited_start_at       INTEGER NOT NULL DEFAULT 0,
+  is_paused             INTEGER NOT NULL DEFAULT 0,
+  total_paused_minutes  INTEGER NOT NULL DEFAULT 0,
   created_by            TEXT REFERENCES users(id),
   tenant_id             TEXT,
   created_at            TEXT NOT NULL DEFAULT (datetime('now')),
@@ -173,12 +175,15 @@ CREATE TABLE IF NOT EXISTS products (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
   price       REAL NOT NULL DEFAULT 0,
+  cost_price  REAL,
   stock       INTEGER NOT NULL DEFAULT 0,
   tenant_id   TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   synced      INTEGER NOT NULL DEFAULT 0,
   synced_at   TEXT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_tenant_name ON products(tenant_id, name);
 
 -- session_orders
 CREATE TABLE IF NOT EXISTS session_orders (
@@ -193,6 +198,61 @@ CREATE TABLE IF NOT EXISTS session_orders (
   synced_at   TEXT
 );
 
+-- product_stock_logs
+CREATE TABLE IF NOT EXISTS product_stock_logs (
+  id            TEXT PRIMARY KEY,
+  product_id    TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  tenant_id     TEXT,
+  actor_id      TEXT REFERENCES users(id),
+  change_type   TEXT NOT NULL CHECK (change_type IN ('restock', 'sale', 'standalone_sale', 'void_order', 'manual_adjustment', 'shrinkage')),
+  delta         INTEGER NOT NULL,
+  balance_after INTEGER NOT NULL CHECK (balance_after >= 0),
+  reason        TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  synced        INTEGER NOT NULL DEFAULT 0,
+  synced_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_logs_product ON product_stock_logs(product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_logs_tenant  ON product_stock_logs(tenant_id);
+
+-- standalone_orders
+CREATE TABLE IF NOT EXISTS standalone_orders (
+  id             TEXT PRIMARY KEY,
+  tenant_id      TEXT,
+  product_id     TEXT NOT NULL REFERENCES products(id),
+  quantity       INTEGER NOT NULL DEFAULT 1,
+  unit_price     REAL NOT NULL,
+  cost_price     REAL,
+  total_price    REAL NOT NULL,
+  payment_method TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash','card','transfer','wallet')),
+  created_by     TEXT REFERENCES users(id),
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  synced         INTEGER NOT NULL DEFAULT 0,
+  synced_at      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_standalone_orders_tenant  ON standalone_orders(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_standalone_orders_product ON standalone_orders(product_id);
+
+-- session_pauses
+CREATE TABLE IF NOT EXISTS session_pauses (
+  id          TEXT PRIMARY KEY,
+  session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  tenant_id   TEXT,
+  paused_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  resumed_at  TEXT,
+  paused_by   TEXT REFERENCES users(id),
+  resumed_by  TEXT REFERENCES users(id),
+  reason      TEXT,
+  synced      INTEGER NOT NULL DEFAULT 0,
+  synced_at   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_pauses_session ON session_pauses(session_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_pauses_one_open_per_session
+  ON session_pauses(session_id) WHERE resumed_at IS NULL;
+
 -- session_audit_log
 CREATE TABLE IF NOT EXISTS session_audit_log (
   id            TEXT PRIMARY KEY,
@@ -205,6 +265,22 @@ CREATE TABLE IF NOT EXISTS session_audit_log (
   synced        INTEGER NOT NULL DEFAULT 0,
   synced_at     TEXT
 );
+
+-- rooms (gaming lounges / private rooms)
+CREATE TABLE IF NOT EXISTS rooms (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  icon        TEXT NOT NULL DEFAULT 'sports_esports',
+  device_id   TEXT REFERENCES devices(id) ON DELETE SET NULL,
+  tenant_id   TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  synced      INTEGER NOT NULL DEFAULT 0,
+  synced_at   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rooms_tenant ON rooms(tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_device ON rooms(device_id) WHERE device_id IS NOT NULL;
 
 -- sync_queue for tracking what needs to be pushed to Supabase
 CREATE TABLE IF NOT EXISTS sync_queue (
@@ -245,7 +321,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
   try {
     const usersInfo = _db.exec("PRAGMA table_info(users)");
     const columns = usersInfo[0]?.values.map(v => v[1] as string) || [];
-    
+
     if (!columns.includes('tenant_id')) {
       console.log('[database] Running database migration: adding tenant_id columns...');
       _db.run('ALTER TABLE users ADD COLUMN tenant_id TEXT;');
@@ -277,7 +353,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     console.error('[database] Auto-migration check failed:', err.message);
   }
 
-  // Auto-migration helper for products stock column
+  // Auto-migration helper for products stock and cost_price columns
   try {
     const prodInfo = _db.exec("PRAGMA table_info(products)");
     const prodCols = prodInfo[0]?.values.map(v => v[1] as string) || [];
@@ -286,8 +362,27 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       _db.run('ALTER TABLE products ADD COLUMN stock INTEGER NOT NULL DEFAULT 0;');
       console.log('[database] Products stock migration completed successfully.');
     }
+    if (!prodCols.includes('cost_price')) {
+      console.log('[database] Running database migration: adding cost_price column to products...');
+      _db.run('ALTER TABLE products ADD COLUMN cost_price REAL;');
+      console.log('[database] Products cost_price migration completed successfully.');
+    }
   } catch (pErr: any) {
-    console.error('[database] Products stock auto-migration failed:', pErr.message);
+    console.error('[database] Products auto-migration failed:', pErr.message);
+  }
+
+  // Auto-migration for sessions pause columns (added in migration 010)
+  try {
+    const sessionsInfo = _db.exec("PRAGMA table_info(sessions)");
+    const sessionCols = sessionsInfo[0]?.values.map(v => v[1] as string) || [];
+    if (!sessionCols.includes('is_paused')) {
+      console.log('[database] Running database migration: adding pause/resume columns to sessions...');
+      _db.run('ALTER TABLE sessions ADD COLUMN is_paused INTEGER NOT NULL DEFAULT 0;');
+      _db.run('ALTER TABLE sessions ADD COLUMN total_paused_minutes INTEGER NOT NULL DEFAULT 0;');
+      console.log('[database] Sessions pause columns migration completed.');
+    }
+  } catch (err: any) {
+    console.error('[database] Sessions pause columns migration failed:', err.message);
   }
 
   // FIX: Migration for devices.type to include 'table'
@@ -337,6 +432,27 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     }
   } catch (err: any) {
     console.error('[database] Devices table migration failed:', err.message);
+  }
+
+  // Auto-migration helper for rooms table
+  try {
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS rooms (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        icon        TEXT NOT NULL DEFAULT 'sports_esports',
+        device_id   TEXT REFERENCES devices(id) ON DELETE SET NULL,
+        tenant_id   TEXT,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        synced      INTEGER NOT NULL DEFAULT 0,
+        synced_at   TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_rooms_tenant ON rooms(tenant_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_device ON rooms(device_id) WHERE device_id IS NOT NULL;
+    `);
+  } catch (rErr: any) {
+    console.error('[database] Rooms table creation/migration failed:', rErr.message);
   }
 
   // Persist after schema creation and migrations

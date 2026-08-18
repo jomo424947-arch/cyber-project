@@ -49,6 +49,9 @@ export async function listDevices(req: Request, res: Response) {
 
 /** POST /api/devices — create a new device (admin only). */
 export async function createDevice(req: Request, res: Response) {
+  if (req.user?.role !== 'admin') {
+    throw forbidden('Only admins can create devices');
+  }
   const { name, type, hourly_rate, hourly_rate_multi, specs } = req.body;
 
   const { data, error } = await supabase
@@ -121,6 +124,9 @@ export async function updateDevice(req: Request, res: Response) {
 
 /** DELETE /api/devices/:id — remove a device (admin only). */
 export async function deleteDevice(req: Request, res: Response) {
+  if (req.user?.role !== 'admin') {
+    throw forbidden('Only admins can delete devices');
+  }
   const { id } = req.params;
 
   // 1. Auto-end active sessions on this device

@@ -65,6 +65,8 @@ export const offlineFirstService: DataService = {
       is_overtime: false,
       overtime_minutes: null,
       edited_start_at: false,
+      is_paused: false,
+      total_paused_minutes: 0,
     };
 
     await localDb.setItem('sessions', localSession);
@@ -112,6 +114,8 @@ export const offlineFirstService: DataService = {
           is_overtime: false,
           overtime_minutes: null,
           edited_start_at: false,
+          is_paused: false,
+          total_paused_minutes: 0,
         };
 
     const invoice: Invoice = {
@@ -133,5 +137,17 @@ export const offlineFirstService: DataService = {
     });
 
     return { session: endedSession, invoice };
+  },
+
+  async pauseSession(id, reason) {
+    return realService.pauseSession(id, reason);
+  },
+
+  async resumeSession(id) {
+    return realService.resumeSession(id);
+  },
+
+  async listSessionPauses(id) {
+    return realService.listSessionPauses(id);
   },
 };

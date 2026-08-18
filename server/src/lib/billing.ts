@@ -7,10 +7,13 @@ export interface BillingParams {
   scheduledEnd?: string | Date | null;
   gracePeriodMinutes?: number;
   overtimeRateMultiplier?: number;
+  pausedMinutes?: number; // NEW — total minutes the session was paused
 }
 
 export interface BillingResult {
-  rawMinutes: number;
+  rawMinutes: number;          // wall-clock minutes from start to end (unchanged meaning)
+  pausedMinutes: number;       // NEW — echoed back for the invoice breakdown
+  effectiveMinutes: number;    // NEW — rawMinutes - pausedMinutes (floor 0)
   billedMinutes: number;
   baseCost: number;
   overtimeMinutes: number;
@@ -30,11 +33,12 @@ function roundCurrency(amount: number): number {
  * Standalone, pure billing logic function that computes CCMS session costs.
  * 
  * Rules:
- *  - Minimum billed duration is 30 minutes.
+ *  - Minimum billed duration is 30 minutes (applied to effectiveMinutes).
  *  - Ceiling-to-minute rounding for partial minutes.
  *  - hourlyRateOverride takes precedence over deviceHourlyRate.
- *  - Overtime applies to fixed-type sessions and evaluates real elapsed time (rawMinutes).
+ *  - Overtime applies to fixed-type sessions using effectiveMinutes (not raw).
  *  - Monetary amounts are rounded consistently to 2 decimal places.
+ *  - pausedMinutes defaults to 0; all existing behaviour is backward compatible.
  */
 export function calculateSessionCost(params: BillingParams): BillingResult {
   if (!params || !params.startedAt || !params.endedAt) {
@@ -85,7 +89,12 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
   }
 
   const rawMinutes = Math.max(0, Math.ceil((endMs - startMs) / 60000));
-  const billedMinutes = Math.max(MIN_BILLING_MINUTES, rawMinutes);
+
+  // Paused time is excluded from billing
+  const pausedMinutes = Math.max(0, Math.round(params.pausedMinutes || 0));
+  const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
+
+  const billedMinutes = Math.max(MIN_BILLING_MINUTES, effectiveMinutes);
 
   const effectiveRate = Number(
     params.hourlyRateOverride !== undefined && params.hourlyRateOverride !== null
@@ -105,7 +114,8 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
     );
     const graceMinutes = Number(params.gracePeriodMinutes || 0);
 
-    overtimeMinutes = Math.max(0, rawMinutes - scheduledMinutes - graceMinutes);
+    // Use effectiveMinutes: paused time doesn't count as overtime
+    overtimeMinutes = Math.max(0, effectiveMinutes - scheduledMinutes - graceMinutes);
     if (overtimeMinutes > 0) {
       isOvertime = true;
       const multiplier = Number(
@@ -123,6 +133,8 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
 
   return {
     rawMinutes,
+    pausedMinutes,
+    effectiveMinutes,
     billedMinutes,
     baseCost,
     overtimeMinutes,
@@ -131,3 +143,5 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
     totalCost,
   };
 }
+
+

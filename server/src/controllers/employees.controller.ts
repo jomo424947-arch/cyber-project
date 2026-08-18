@@ -13,13 +13,17 @@ import crypto from 'crypto';
  */
 export async function listEmployees(req: Request, res: Response) {
   const tenantId = req.user?.tenant_id;
+
+  if (!tenantId) {
+    // Fail-safe: no tenant = no data (prevents cross-tenant leaks if tenant_id is null)
+    res.json([]);
+    return;
+  }
+
   const db = getDb();
 
   // Return local data immediately
-  let query = localDb.from('users').select('id, email, full_name, role, created_at');
-  if (tenantId) {
-    query = query.eq('tenant_id', tenantId);
-  }
+  let query = localDb.from('users').select('id, email, full_name, role, created_at').eq('tenant_id', tenantId);
   const { data: users, error } = await query;
 
   if (error) throw badRequest(error.message);
@@ -45,25 +49,16 @@ export async function createEmployee(req: Request, res: Response) {
   }
 
   const cleanEmail = email.trim().toLowerCase();
-  const db = getDb();
-  let tenantId = req.user?.tenant_id || null;
+  const tenantId = req.user?.tenant_id;
 
   if (!tenantId) {
-    try {
-      const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
-      if (stmt.step()) {
-        tenantId = stmt.getAsObject().tenant_id as string;
-      }
-      stmt.free();
-    } catch (err) {}
+    throw badRequest('Cannot create employee: your account has no tenant association');
   }
 
+  const db = getDb();
+
   // Check if email already exists locally in this tenant
-  let checkQuery = localDb.from('users').select('id').eq('email', cleanEmail);
-  if (tenantId) {
-    checkQuery = checkQuery.eq('tenant_id', tenantId);
-  }
-  const { data: existingUser } = await checkQuery.maybeSingle();
+  const { data: existingUser } = await localDb.from('users').select('id').eq('email', cleanEmail).eq('tenant_id', tenantId).maybeSingle();
 
   if (existingUser) {
     throw conflict('An employee with this email already exists');
@@ -124,6 +119,11 @@ export async function updateEmployee(req: Request, res: Response) {
   const { id } = req.params;
   const { full_name, role, password } = req.body;
   const tenantId = req.user?.tenant_id;
+
+  if (!tenantId) {
+    throw badRequest('Cannot update employee: your account has no tenant association');
+  }
+
   const db = getDb();
 
   if (cloudSupabase) {
@@ -131,9 +131,7 @@ export async function updateEmployee(req: Request, res: Response) {
       if (password) {
         await cloudSupabase.auth.admin.updateUserById(id, { password });
       }
-      let cloudUpdate = cloudSupabase.from('users').update({ full_name, role }).eq('id', id);
-      if (tenantId) cloudUpdate = cloudUpdate.eq('tenant_id', tenantId);
-      await cloudUpdate;
+      await cloudSupabase.from('users').update({ full_name, role }).eq('id', id).eq('tenant_id', tenantId);
     } catch (err: any) {
       console.warn('[employees] Cloud update failed:', err.message);
     }
@@ -145,12 +143,7 @@ export async function updateEmployee(req: Request, res: Response) {
     patch.password_hash = hashPassword(password);
   }
 
-  let localUpdate = localDb.from('users').update(patch).eq('id', id);
-  if (tenantId) {
-    localUpdate = localUpdate.eq('tenant_id', tenantId);
-  }
-
-  const { data, error } = await localUpdate.select().maybeSingle();
+  const { data, error } = await localDb.from('users').update(patch).eq('id', id).eq('tenant_id', tenantId).select().maybeSingle();
 
   if (error) throw badRequest(error.message);
   if (!data) throw badRequest('Employee not found or access denied');
@@ -166,6 +159,10 @@ export async function deleteEmployee(req: Request, res: Response) {
   const { id } = req.params;
   const tenantId = req.user?.tenant_id;
 
+  if (!tenantId) {
+    throw badRequest('Cannot delete employee: your account has no tenant association');
+  }
+
   if (id === req.user?.id) {
     throw badRequest('You cannot delete your own account');
   }
@@ -173,9 +170,7 @@ export async function deleteEmployee(req: Request, res: Response) {
   if (cloudSupabase) {
     try {
       await cloudSupabase.auth.admin.deleteUser(id);
-      let cloudDel = cloudSupabase.from('users').delete().eq('id', id);
-      if (tenantId) cloudDel = cloudDel.eq('tenant_id', tenantId);
-      await cloudDel;
+      await cloudSupabase.from('users').delete().eq('id', id).eq('tenant_id', tenantId);
       console.log(`[employees] Employee ${id} deleted from Supabase Cloud.`);
     } catch (err: any) {
       console.warn('[employees] Cloud delete warning:', err.message);
@@ -183,12 +178,7 @@ export async function deleteEmployee(req: Request, res: Response) {
   }
 
   // Delete locally from SQLite
-  let localDel = localDb.from('users').delete().eq('id', id);
-  if (tenantId) {
-    localDel = localDel.eq('tenant_id', tenantId);
-  }
-
-  const { error } = await localDel;
+  const { error } = await localDb.from('users').delete().eq('id', id).eq('tenant_id', tenantId);
 
   if (error) throw badRequest(error.message);
   saveDatabase();
@@ -215,12 +205,16 @@ export async function listEmployeesPublic(req: Request, res: Response) {
     stmt.free();
   } catch (err) {}
 
-  // 2. Return local data immediately (scoped to local active tenant if available)
-  let query = localDb.from('users').select('id, email, full_name, role');
-  if (tenantId) {
-    query = query.eq('tenant_id', tenantId);
+  if (!tenantId) {
+    res.json({ users: [] });
+    return;
   }
-  const { data: users, error } = await query;
+
+  // 2. Return local data immediately (scoped to local active tenant)
+  const { data: users, error } = await localDb
+    .from('users')
+    .select('id, email, full_name, role')
+    .eq('tenant_id', tenantId);
 
   if (error) throw badRequest(error.message);
   res.json({ users: users || [] });

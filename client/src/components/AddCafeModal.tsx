@@ -312,8 +312,43 @@ export function AddCafeModal({
                         x{ord.quantity}
                       </span>
                     </div>
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
-                      {formatCurrency(ord.total_price)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
+                        {formatCurrency(ord.total_price)}
+                      </span>
+                      {session.status === 'active' && (
+                        <button
+                          type="button"
+                          title={language === 'ar' ? 'إلغاء الطلب واسترجاع المخزون' : 'Void order & restore stock'}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--accent-red)',
+                            cursor: 'pointer',
+                            padding: '2px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                          }}
+                          onClick={async () => {
+                            if (!window.confirm(language === 'ar' ? 'هل تريد إلغاء هذا الطلب وإرجاع الكمية للمخزون؟' : 'Void order line and restore stock?')) return;
+                            try {
+                              await dataService.voidSessionOrder(session.id, ord.id);
+                              // Refresh products & session orders
+                              const [pList, oList] = await Promise.all([
+                                dataService.listProducts(),
+                                dataService.listSessionOrders(session.id),
+                              ]);
+                              setProducts(pList);
+                              setExistingOrders(oList);
+                              onDone();
+                            } catch (err: any) {
+                              setErrorMsg(apiErrorMessage(err, 'Failed to void order'));
+                            }
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

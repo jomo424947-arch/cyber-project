@@ -56,8 +56,20 @@ export interface Session {
   is_overtime: boolean;
   overtime_minutes: number | null;
   edited_start_at: boolean;
+  is_paused: boolean;
+  total_paused_minutes: number;
   device?: Pick<Device, 'id' | 'name' | 'type' | 'hourly_rate' | 'hourly_rate_multi'>;
   customer?: Pick<Customer, 'id' | 'name' | 'phone' | 'username'>;
+}
+
+export interface SessionPause {
+  id: string;
+  session_id: string;
+  paused_at: string;
+  resumed_at: string | null;
+  paused_by: string | null;
+  resumed_by: string | null;
+  reason: string | null;
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'transfer' | 'wallet';
@@ -76,6 +88,8 @@ export interface Invoice {
     ended_at: string | null;
     duration_minutes: number | null;
     device_id: string;
+    is_paused?: boolean;
+    total_paused_minutes?: number;
     device?: Pick<Device, 'id' | 'name' | 'type'>;
     customer?: Pick<Customer, 'id' | 'name'>;
   };
@@ -184,12 +198,45 @@ export interface Product {
   id: string;
   name: string;
   price: number;
+  cost_price?: number | null;
   stock: number;
   created_at: string;
 }
 
+export type StockChangeCategory = 'restock' | 'sale' | 'standalone_sale' | 'void_order' | 'manual_adjustment' | 'shrinkage';
+
+export interface StockLog {
+  id: string;
+  product_id: string;
+  tenant_id?: string;
+  actor_id?: string | null;
+  change_type: StockChangeCategory;
+  delta: number;
+  balance_after: number;
+  reason?: string | null;
+  created_at: string;
+  actor?: {
+    full_name: string | null;
+  };
+}
+
+export interface StandaloneOrder {
+  id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  cost_price?: number | null;
+  total_price: number;
+  payment_method: PaymentMethod;
+  created_by?: string | null;
+  created_at: string;
+  product?: Product;
+}
+
 export interface ProductSalesSummary {
   total_revenue: number;
+  total_cost?: number | null;
+  total_profit?: number | null;
   total_items_sold: number;
   top_selling_product: string | null;
   out_of_stock_count: number;
@@ -200,9 +247,13 @@ export interface ProductSalesItem {
   id: string;
   name: string;
   price: number;
+  cost_price?: number | null;
   stock: number;
   sold_quantity: number;
   total_revenue: number;
+  total_cost?: number | null;
+  profit?: number | null;
+  margin_pct?: number | null;
 }
 
 export interface ProductSalesReport {
@@ -229,5 +280,24 @@ export interface PricingTier {
   devices: Array<{ id: string; name: string; hourly_rate: number; hourly_rate_multi: number }>;
   all_same: boolean;
   all_same_multi: boolean;
+}
+
+export interface GamingRoom {
+  id: string;
+  name: string;
+  icon: string;
+  device_id: string | null;
+  created_at?: string;
+  updated_at?: string;
+  device?: Pick<Device, 'id' | 'name' | 'type' | 'status' | 'hourly_rate' | 'hourly_rate_multi'> | null;
+}
+
+export interface CreateRoomPayload {
+  name: string;
+  icon?: string;
+  device_id?: string | null;
+  type?: DeviceType;
+  hourly_rate?: number;
+  hourly_rate_multi?: number;
 }
 

@@ -69,8 +69,8 @@ router.get('/callback/google', asyncHandler(googleCallback));
 
 router.get('/me',               verifyJWT, asyncHandler(me));
 router.post('/logout',          verifyJWT, asyncHandler(logout));
-router.post('/register-tenant', asyncHandler(registerTenant));
-router.get('/tenants',          asyncHandler(getTenants));
-router.patch('/tenants/:id/status', asyncHandler(updateTenantStatus));
+router.post('/register-tenant',     verifyJWT, asyncHandler(registerTenant));
+router.get('/tenants',              verifyJWT, asyncHandler(getTenants));
+router.patch('/tenants/:id/status', verifyJWT, asyncHandler(updateTenantStatus));
 
 export default router;

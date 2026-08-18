@@ -52,6 +52,10 @@ export const translations: Record<string, Record<string, string>> = {
     success: 'Success',
     error: 'Error',
     search: 'Search...',
+    pause_session: 'Pause Session',
+    resume_session: 'Resume Session',
+    session_paused: 'Session Paused',
+    paused_time: 'Paused Time',
 
     // Auth Screen
     sign_in_title: 'Sign in to CCMS',
@@ -185,6 +189,10 @@ export const translations: Record<string, Record<string, string>> = {
     success: 'نجاح',
     error: 'خطأ',
     search: 'بحث...',
+    pause_session: 'تعليق الجلسة',
+    resume_session: 'استئناف الجلسة',
+    session_paused: 'الجلسة معلّقة',
+    paused_time: 'الوقت المعلّق',
 
     // Auth Screen
     sign_in_title: 'تسجيل الدخول إلى النظام',

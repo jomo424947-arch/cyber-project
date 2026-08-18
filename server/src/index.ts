@@ -26,6 +26,7 @@ import customerRoutes from './routes/customers.routes';
 import productRoutes from './routes/products.routes';
 import pricingRoutes from './routes/pricing.routes';
 import employeeRoutes from './routes/employees.routes';
+import roomRoutes from './routes/rooms.routes';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import { supabase } from './lib/supabase';
 import { csrfProtection } from './middleware/csrf';
@@ -44,7 +45,6 @@ const allowedOrigins = [origin, 'http://localhost:5173', 'http://localhost:3000'
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 2000,
-  skip: () => process.env.NODE_ENV !== 'production', // no limit in dev
   message: {
     error: {
       message: 'Too many requests from this IP, please try again later.',
@@ -68,12 +68,21 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "http://localhost:*", "ws://localhost:*", process.env.CLIENT_ORIGIN || 'http://localhost:5173'],
+    },
+  },
+}));
 app.use(cors({
   origin: (requestOrigin, callback) => {
     if (!requestOrigin || allowedOrigins.includes(requestOrigin) || requestOrigin.startsWith('file://')) {
-      callback(null, true);
-    } else if (process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'), false);
@@ -103,6 +112,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // Serve Static Frontend if compiled client/dist exists
 let clientDistPath = path.resolve(__dirname, '../../client/dist');

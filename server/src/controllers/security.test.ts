@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { csrfProtection } from '../middleware/csrf';
 import { registerTenant, getTenants } from './auth.controller';
+import { createDevice, deleteDevice } from './devices.controller';
+import { createEmployee } from './employees.controller';
+import { signToken } from '../lib/local-auth';
 import { Request, Response } from 'express';
 
 describe('CSRF Protection Middleware', () => {
@@ -55,33 +58,111 @@ describe('CSRF Protection Middleware', () => {
   });
 });
 
-describe('Super Admin Auth Key Protection', () => {
+describe('Super Admin Auth Key Protection (C1)', () => {
   let req: Partial<Request>;
   let res: Partial<Response>;
 
   beforeEach(() => {
     req = {
-      body: { secretKey: 'CCMS_SECRET_DEV_KEY_2026' },
-      headers: { 'x-super-admin-key': 'CCMS_SECRET_DEV_KEY_2026' },
+      body: { secretKey: 'some-key' },
+      headers: { 'x-super-admin-key': 'some-key' },
     };
     res = {
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
     };
-    delete process.env.SUPER_ADMIN_KEY;
   });
 
-  it('rejects registerTenant when secretKey is invalid', async () => {
-    req.body = { secretKey: 'WRONG_KEY' };
+  it('fails closed when SUPER_ADMIN_KEY is not set in environment', async () => {
+    delete process.env.SUPER_ADMIN_KEY;
     await expect(registerTenant(req as Request, res as Response)).rejects.toThrow(
-      'Invalid Super Admin Secret Key passcode'
+      'SUPER_ADMIN_KEY is not configured'
+    );
+    await expect(getTenants(req as Request, res as Response)).rejects.toThrow(
+      'SUPER_ADMIN_KEY is not configured'
     );
   });
 
-  it('rejects getTenants when x-super-admin-key header is invalid', async () => {
-    req.headers = { 'x-super-admin-key': 'WRONG_KEY' };
+  it('rejects wrong secret key when SUPER_ADMIN_KEY is configured', async () => {
+    process.env.SUPER_ADMIN_KEY = 'configured-secret-key';
+    req.body = { secretKey: 'wrong-key' };
+    req.headers = { 'x-super-admin-key': 'wrong-key' };
+
+    await expect(registerTenant(req as Request, res as Response)).rejects.toThrow(
+      'Invalid Super Admin Secret Key passcode'
+    );
     await expect(getTenants(req as Request, res as Response)).rejects.toThrow(
       'Invalid Super Admin Secret Key passcode'
+    );
+  });
+});
+
+describe('JWT Secret Guard (C3)', () => {
+  it('throws in all environments if JWT_SECRET is unset', () => {
+    const prevSecret = process.env.JWT_SECRET;
+    delete process.env.JWT_SECRET;
+
+    expect(() => {
+      signToken({ id: '1', email: 'test@example.com', role: 'admin' });
+    }).toThrow('FATAL: JWT_SECRET environment variable is not set');
+
+    if (prevSecret) {
+      process.env.JWT_SECRET = prevSecret;
+    }
+  });
+});
+
+describe('Device Controller Role Checks (H2)', () => {
+  let res: Partial<Response>;
+
+  beforeEach(() => {
+    res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    };
+  });
+
+  it('rejects createDevice for non-admin user', async () => {
+    const req = {
+      user: { id: 'u1', email: 'staff@cafe.com', role: 'staff', tenant_id: 't1' },
+      body: { name: 'PC 1', type: 'pc', hourly_rate: 10 },
+    } as unknown as Request;
+
+    await expect(createDevice(req, res as Response)).rejects.toThrow(
+      'Only admins can create devices'
+    );
+  });
+
+  it('rejects deleteDevice for non-admin user', async () => {
+    const req = {
+      user: { id: 'u1', email: 'staff@cafe.com', role: 'staff', tenant_id: 't1' },
+      params: { id: 'dev-1' },
+    } as unknown as Request;
+
+    await expect(deleteDevice(req, res as Response)).rejects.toThrow(
+      'Only admins can delete devices'
+    );
+  });
+});
+
+describe('Employee Controller Tenant Isolation (H4)', () => {
+  let res: Partial<Response>;
+
+  beforeEach(() => {
+    res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    };
+  });
+
+  it('rejects createEmployee when req.user has no tenant_id', async () => {
+    const req = {
+      user: { id: 'u1', email: 'admin@cafe.com', role: 'admin', tenant_id: null as any },
+      body: { email: 'new@cafe.com', password: 'pass', role: 'staff' },
+    } as unknown as Request;
+
+    await expect(createEmployee(req, res as Response)).rejects.toThrow(
+      'Cannot create employee: your account has no tenant association'
     );
   });
 });

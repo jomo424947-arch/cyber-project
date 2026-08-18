@@ -11,7 +11,7 @@ interface Tenant {
 }
 
 export default function SuperAdminPage() {
-  const [adminSecret, setAdminSecret] = useState(localStorage.getItem('ccms_super_admin_key') || '');
+  const [adminSecret, setAdminSecret] = useState(sessionStorage.getItem('ccms_super_admin_key') || '');
   const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
 
   // List Tab States
@@ -32,10 +32,10 @@ export default function SuperAdminPage() {
   const [addSuccess, setAddSuccess] = useState<string | null>(null);
   const [newTenantInfo, setNewTenantInfo] = useState<{ id: string; name: string; owner_email: string } | null>(null);
 
-  // Save admin secret key to localStorage
+  // Save admin secret key to sessionStorage
   const handleSecretChange = (val: string) => {
     setAdminSecret(val);
-    localStorage.setItem('ccms_super_admin_key', val);
+    sessionStorage.setItem('ccms_super_admin_key', val);
   };
 
   const fetchTenants = async () => {

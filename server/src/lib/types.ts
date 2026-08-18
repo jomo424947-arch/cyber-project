@@ -56,6 +56,8 @@ export interface DbSession {
   is_overtime: boolean;
   overtime_minutes: number | null;
   edited_start_at: boolean;
+  is_paused: boolean;
+  total_paused_minutes: number;
   // joined relations (optional)
   device?: Pick<DbDevice, 'id' | 'name' | 'type' | 'hourly_rate' | 'hourly_rate_multi'>;
   customer?: Pick<DbCustomer, 'id' | 'name' | 'phone' | 'username'>;
@@ -105,6 +107,28 @@ export interface DbReservation {
   created_at: string;
   device?: Pick<DbDevice, 'id' | 'name' | 'type'>;
   customer?: Pick<DbCustomer, 'id' | 'name' | 'phone'>;
+}
+
+export interface DbSessionPause {
+  id: string;
+  session_id: string;
+  tenant_id: string | null;
+  paused_at: string;
+  resumed_at: string | null;
+  paused_by: string | null;
+  resumed_by: string | null;
+  reason: string | null;
+}
+
+export interface DbRoom {
+  id: string;
+  name: string;
+  icon: string;
+  device_id: string | null;
+  tenant_id: string | null;
+  created_at: string;
+  updated_at: string;
+  device?: Pick<DbDevice, 'id' | 'name' | 'type' | 'status' | 'hourly_rate' | 'hourly_rate_multi'> | null;
 }
 
 // Augment Express Request with the authenticated user.

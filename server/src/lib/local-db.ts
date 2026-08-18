@@ -55,6 +55,22 @@ const FK_MAP: Record<string, Record<string, string>> = {
     session_id: 'sessions',
     edited_by: 'users',
   },
+  session_pauses: {
+    session_id: 'sessions',
+    paused_by: 'users',
+    resumed_by: 'users',
+  },
+  product_stock_logs: {
+    product_id: 'products',
+    actor_id: 'users',
+  },
+  rooms: {
+    device_id: 'devices',
+  },
+  standalone_orders: {
+    product_id: 'products',
+    created_by: 'users',
+  },
 };
 
 // Nested join map for two-level joins  e.g.  session:sessions(… device:devices(…))
@@ -567,9 +583,9 @@ class QueryBuilder {
 
   /** Convert SQLite types to JS types matching Supabase output. */
   private _convertTypes(row: Record<string, any>): Record<string, any> {
-    const boolCols = ['paid', 'archived', 'is_overtime', 'edited_start_at', 'synced'];
+    const boolCols = ['paid', 'archived', 'is_overtime', 'is_paused', 'edited_start_at', 'synced'];
     const jsonCols = ['specs'];
-    const numericCols = ['hourly_rate', 'hourly_rate_multi', 'hourly_rate_override', 'amount', 'total_cost', 'price', 'unit_price', 'total_price'];
+    const numericCols = ['hourly_rate', 'hourly_rate_multi', 'hourly_rate_override', 'amount', 'total_cost', 'price', 'cost_price', 'unit_price', 'total_price'];
 
     for (const key of Object.keys(row)) {
       if (boolCols.includes(key)) {
@@ -595,7 +611,7 @@ class QueryBuilder {
     if (!data.id) data.id = crypto.randomUUID();
 
     // Auto-inject tenant_id for multi-tenant tables
-    const multiTenantTables = ['users', 'devices', 'customers', 'sessions', 'invoices', 'reservations', 'products'];
+    const multiTenantTables = ['users', 'devices', 'customers', 'sessions', 'invoices', 'reservations', 'products', 'session_pauses', 'rooms'];
     if (multiTenantTables.includes(this._table) && !data.tenant_id) {
       try {
         const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');

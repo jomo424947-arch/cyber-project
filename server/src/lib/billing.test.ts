@@ -256,3 +256,94 @@ describe('calculateSessionCost - Input Validation', () => {
     expect(() => calculateSessionCost({ ...valid, sessionType: 'fixed', scheduledEnd: 'invalid-date' })).toThrow('Invalid scheduled end date provided for session calculation');
   });
 });
+
+describe('calculateSessionCost - Paused Time', () => {
+  const rate = 6.0; // EGP/hr
+
+  it('open session 60min with 15min paused → effective=45 → billed=45 → cost=(45/60)*6=4.50', () => {
+    const result = calculateSessionCost({
+      startedAt: '2026-07-18T10:00:00.000Z',
+      endedAt:   '2026-07-18T11:00:00.000Z', // 60 min raw
+      deviceHourlyRate: rate,
+      sessionType: 'open',
+      pausedMinutes: 15,
+    });
+    expect(result.rawMinutes).toBe(60);
+    expect(result.pausedMinutes).toBe(15);
+    expect(result.effectiveMinutes).toBe(45);
+    expect(result.billedMinutes).toBe(45);
+    expect(result.baseCost).toBe(4.5);
+    expect(result.totalCost).toBe(4.5);
+  });
+
+  it('open session short: rawMinutes=40, paused=20 → effective=20 → billedMinutes=30 (min floor) → cost=3.00', () => {
+    const result = calculateSessionCost({
+      startedAt: '2026-07-18T10:00:00.000Z',
+      endedAt:   '2026-07-18T10:40:00.000Z', // 40 min raw
+      deviceHourlyRate: rate,
+      sessionType: 'open',
+      pausedMinutes: 20,
+    });
+    expect(result.rawMinutes).toBe(40);
+    expect(result.pausedMinutes).toBe(20);
+    expect(result.effectiveMinutes).toBe(20);
+    expect(result.billedMinutes).toBe(30); // minimum floor
+    expect(result.baseCost).toBe(3.0);
+    expect(result.totalCost).toBe(3.0);
+  });
+
+  it('fixed session: scheduled=60, rawMinutes=90, paused=20, grace=0 → effective=70 → overtimeMinutes=max(0,70-60-0)=10', () => {
+    const result = calculateSessionCost({
+      startedAt:   '2026-07-18T10:00:00.000Z',
+      endedAt:     '2026-07-18T11:30:00.000Z', // 90 min raw
+      scheduledEnd:'2026-07-18T11:00:00.000Z', // 60 min scheduled
+      deviceHourlyRate: rate,
+      sessionType: 'fixed',
+      gracePeriodMinutes: 0,
+      pausedMinutes: 20,
+    });
+    expect(result.rawMinutes).toBe(90);
+    expect(result.pausedMinutes).toBe(20);
+    expect(result.effectiveMinutes).toBe(70);
+    expect(result.overtimeMinutes).toBe(10);
+    expect(result.isOvertime).toBe(true);
+    // billedMinutes = 70 (effective > 30)
+    // baseMinutes = 70 - 10 = 60 → baseCost = (60/60)*6 = 6.00
+    // overtimeCost = (10/60)*6*1.0 = 1.00
+    expect(result.baseCost).toBe(6.0);
+    expect(result.overtimeCost).toBe(1.0);
+    expect(result.totalCost).toBe(7.0);
+  });
+
+  it('boundary: paused > raw (data error) → effectiveMinutes = 0, billedMinutes = 30', () => {
+    const result = calculateSessionCost({
+      startedAt: '2026-07-18T10:00:00.000Z',
+      endedAt:   '2026-07-18T10:20:00.000Z', // 20 min raw
+      deviceHourlyRate: rate,
+      sessionType: 'open',
+      pausedMinutes: 50, // more than raw — should not produce negative
+    });
+    expect(result.rawMinutes).toBe(20);
+    expect(result.pausedMinutes).toBe(50);
+    expect(result.effectiveMinutes).toBe(0); // clamped to 0
+    expect(result.billedMinutes).toBe(30);    // minimum floor
+    expect(result.totalCost).toBe(3.0);
+  });
+
+  it('zero paused minutes behaves identically to pre-feature (backward compat)', () => {
+    const withZeroPause = calculateSessionCost({
+      startedAt: '2026-07-18T10:00:00.000Z',
+      endedAt:   '2026-07-18T10:45:00.000Z',
+      deviceHourlyRate: rate,
+      pausedMinutes: 0,
+    });
+    const withoutParam = calculateSessionCost({
+      startedAt: '2026-07-18T10:00:00.000Z',
+      endedAt:   '2026-07-18T10:45:00.000Z',
+      deviceHourlyRate: rate,
+    });
+    expect(withZeroPause.billedMinutes).toBe(withoutParam.billedMinutes);
+    expect(withZeroPause.totalCost).toBe(withoutParam.totalCost);
+  });
+});
+

@@ -42,25 +42,36 @@ export async function revenueReport(req: Request, res: Response) {
   const week = sum(sessions, startOfWeekZoned);
   const month = sum(sessions, startOfMonthZoned);
 
-  // Calculate today's cafe revenue from session_orders
+  // Calculate today's cafe revenue from session_orders and standalone_orders created today
   let todayCafe = 0;
-  const todaySessionIds = (sessions ?? [])
-    .filter((r: any) => {
-      if (!r.ended_at) return false;
-      const endedZoned = toZonedTime(new Date(r.ended_at), tz);
-      return endedZoned.getTime() >= startOfDayZoned.getTime();
-    })
-    .map((r: any) => r.id);
 
-  if (todaySessionIds.length > 0) {
-    const { data: orders } = await supabase
-      .from('session_orders')
-      .select('total_price')
-      .in('session_id', todaySessionIds);
+  const { data: todaySessionOrders } = await supabase
+    .from('session_orders')
+    .select('total_price, created_at')
+    .gte('created_at', startOfDayZoned.toISOString());
 
-    if (orders) {
-      todayCafe = orders.reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
-    }
+  if (todaySessionOrders) {
+    todayCafe += todaySessionOrders
+      .filter((ord: any) => {
+        const createdZoned = toZonedTime(new Date(ord.created_at), tz);
+        return createdZoned.getTime() >= startOfDayZoned.getTime();
+      })
+      .reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
+  }
+
+  const { data: todayStandaloneOrders } = await supabase
+    .from('standalone_orders')
+    .select('total_price, created_at')
+    .eq('tenant_id', req.user!.tenant_id)
+    .gte('created_at', startOfDayZoned.toISOString());
+
+  if (todayStandaloneOrders) {
+    todayCafe += todayStandaloneOrders
+      .filter((ord: any) => {
+        const createdZoned = toZonedTime(new Date(ord.created_at), tz);
+        return createdZoned.getTime() >= startOfDayZoned.getTime();
+      })
+      .reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
   }
 
   const todayDevice = Math.max(0, today - todayCafe);

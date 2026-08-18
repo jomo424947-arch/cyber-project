@@ -18,6 +18,11 @@ import type {
   ProductSalesReport,
   SessionOrder,
   PricingTier,
+  SessionPause,
+  StockLog,
+  StandaloneOrder,
+  GamingRoom,
+  CreateRoomPayload,
 } from '../types';
 
 /**
@@ -61,6 +66,9 @@ export interface DataService {
   endSession(id: string, payload?: { payment_method?: PaymentMethod; mark_paid?: boolean; ended_at?: string }): Promise<{ session: Session; invoice: Invoice }>;
   updateSession(id: string, patch: { started_at?: string; scheduled_end?: string | null; hourly_rate_override?: number | null; grace_period_minutes?: number }): Promise<Session>;
   extendSession(id: string, additional_minutes: number): Promise<Session>;
+  pauseSession(id: string, reason?: string): Promise<Session>;
+  resumeSession(id: string): Promise<Session>;
+  listSessionPauses(id: string): Promise<SessionPause[]>;
   getSessionAuditLogs(id: string): Promise<SessionAuditLog[]>;
 
   // billing
@@ -83,15 +91,25 @@ export interface DataService {
 
   // cafe / products
   listProducts(): Promise<Product[]>;
-  createProduct(payload: { name: string; price: number; stock?: number }): Promise<Product>;
-  updateProduct(id: string, patch: { name?: string; price?: number; stock?: number }): Promise<Product>;
+  createProduct(payload: { name: string; price: number; cost_price?: number | null; stock?: number }): Promise<Product>;
+  updateProduct(id: string, patch: { name?: string; price?: number; cost_price?: number | null; stock?: number }): Promise<Product>;
   deleteProduct(id: string): Promise<void>;
+  adjustStock(id: string, delta: number, reason?: string, category?: string): Promise<{ product: Product; log: StockLog }>;
+  listStockLogs(id: string): Promise<StockLog[]>;
+  createStandaloneSale(productId: string, quantity: number, paymentMethod?: PaymentMethod): Promise<StandaloneOrder>;
   getProductSalesReport(): Promise<ProductSalesReport>;
   addSessionOrder(sessionId: string, productId: string, quantity: number): Promise<SessionOrder>;
+  voidSessionOrder(sessionId: string, orderId: string): Promise<void>;
   listSessionOrders(sessionId: string): Promise<SessionOrder[]>;
 
   // pricing
   getPricing(): Promise<PricingTier[]>;
   updateBulkPricing(type: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }): Promise<void>;
   updateDevicePricing(id: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }): Promise<void>;
+
+  // rooms
+  listRooms(): Promise<GamingRoom[]>;
+  createRoom(payload: CreateRoomPayload): Promise<GamingRoom>;
+  updateRoom(id: string, patch: Partial<{ name: string; icon: string; device_id: string | null; hourly_rate: number; hourly_rate_multi: number }>): Promise<GamingRoom>;
+  deleteRoom(id: string): Promise<void>;
 }

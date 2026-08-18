@@ -50,8 +50,8 @@ export default function DashboardPage() {
       .filter((i) => i.paid && i.paid_at && new Date(i.paid_at) >= todayStart)
       .reduce((sum, i) => sum + i.amount, 0);
 
-    let cafeRevenue = data.revReport?.totals?.today_cafe ?? (data.salesReport?.summary?.total_revenue ?? 0);
-    if (cafeRevenue > revenue) cafeRevenue = revenue;
+    let cafeRevenue = data.revReport?.totals?.today_cafe ?? 0;
+    if (revenue > 0 && cafeRevenue > revenue) cafeRevenue = revenue;
 
     let deviceRevenue = data.revReport?.totals?.today_device ?? Math.max(0, revenue - cafeRevenue);
     if (deviceRevenue + cafeRevenue > revenue && revenue > 0) {
@@ -210,17 +210,26 @@ export default function DashboardPage() {
               {
                 key: 'elapsed',
                 header: language === 'ar' ? 'الوقت المنقضي' : 'Elapsed',
-                render: (s) => (
-                  <span
-                    style={{
-                      fontFamily: 'JetBrains Mono, monospace',
-                      color: 'var(--accent-cyan)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {formatElapsed(s.started_at, now)}
-                  </span>
-                ),
+                render: (s) => {
+                  if (s.is_paused) {
+                    return (
+                      <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold' }}>
+                        {language === 'ar' ? '⏸ معلّقة' : '⏸ Paused'}
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      style={{
+                        fontFamily: 'JetBrains Mono, monospace',
+                        color: 'var(--accent-cyan)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {formatElapsed(s.started_at, now, s.total_paused_minutes)}
+                    </span>
+                  );
+                },
               },
               {
                 key: 'rate',

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../lib/supabase';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import type { DbReservation } from '../lib/types';
@@ -33,7 +34,7 @@ export async function createReservation(req: Request, res: Response) {
   let finalCustomerId = customer_id as string | null;
   if (!finalCustomerId && customer_name) {
     const cleanName = customer_name.trim().replace(/[^a-zA-Z0-9_]/g, '') || 'customer';
-    const uniqueSuffix = Math.random().toString(36).substring(2, 6);
+    const uniqueSuffix = crypto.randomBytes(3).toString('hex');
     const generatedUsername = `${cleanName}_${uniqueSuffix}`.toLowerCase().substring(0, 30);
 
     const { data: newCustomer, error: cErr } = await supabase
@@ -125,6 +126,7 @@ export async function updateReservation(req: Request, res: Response) {
     .from('reservations')
     .select('id, device_id, status')
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
   if (loadErr) throw loadErr;
   if (!existing) throw notFound('Reservation not found');
@@ -133,6 +135,7 @@ export async function updateReservation(req: Request, res: Response) {
     .from('reservations')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .select('*, device:devices(id,name,type), customer:customers(id,name,phone)')
     .single();
 
@@ -152,12 +155,14 @@ export async function updateReservation(req: Request, res: Response) {
       .from('devices')
       .select('status')
       .eq('id', existing.device_id)
+      .eq('tenant_id', req.user!.tenant_id)
       .maybeSingle();
     if (device && device.status === 'reserved') {
       await supabase
         .from('devices')
         .update({ status: 'available' })
-        .eq('id', existing.device_id);
+        .eq('id', existing.device_id)
+        .eq('tenant_id', req.user!.tenant_id);
     }
   }
 

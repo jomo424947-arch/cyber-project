@@ -172,6 +172,14 @@ export function InvoiceDetailsModal({ invoice, onClose, onPaySuccess }: InvoiceD
               <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{durationMins} {language === 'ar' ? 'دقيقة' : 'minutes'}</span>
             </div>
           )}
+          {Boolean(session?.total_paused_minutes && session.total_paused_minutes > 0) && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-default)', paddingTop: '6px', marginTop: '2px' }}>
+              <span style={{ color: 'var(--accent-yellow)' }}>{language === 'ar' ? 'الوقت المعلّق (غير محسوب):' : 'Paused Time (not billed):'}</span>
+              <span style={{ fontWeight: 600, color: 'var(--accent-yellow)' }}>
+                {session!.total_paused_minutes} {language === 'ar' ? 'دقيقة' : 'minutes'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Financial Breakdown */}

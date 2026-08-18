@@ -263,46 +263,16 @@ export async function signup(req: Request, res: Response): Promise<void> {
       },
     });
   } else {
-    // Cloud Mode: register with Supabase Auth
-    if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
-
-    const { data, error } = await cloudSupabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
+    // Cloud Mode: self-signup is disabled.
+    // All accounts must be created through the admin panel (createEmployee)
+    // or via Super Admin tenant registration (registerTenant).
+    // Allowing open signup would create orphaned accounts with no tenant_id,
+    // which multiple controllers handle inconsistently.
+    res.status(403).json({
+      error: {
+        message: 'Self-registration is not available. Please contact your café administrator to create an account.',
+        code: 'SIGNUP_DISABLED',
       },
-    });
-
-    if (error) throw badRequest(error.message);
-    if (!data.user) throw badRequest('Signup failed');
-
-    // Create user profile in public users table in Supabase Cloud
-    const { error: dbError } = await supabase.from('users').insert({
-      id: data.user.id,
-      email,
-      full_name: fullName || email.split('@')[0],
-      role: 'staff',
-    });
-
-    if (dbError) {
-      console.error('[auth] signup user insertion failed:', dbError.message);
-    }
-
-    if (data.session) {
-      setAuthCookies(res, data.session.access_token, data.session.refresh_token);
-    }
-
-    res.status(201).json({
-      message: data.session ? 'Signup successful.' : 'Signup successful. Please confirm your email.',
-      user: data.session ? {
-        id: data.user.id,
-        email,
-        full_name: fullName || email.split('@')[0],
-        role: 'staff',
-      } : null,
     });
   }
 }
@@ -702,7 +672,10 @@ export async function activateTenant(req: Request, res: Response) {
 export async function registerTenant(req: Request, res: Response) {
   const { tenantName, ownerFullName, ownerEmail, ownerPassword, status = 'active', secretKey } = req.body;
 
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey) {
+    throw new Error('SUPER_ADMIN_KEY is not configured. Super Admin endpoints are disabled.');
+  }
   if (!secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
@@ -773,7 +746,10 @@ export async function registerTenant(req: Request, res: Response) {
 /** GET /api/auth/tenants — Lists all tenants from Supabase. */
 export async function getTenants(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey) {
+    throw new Error('SUPER_ADMIN_KEY is not configured. Super Admin endpoints are disabled.');
+  }
   if (!secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }
@@ -800,7 +776,10 @@ export async function getTenants(req: Request, res: Response) {
 /** PATCH /api/auth/tenants/:id/status — Updates a tenant's subscription status. */
 export async function updateTenantStatus(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
-  const expectedKey = process.env.SUPER_ADMIN_KEY || 'CCMS_SECRET_DEV_KEY_2026';
+  const expectedKey = process.env.SUPER_ADMIN_KEY;
+  if (!expectedKey) {
+    throw new Error('SUPER_ADMIN_KEY is not configured. Super Admin endpoints are disabled.');
+  }
   if (!secretKey || secretKey !== expectedKey) {
     throw unauthorized('Invalid Super Admin Secret Key passcode');
   }

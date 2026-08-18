@@ -293,6 +293,39 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
                       >
                         {formatCurrency(order.total_price)}
                       </span>
+
+                      {/* Void order button (only while active) */}
+                      {session.status === 'active' && (
+                        <button
+                          type="button"
+                          title="Void / Delete Order"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--accent-red)',
+                            cursor: 'pointer',
+                            padding: '2px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            opacity: 0.7,
+                            marginLeft: '4px',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!window.confirm('Void this order line and restore stock?')) return;
+                            try {
+                              await dataService.voidSessionOrder(session.id, order.id);
+                              setOrders((prev) => prev ? prev.filter((o) => o.id !== order.id) : null);
+                            } catch (err: any) {
+                              alert(err.message || 'Failed to void order');
+                            }
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>delete</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

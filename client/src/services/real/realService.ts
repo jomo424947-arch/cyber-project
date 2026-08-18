@@ -19,6 +19,10 @@ import type {
   ProductSalesReport,
   SessionOrder,
   PricingTier,
+  SessionPause,
+  StockLog,
+  StandaloneOrder,
+  GamingRoom,
 } from '../../types';
 
 // The backend wraps every list response in { data: [...] }.
@@ -186,6 +190,18 @@ export const realService: DataService = {
     const { data } = await http.post<OneWrap<Session>>(`/api/sessions/${id}/extend`, { additional_minutes });
     return data.data;
   },
+  async pauseSession(id, reason) {
+    const { data } = await http.post<OneWrap<Session>>(`/api/sessions/${id}/pause`, { reason });
+    return data.data;
+  },
+  async resumeSession(id) {
+    const { data } = await http.post<OneWrap<Session>>(`/api/sessions/${id}/resume`, {});
+    return data.data;
+  },
+  async listSessionPauses(id) {
+    const { data } = await http.get<ListWrap<SessionPause>>(`/api/sessions/${id}/pauses`);
+    return data.data;
+  },
   async getSessionAuditLogs(id) {
     const { data } = await http.get<ListWrap<SessionAuditLog>>(`/api/sessions/${id}/audit-logs`);
     return data.data;
@@ -252,16 +268,36 @@ export const realService: DataService = {
     const { data } = await http.get<ListWrap<Product>>('/api/products');
     return data.data;
   },
-  async createProduct(payload: { name: string; price: number; stock?: number }) {
+  async createProduct(payload: { name: string; price: number; cost_price?: number | null; stock?: number }) {
     const { data } = await http.post<OneWrap<Product>>('/api/products', payload);
     return data.data;
   },
-  async updateProduct(id: string, patch: { name?: string; price?: number; stock?: number }) {
+  async updateProduct(id: string, patch: { name?: string; price?: number; cost_price?: number | null; stock?: number }) {
     const { data } = await http.patch<OneWrap<Product>>(`/api/products/${id}`, patch);
     return data.data;
   },
   async deleteProduct(id: string) {
     await http.delete(`/api/products/${id}`);
+  },
+  async adjustStock(id: string, delta: number, reason?: string, category?: string) {
+    const { data } = await http.post<{ data: Product; log: StockLog }>(`/api/products/${id}/adjust-stock`, {
+      delta,
+      reason,
+      category,
+    });
+    return { product: data.data, log: data.log };
+  },
+  async listStockLogs(id: string) {
+    const { data } = await http.get<ListWrap<StockLog>>(`/api/products/${id}/stock-logs`);
+    return data.data;
+  },
+  async createStandaloneSale(productId: string, quantity: number, paymentMethod = 'cash') {
+    const { data } = await http.post<OneWrap<StandaloneOrder>>('/api/products/standalone-sale', {
+      product_id: productId,
+      quantity,
+      payment_method: paymentMethod,
+    });
+    return data.data;
   },
   async getProductSalesReport() {
     const { data } = await http.get<OneWrap<ProductSalesReport>>('/api/products/sales-report');
@@ -273,6 +309,9 @@ export const realService: DataService = {
       quantity,
     });
     return data.data;
+  },
+  async voidSessionOrder(sessionId, orderId) {
+    await http.delete(`/api/sessions/${sessionId}/orders/${orderId}`);
   },
   async listSessionOrders(sessionId) {
     const { data } = await http.get<ListWrap<SessionOrder>>(`/api/sessions/${sessionId}/orders`);
@@ -290,5 +329,23 @@ export const realService: DataService = {
   },
   async updateDevicePricing(id: string, rates: { hourly_rate?: number; hourly_rate_multi?: number }) {
     await http.patch(`/api/pricing/device/${id}`, rates);
+  },
+
+  // ─── Rooms ───────────────────────────────────────────────────────────────
+
+  async listRooms() {
+    const { data } = await http.get<ListWrap<GamingRoom>>('/api/rooms');
+    return data.data;
+  },
+  async createRoom(payload) {
+    const { data } = await http.post<OneWrap<GamingRoom>>('/api/rooms', payload);
+    return data.data;
+  },
+  async updateRoom(id, patch) {
+    const { data } = await http.patch<OneWrap<GamingRoom>>(`/api/rooms/${id}`, patch);
+    return data.data;
+  },
+  async deleteRoom(id) {
+    await http.delete(`/api/rooms/${id}`);
   },
 };

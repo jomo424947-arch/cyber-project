@@ -96,17 +96,52 @@ export const updateReservationSchema = z.object({
 export const createProductSchema = z.object({
   name: z.string().min(1, 'Name required').max(100),
   price: z.number().nonnegative('Price must be a positive number'),
+  cost_price: z.number().nonnegative('Cost price must be non-negative').optional().nullable(),
   stock: z.number().int().nonnegative('Stock must be a non-negative integer').optional().default(0),
 });
 
 export const updateProductSchema = z.object({
   name: z.string().min(1, 'Name required').max(100).optional(),
   price: z.number().nonnegative('Price must be a positive number').optional(),
+  cost_price: z.number().nonnegative('Cost price must be non-negative').optional().nullable(),
   stock: z.number().int().nonnegative('Stock must be a non-negative integer').optional(),
+});
+
+export const adjustStockSchema = z.object({
+  delta: z.number().int('Delta must be an integer'),
+  reason: z.string().max(200).optional(),
+  category: z.enum(['restock', 'manual_adjustment', 'shrinkage']).optional().default('restock'),
+});
+
+export const createStandaloneSaleSchema = z.object({
+  product_id: z.string().uuid('Valid product_id required'),
+  quantity: z.number().int().positive('Quantity must be at least 1'),
+  payment_method: z.enum(['cash', 'card', 'transfer', 'wallet']).optional().default('cash'),
 });
 
 export const addSessionOrderSchema = z.object({
   product_id: z.string().uuid('Valid product_id required'),
   quantity: z.number().int().positive('Quantity must be at least 1'),
+});
+
+export const pauseSessionSchema = z.object({
+  reason: z.string().max(200).optional(),
+});
+
+export const createRoomSchema = z.object({
+  name: z.string().min(1, 'Name required').max(100),
+  icon: z.string().max(60).optional().default('sports_esports'),
+  device_id: z.string().uuid().optional().nullable(),
+  type: z.enum(['pc', 'console', 'vr', 'table']).optional().default('console'),
+  hourly_rate: z.number().nonnegative().optional().default(20),
+  hourly_rate_multi: z.number().nonnegative().optional().default(30),
+});
+
+export const updateRoomSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  icon: z.string().max(60).optional(),
+  device_id: z.string().uuid().optional().nullable(),
+  hourly_rate: z.number().nonnegative().optional(),
+  hourly_rate_multi: z.number().nonnegative().optional(),
 });
 

@@ -11,12 +11,13 @@ import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
-import { 
-  StartSessionModal, 
-  EndSessionModal, 
-  EditSessionModal 
+import {
+  StartSessionModal,
+  EndSessionModal,
+  EditSessionModal
 } from '../components/SessionModals';
 import type { Device, DeviceType, Session, PricingTier } from '../types';
 
@@ -24,15 +25,15 @@ export default function DevicesPage() {
   const now = useNow(1000);
   const { toast } = useToast();
   const { t, language } = useLanguage();
+  const { isAdmin } = useAuth();
 
   const { data, loading, refetch } = useAsync(async () => {
-    const [allDevices, sessions] = await Promise.all([
+    const [devices, sessions, rooms] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
+      dataService.listRooms().catch(() => []),
     ]);
-    // Filter out 'table' type devices — they belong to the Rooms/Game Halls page only
-    const devices = allDevices.filter((d: Device) => d.type !== 'table');
-    return { devices, sessions } as { devices: Device[]; sessions: Session[] };
+    return { devices, sessions, rooms };
   }, []);
 
   // Map device_id → active session for the live timer.
@@ -42,12 +43,33 @@ export default function DevicesPage() {
     return map;
   }, [data]);
 
+  // Set of device IDs assigned to private rooms
+  const roomDeviceIds = useMemo(() => {
+    const set = new Set<string>();
+    (data?.rooms ?? []).forEach((r) => {
+      if (r.device_id) set.add(r.device_id);
+    });
+    return set;
+  }, [data?.rooms]);
+
   const [startTarget, setStartTarget] = useState<Device | null>(null);
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingLoading, setDeletingLoading] = useState(false);
+
+  const hallDevices = useMemo(() => {
+    return (data?.devices ?? []).filter(
+      (d) => !roomDeviceIds.has(d.id) && d.type !== 'table' && !d.name.toLowerCase().includes('billiards') && !d.name.toLowerCase().includes('بلياردو')
+    );
+  }, [data?.devices, roomDeviceIds]);
+
+  const billiardsDevices = useMemo(() => {
+    return (data?.devices ?? []).filter(
+      (d) => !roomDeviceIds.has(d.id) && (d.type === 'table' || d.name.toLowerCase().includes('billiards') || d.name.toLowerCase().includes('بلياردو'))
+    );
+  }, [data?.devices, roomDeviceIds]);
 
   const handleAction = (device: Device) => {
     if (device.status === 'in_use') {
@@ -67,6 +89,26 @@ export default function DevicesPage() {
       refetch();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not extend session'), 'error');
+    }
+  };
+
+  const handlePauseSession = async (session: Session) => {
+    try {
+      await dataService.pauseSession(session.id);
+      toast(language === 'ar' ? 'تم تعليق الجلسة' : 'Session paused', 'success');
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not pause session'), 'error');
+    }
+  };
+
+  const handleResumeSession = async (session: Session) => {
+    try {
+      await dataService.resumeSession(session.id);
+      toast(language === 'ar' ? 'تم استئناف الجلسة' : 'Session resumed', 'success');
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not resume session'), 'error');
     }
   };
 
@@ -93,64 +135,138 @@ export default function DevicesPage() {
     );
   }
 
+  const totalHallDevices = hallDevices.length + billiardsDevices.length;
+  const availableHallDevices = [...hallDevices, ...billiardsDevices].filter((d) => d.status === 'available').length;
+
   return (
     <Layout
       title={t('devices')}
       subtitle={
         language === 'ar'
-          ? `${data.devices.length} محطات أجهزة · ${data.devices.filter((d) => d.status === 'available').length} متاح حالياً`
-          : `${data.devices.length} stations · ${data.devices.filter((d) => d.status === 'available').length} available`
+          ? `${totalHallDevices} محطات أجهزة بالصالة · ${availableHallDevices} متاح حالياً`
+          : `${totalHallDevices} hall stations · ${availableHallDevices} available`
       }
       actions={
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            className="ccms-btn ccms-btn-ghost" 
+          <button
+            className="ccms-btn ccms-btn-ghost"
             onClick={refetch}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
-            {language === 'ar' ? 'تحيث' : 'Refresh'}
+            {language === 'ar' ? 'تحديث' : 'Refresh'}
           </button>
-          <Button 
-            onClick={() => setCreating(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-            {language === 'ar' ? 'إضافة جهاز' : 'Add Device'}
-          </Button>
+          {isAdmin && (
+            <Button
+              onClick={() => setCreating(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+              {language === 'ar' ? 'إضافة جهاز' : 'Add Device'}
+            </Button>
+          )}
         </div>
       }
     >
-      {data.devices.length === 0 ? (
+      {totalHallDevices === 0 ? (
         <div className="ccms-card">
           <EmptyState
             icon="devices"
-            title={language === 'ar' ? 'لا توجد أجهزة مسجلة' : 'No devices yet'}
-            description={language === 'ar' ? 'أضف أول جهاز لبدء إدارة الصالة.' : 'Add your first device to get started.'}
-            action={<Button onClick={() => setCreating(true)}>{language === 'ar' ? 'إضافة جهاز' : 'Add Device'}</Button>}
+            title={language === 'ar' ? 'لا توجد أجهزة صالة مسجلة' : 'No hall devices yet'}
+            description={language === 'ar' ? 'أضف أول جهاز صالة أو طاولة بلياردو للبدء.' : 'Add your first hall device to get started.'}
+            action={isAdmin ? <Button onClick={() => setCreating(true)}>{language === 'ar' ? 'إضافة جهاز' : 'Add Device'}</Button> : undefined}
           />
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))',
-            gap: '24px',
-          }}
-        >
-          {data.devices.map((device, i) => (
-            <DeviceCard
-              key={device.id}
-              device={device}
-              index={i}
-              activeSession={activeByDevice.get(device.id)}
-              now={now}
-              onAction={handleAction}
-              onEditSession={(session) => setEditTarget(session)}
-              onExtendSession={handleExtendSession}
-              onDeleteDevice={(dev) => setDeleteTarget(dev)}
-            />
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>
+          {/* Section 1: أجهزة الصالة (PlayStation / Consoles / PC) */}
+          {hallDevices.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF', fontFamily: 'Space Grotesk, Cairo, sans-serif' }}>
+                  {language === 'ar' ? 'أجهزة الصالة' : 'Hall Devices'}
+                </span>
+                <span className="material-symbols-outlined" style={{ fontSize: '22px', color: '#0066FF' }}>
+                  sports_esports
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))',
+                  gap: '20px',
+                }}
+              >
+                {hallDevices.map((device, i) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    index={i}
+                    activeSession={activeByDevice.get(device.id)}
+                    now={now}
+                    onAction={handleAction}
+                    onEditSession={(session) => setEditTarget(session)}
+                    onExtendSession={handleExtendSession}
+                    onPauseSession={handlePauseSession}
+                    onResumeSession={handleResumeSession}
+                    onDeleteDevice={isAdmin ? (dev) => setDeleteTarget(dev) : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 2: أجهزة البلياردو (Billiards & Tables) */}
+          {billiardsDevices.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF', fontFamily: 'Space Grotesk, Cairo, sans-serif' }}>
+                  {language === 'ar' ? 'أجهزة البلياردو' : 'Billiards Devices'}
+                </span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    color: '#000',
+                    fontWeight: 900,
+                    fontSize: '13px',
+                  }}
+                >
+                  8
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))',
+                  gap: '20px',
+                }}
+              >
+                {billiardsDevices.map((device, i) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    index={i}
+                    activeSession={activeByDevice.get(device.id)}
+                    now={now}
+                    onAction={handleAction}
+                    onEditSession={(session) => setEditTarget(session)}
+                    onExtendSession={handleExtendSession}
+                    onPauseSession={handlePauseSession}
+                    onResumeSession={handleResumeSession}
+                    onDeleteDevice={isAdmin ? (dev) => setDeleteTarget(dev) : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

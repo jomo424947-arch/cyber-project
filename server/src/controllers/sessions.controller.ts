@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../lib/supabase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import type { DbSession } from '../lib/types';
@@ -106,7 +107,7 @@ export async function startSession(req: Request, res: Response) {
     const nameToUse = (customer_name && customer_name.trim()) ? customer_name.trim() : 'Walk-in';
     const cleanName = nameToUse.replace(/[^a-zA-Z0-9_]/g, '');
     const cleanPrefix = cleanName || 'walkin';
-    const uniqueSuffix = Math.random().toString(36).substring(2, 6);
+    const uniqueSuffix = crypto.randomBytes(3).toString('hex');
     const generatedUsername = `${cleanPrefix}_${uniqueSuffix}`.toLowerCase().substring(0, 30);
 
     const { data: newCustomer, error: cErr } = await supabase
@@ -462,6 +463,9 @@ export async function endSession(req: Request, res: Response) {
   if (sErr) throw sErr;
   if (!session) throw notFound('Session not found');
   if (session.status === 'ended') throw conflict('Session already ended', 'SESSION_ENDED');
+  if (session.is_paused) {
+    throw badRequest('Please resume the session before ending it', 'SESSION_PAUSED');
+  }
 
   // 2. Compute duration and cost
   const startedAt = new Date(session.started_at).getTime();
@@ -488,6 +492,8 @@ export async function endSession(req: Request, res: Response) {
 
   const {
     rawMinutes,
+    pausedMinutes,
+    effectiveMinutes,
     billedMinutes,
     baseCost,
     overtimeMinutes,
@@ -503,6 +509,7 @@ export async function endSession(req: Request, res: Response) {
     scheduledEnd: session.scheduled_end,
     gracePeriodMinutes: session.grace_period_minutes,
     overtimeRateMultiplier: Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0),
+    pausedMinutes: Number(session.total_paused_minutes || 0),
   });
 
   // Fetch total café orders cost
@@ -637,6 +644,8 @@ export async function endSession(req: Request, res: Response) {
     invoice,
     billing: { 
       raw_minutes: rawMinutes, 
+      paused_minutes: session.total_paused_minutes || 0,
+      effective_minutes: effectiveMinutes,
       billed_minutes: billedMinutes, 
       device_cost: totalCost, 
       cafe_cost: cafeTotalCost, 
@@ -645,6 +654,150 @@ export async function endSession(req: Request, res: Response) {
       overtime_cost: overtimeCost 
     },
   });
+}
+
+/** POST /api/sessions/:id/pause — pause an active session (excludes idle time from billing). */
+export async function pauseSession(req: Request, res: Response) {
+  const { id } = req.params;
+  const { reason } = req.body as { reason?: string };
+
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id, status, is_paused')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+  if (session.status === 'ended') throw badRequest('Cannot pause an ended session');
+  if (session.is_paused) throw conflict('Session is already paused', 'SESSION_ALREADY_PAUSED');
+
+  // Server-generated timestamp ONLY — never accept a client-supplied paused_at.
+  const pausedAt = new Date();
+
+  const { data: pauseRow, error: pErr } = await supabase
+    .from('session_pauses')
+    .insert({
+      session_id: id,
+      tenant_id: req.user!.tenant_id,
+      paused_at: pausedAt.toISOString(),
+      paused_by: req.user!.id,
+      reason: reason ?? null,
+    })
+    .select('*')
+    .single();
+
+  if (pErr) {
+    if ((pErr as any).code === '23505') {
+      throw conflict('Session is already paused', 'SESSION_ALREADY_PAUSED');
+    }
+    throw pErr;
+  }
+
+  const { data: updated, error: updErr } = await supabase
+    .from('sessions')
+    .update({ is_paused: true })
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
+    .single();
+
+  if (updErr) throw updErr;
+
+  // Reuse the existing audit trail so it shows up in the "Logs" button automatically.
+  await supabase.from('session_audit_log').insert({
+    session_id: id,
+    edited_by: req.user!.id,
+    field_changed: 'paused_at',
+    old_value: null,
+    new_value: pausedAt.toISOString(),
+  });
+
+  res.json({ data: updated as unknown as DbSession, pause: pauseRow });
+}
+
+/** POST /api/sessions/:id/resume — resume a paused session. */
+export async function resumeSession(req: Request, res: Response) {
+  const { id } = req.params;
+
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id, status, is_paused, total_paused_minutes')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+  if (session.status === 'ended') throw badRequest('Cannot resume an ended session');
+  if (!session.is_paused) throw conflict('Session is not paused', 'SESSION_NOT_PAUSED');
+
+  const { data: openPause, error: opErr } = await supabase
+    .from('session_pauses')
+    .select('*')
+    .eq('session_id', id)
+    .is('resumed_at', null)
+    .maybeSingle();
+
+  if (opErr) throw opErr;
+  if (!openPause) throw conflict('No active pause found for this session', 'SESSION_NOT_PAUSED');
+
+  // Server-generated timestamp ONLY.
+  const resumedAt = new Date();
+  const pausedAt = new Date(openPause.paused_at);
+  const thisPauseMinutes = Math.max(0, Math.round((resumedAt.getTime() - pausedAt.getTime()) / 60000));
+
+  const { error: closeErr } = await supabase
+    .from('session_pauses')
+    .update({ resumed_at: resumedAt.toISOString(), resumed_by: req.user!.id })
+    .eq('id', openPause.id)
+    .eq('tenant_id', req.user!.tenant_id);
+  if (closeErr) throw closeErr;
+
+  const newTotalPaused = Number(session.total_paused_minutes || 0) + thisPauseMinutes;
+
+  const { data: updated, error: updErr } = await supabase
+    .from('sessions')
+    .update({ is_paused: false, total_paused_minutes: newTotalPaused })
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
+    .single();
+  if (updErr) throw updErr;
+
+  await supabase.from('session_audit_log').insert({
+    session_id: id,
+    edited_by: req.user!.id,
+    field_changed: 'resumed_at',
+    old_value: openPause.paused_at,
+    new_value: resumedAt.toISOString(),
+  });
+
+  res.json({ data: updated as unknown as DbSession });
+}
+
+/** GET /api/sessions/:id/pauses — list pause periods for a session (for the invoice breakdown). */
+export async function listSessionPauses(req: Request, res: Response) {
+  const { id } = req.params;
+
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+
+  const { data, error } = await supabase
+    .from('session_pauses')
+    .select('*')
+    .eq('session_id', id)
+    .order('paused_at', { ascending: true });
+  if (error) throw error;
+
+  res.json({ data: data || [] });
 }
 
 /** POST /api/sessions/:id/orders — add a café order to a session. */
@@ -703,9 +856,10 @@ export async function addSessionOrder(req: Request, res: Response) {
   if (insErr) throw insErr;
 
   // 4. Decrement product stock
+  const newStock = Math.max(0, currentStock - requestedQty);
   const { error: stockErr } = await supabase
     .from('products')
-    .update({ stock: Math.max(0, currentStock - requestedQty) })
+    .update({ stock: newStock })
     .eq('id', product_id)
     .eq('tenant_id', req.user!.tenant_id);
 
@@ -713,7 +867,97 @@ export async function addSessionOrder(req: Request, res: Response) {
     console.error('[session] Failed to update product stock:', stockErr.message);
   }
 
+  // 5. Log stock decrement
+  await supabase.from('product_stock_logs').insert({
+    product_id,
+    tenant_id: req.user!.tenant_id,
+    actor_id: req.user!.id,
+    change_type: 'sale',
+    delta: -requestedQty,
+    balance_after: newStock,
+    reason: `Session order added to session`,
+  });
+
   res.status(201).json({ data: order });
+}
+
+/** DELETE /api/sessions/:id/orders/:orderId — void/remove an order line from an active session. */
+export async function voidSessionOrder(req: Request, res: Response) {
+  const { id: sessionId, orderId } = req.params;
+
+  // 1. Verify session exists, belongs to tenant, and is active
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id, status')
+    .eq('id', sessionId)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+  if (session.status === 'ended') {
+    throw badRequest('Cannot void café orders from an ended session');
+  }
+
+  // 2. Fetch session order and product details
+  const { data: order, error: oErr } = await supabase
+    .from('session_orders')
+    .select('*, product:products(id, name, stock)')
+    .eq('id', orderId)
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (oErr) throw oErr;
+  if (!order) throw notFound('Order line not found');
+
+  const product = order.product;
+  const restoredQty = Number(order.quantity || 0);
+
+  // 3. Restore product stock if product exists
+  if (product && product.id) {
+    const currentStock = Number(product.stock ?? 0);
+    const newStock = currentStock + restoredQty;
+
+    const { error: stockErr } = await supabase
+      .from('products')
+      .update({ stock: newStock })
+      .eq('id', product.id)
+      .eq('tenant_id', req.user!.tenant_id);
+
+    if (stockErr) {
+      console.error('[session] Failed to restore product stock on void:', stockErr.message);
+    }
+
+    // Log stock adjustment
+    await supabase.from('product_stock_logs').insert({
+      product_id: product.id,
+      tenant_id: req.user!.tenant_id,
+      actor_id: req.user!.id,
+      change_type: 'void_order',
+      delta: restoredQty,
+      balance_after: newStock,
+      reason: `Voided order from session`,
+    });
+  }
+
+  // 4. Delete the session order line
+  const { error: delErr } = await supabase
+    .from('session_orders')
+    .delete()
+    .eq('id', orderId);
+
+  if (delErr) throw delErr;
+
+  // 5. Log audit trail entry in session_audit_log
+  await supabase.from('session_audit_log').insert({
+    session_id: sessionId,
+    edited_by: req.user!.id,
+    field_changed: 'void_cafe_order',
+    old_value: `${product?.name ?? 'Item'} x${restoredQty} (${order.total_price})`,
+    new_value: 'voided',
+  });
+
+  res.json({ success: true, voided: order });
 }
 
 /** GET /api/sessions/:id/orders — list all café orders for a session. */

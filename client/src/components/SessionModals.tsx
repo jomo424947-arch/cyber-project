@@ -291,8 +291,10 @@ export function EndSessionModal({
   const startedTime = new Date(session.started_at).getTime();
   const endingTime = new Date(endedAt).getTime();
   
+  const pausedMinutes = session.total_paused_minutes || 0;
   const rawMinutes = Math.max(0, Math.ceil((endingTime - startedTime) / 60000));
-  const billedMinutes = Math.max(30, rawMinutes);
+  const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
+  const billedMinutes = Math.max(30, effectiveMinutes);
   
   const rate = Number(
     session.hourly_rate_override !== null
@@ -306,7 +308,7 @@ export function EndSessionModal({
   if (session.session_type === 'fixed' && session.scheduled_end) {
     const scheduledMinutes = Math.max(0, Math.ceil((new Date(session.scheduled_end).getTime() - startedTime) / 60000));
     const graceMinutes = Number(session.grace_period_minutes || 0);
-    overtimeMinutes = Math.max(0, rawMinutes - scheduledMinutes - graceMinutes);
+    overtimeMinutes = Math.max(0, effectiveMinutes - scheduledMinutes - graceMinutes);
     if (overtimeMinutes > 0) {
       overtimeCost = (overtimeMinutes / 60) * rate * 1.0;
     }
@@ -353,7 +355,13 @@ export function EndSessionModal({
         footer={
           <>
             <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
-            <Button variant="danger" loading={loading} onClick={submit} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            <Button 
+              variant="danger" 
+              loading={loading} 
+              disabled={session.is_paused}
+              onClick={submit} 
+              style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+            >
               {language === 'ar' ? 'إنهاء وإصدار الفاتورة' : 'End & Generate Invoice'}
             </Button>
           </>
@@ -375,10 +383,17 @@ export function EndSessionModal({
             <Row 
               label={language === 'ar' ? 'الوقت المحسوب' : 'Billed Time'} 
               value={language === 'ar' 
-                ? `${billedMinutes} دقيقة (الحقيقي: ${rawMinutes} د، الحد الأدنى 30 د)`
-                : `${billedMinutes} minutes (raw: ${rawMinutes}m, min 30m)`
+                ? `${billedMinutes} دقيقة (الفعلي: ${effectiveMinutes} د، الحد الأدنى 30 د)`
+                : `${billedMinutes} minutes (effective: ${effectiveMinutes}m, min 30m)`
               } 
             />
+            {pausedMinutes > 0 && (
+              <Row
+                label={language === 'ar' ? 'الوقت المعلّق' : 'Paused Time'}
+                value={`${pausedMinutes} ${language === 'ar' ? 'دقيقة' : 'min'}`}
+                valueColor="var(--accent-yellow)"
+              />
+            )}
             
             <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
             
@@ -430,6 +445,12 @@ export function EndSessionModal({
               isBold 
             />
           </div>
+
+          {session.is_paused && (
+            <div style={{ color: 'var(--accent-yellow)', fontSize: '13px', padding: '10px 12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', border: '1px solid var(--accent-yellow)' }}>
+              ⚠️ {language === 'ar' ? 'الجلسة معلّقة حالياً. يرجى استئناف الجلسة أولاً قبل إنهائها.' : 'Session is currently paused. Please resume the session before ending it.'}
+            </div>
+          )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>

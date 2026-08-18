@@ -55,6 +55,26 @@ export default function SessionsPage() {
     }
   };
 
+  const handlePause = async (session: Session) => {
+    try {
+      await dataService.pauseSession(session.id);
+      toast(language === 'ar' ? 'تم تعليق الجلسة' : 'Session paused', 'success');
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not pause session'), 'error');
+    }
+  };
+
+  const handleResume = async (session: Session) => {
+    try {
+      await dataService.resumeSession(session.id);
+      toast(language === 'ar' ? 'تم استئناف الجلسة' : 'Session resumed', 'success');
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not resume session'), 'error');
+    }
+  };
+
   return (
     <Layout
       title={t('active_sessions_title')}
@@ -140,6 +160,14 @@ export default function SessionsPage() {
                       key: 'elapsed',
                       header: language === 'ar' ? 'حالة الوقت' : 'Time Status',
                       render: (s: Session) => {
+                        if (s.is_paused) {
+                          return (
+                            <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold' }}>
+                              {language === 'ar' ? '⏸ معلّقة' : '⏸ Paused'}
+                            </span>
+                          );
+                        }
+
                         if (s.session_type === 'fixed' && s.scheduled_end) {
                           const endTime = new Date(s.scheduled_end).getTime();
                           const graceMins = s.grace_period_minutes || 0;
@@ -184,7 +212,7 @@ export default function SessionsPage() {
                         // Open (Pay-As-You-Go) Timer
                         return (
                           <span style={{ color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
-                            {formatElapsed(s.started_at, now)}
+                            {formatElapsed(s.started_at, now, s.total_paused_minutes)}
                           </span>
                         );
                       },
@@ -275,13 +303,47 @@ export default function SessionsPage() {
                             <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
                             {language === 'ar' ? 'مشروب +' : '+ Café'}
                           </button>
+                          {!s.is_paused ? (
+                            <button
+                              type="button"
+                              className="ccms-btn ccms-btn-ghost"
+                              style={{ 
+                                padding: '6px 12px', 
+                                fontSize: '11px',
+                                minHeight: '32px',
+                                color: 'var(--accent-yellow)',
+                                borderColor: 'rgba(245, 158, 11, 0.4)',
+                              }}
+                              onClick={() => handlePause(s)}
+                            >
+                              {language === 'ar' ? 'تعليق' : 'Pause'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="ccms-btn ccms-btn-ghost"
+                              style={{ 
+                                padding: '6px 12px', 
+                                fontSize: '11px',
+                                minHeight: '32px',
+                                color: 'var(--accent-green)',
+                                borderColor: 'rgba(34, 197, 94, 0.4)',
+                              }}
+                              onClick={() => handleResume(s)}
+                            >
+                              {language === 'ar' ? 'استئناف' : 'Resume'}
+                            </button>
+                          )}
                           <Button 
                             variant="danger" 
+                            disabled={s.is_paused}
+                            title={s.is_paused ? (language === 'ar' ? 'استأنف الجلسة أولاً قبل الإنهاء' : 'Resume session before ending') : undefined}
                             onClick={() => setEndTarget(s)} 
                             style={{ 
                               padding: '6px 14px', 
                               fontSize: '11px',
                               minHeight: '32px',
+                              opacity: s.is_paused ? 0.5 : 1,
                             }}
                           >
                             {language === 'ar' ? 'إنهاء' : 'End'}

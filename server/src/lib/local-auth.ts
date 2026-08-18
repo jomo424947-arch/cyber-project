@@ -4,10 +4,10 @@ import jwt from 'jsonwebtoken';
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable must be set in production');
-    }
-    return 'local-ccms-secret-key-12345';
+    throw new Error(
+      'FATAL: JWT_SECRET environment variable is not set. ' +
+      'The server cannot start without it. Set JWT_SECRET in your .env file.'
+    );
   }
   return secret;
 }

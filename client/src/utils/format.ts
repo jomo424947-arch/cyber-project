@@ -37,9 +37,9 @@ export function formatDuration(minutes: number | null | undefined): string {
   return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
 }
 
-/** Elapsed from an ISO timestamp → "1h 23m 04s". */
-export function formatElapsed(startedAt: string, nowMs: number = Date.now()): string {
-  const ms = Math.max(0, nowMs - new Date(startedAt).getTime());
+/** Elapsed from an ISO timestamp → "1h 23m 04s", minus any paused minutes. */
+export function formatElapsed(startedAt: string, nowMs: number = Date.now(), pausedMinutes = 0): string {
+  const ms = Math.max(0, nowMs - new Date(startedAt).getTime() - pausedMinutes * 60000);
   const totalSec = Math.floor(ms / 1000);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
