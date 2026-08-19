@@ -816,13 +816,12 @@ export async function updateTenantStatus(req: Request, res: Response) {
     await cloudSupabase.from('tenants').update({ status }).eq('id', cleanId);
   }
 
-  // 2. Unconditionally sync local SQLite database tenant_config status
+  // 2. Sync local SQLite database tenant_config status
   try {
     const db = getDb();
     db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now") WHERE tenant_id = ?', [status, cleanId]);
-    db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now")', [status]);
     saveDatabase();
-    console.log(`[SuperAdmin] Local tenant_config updated status to ${status}`);
+    console.log(`[SuperAdmin] Local tenant_config for tenant ${cleanId} updated to status=${status}`);
   } catch (err: any) {
     console.error('[SuperAdmin] Failed to update local tenant_config status:', err.message);
   }

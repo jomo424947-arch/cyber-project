@@ -831,16 +831,23 @@ export async function addSessionOrder(req: Request, res: Response) {
   if (!product) throw notFound('Product not found');
 
   const requestedQty = Number(quantity);
-  const currentStock = Number(product.stock ?? 0);
-
-  if (currentStock < requestedQty) {
-    throw badRequest(`الكمية المتاحة بالمخزون للمنتج "${product.name}" غير كافية. المتاح حالياً: ${currentStock}`);
-  }
-
   const unitPrice = Number(product.price);
   const totalPrice = Math.round(unitPrice * requestedQty * 100) / 100;
 
-  // 3. Insert order
+  // 3. Atomically decrement stock
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc('decrement_product_stock', {
+    p_product_id: product_id,
+    p_tenant_id: req.user!.tenant_id,
+    p_qty: requestedQty,
+  });
+
+  if (rpcErr) throw rpcErr;
+  const updatedProduct = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+  if (!updatedProduct) {
+    throw badRequest(`الكمية المتاحة بالمخزون للمنتج "${product.name}" غير كافية. المتاح حالياً: ${Number(product.stock ?? 0)}`);
+  }
+
+  // 4. Insert order
   const { data: order, error: insErr } = await supabase
     .from('session_orders')
     .insert({
@@ -855,18 +862,6 @@ export async function addSessionOrder(req: Request, res: Response) {
 
   if (insErr) throw insErr;
 
-  // 4. Decrement product stock
-  const newStock = Math.max(0, currentStock - requestedQty);
-  const { error: stockErr } = await supabase
-    .from('products')
-    .update({ stock: newStock })
-    .eq('id', product_id)
-    .eq('tenant_id', req.user!.tenant_id);
-
-  if (stockErr) {
-    console.error('[session] Failed to update product stock:', stockErr.message);
-  }
-
   // 5. Log stock decrement
   await supabase.from('product_stock_logs').insert({
     product_id,
@@ -874,7 +869,7 @@ export async function addSessionOrder(req: Request, res: Response) {
     actor_id: req.user!.id,
     change_type: 'sale',
     delta: -requestedQty,
-    balance_after: newStock,
+    balance_after: updatedProduct.stock,
     reason: `Session order added to session`,
   });
 

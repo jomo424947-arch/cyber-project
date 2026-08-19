@@ -133,22 +133,18 @@ export async function adjustProductStock(req: Request, res: Response) {
   if (fetchErr) throw fetchErr;
   if (!product) throw notFound('Product not found');
 
-  const currentStock = Number(product.stock ?? 0);
-  const newBalance = currentStock + deltaNum;
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc('adjust_product_stock', {
+    p_product_id: id,
+    p_tenant_id: req.user!.tenant_id,
+    p_delta: deltaNum,
+  });
 
-  if (newBalance < 0) {
+  if (rpcErr) throw rpcErr;
+  const updatedProduct = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+  if (!updatedProduct) {
+    const currentStock = Number(product.stock ?? 0);
     throw badRequest(`Cannot reduce stock below 0. Current stock: ${currentStock}, requested change: ${deltaNum}`);
   }
-
-  const { data: updated, error: updateErr } = await supabase
-    .from('products')
-    .update({ stock: newBalance })
-    .eq('id', id)
-    .eq('tenant_id', req.user!.tenant_id)
-    .select('*')
-    .single();
-
-  if (updateErr) throw updateErr;
 
   const { data: stockLog, error: logErr } = await supabase
     .from('product_stock_logs')
@@ -158,7 +154,7 @@ export async function adjustProductStock(req: Request, res: Response) {
       actor_id: req.user!.id,
       change_type: category,
       delta: deltaNum,
-      balance_after: newBalance,
+      balance_after: updatedProduct.stock,
       reason: reason || (category === 'restock' ? 'Inventory restock' : 'Stock adjustment'),
     })
     .select('*, actor:users(full_name)')
@@ -168,7 +164,7 @@ export async function adjustProductStock(req: Request, res: Response) {
     console.error('[products] Failed to insert stock log:', logErr.message);
   }
 
-  res.json({ data: updated, log: stockLog });
+  res.json({ data: updatedProduct, log: stockLog });
 }
 
 /** GET /api/products/:id/stock-logs — fetch stock adjustment logs for a product. */
@@ -211,16 +207,25 @@ export async function createStandaloneSale(req: Request, res: Response) {
   if (pErr) throw pErr;
   if (!product) throw notFound('Product not found');
 
-  const currentStock = Number(product.stock ?? 0);
-  if (currentStock < requestedQty) {
-    throw badRequest(`Insufficient stock for "${product.name}". Available: ${currentStock}`);
-  }
-
   const unitPrice = Number(product.price);
   const costPrice = product.cost_price !== null && product.cost_price !== undefined ? Number(product.cost_price) : null;
   const totalPrice = Math.round(unitPrice * requestedQty * 100) / 100;
 
-  // 1. Insert standalone order
+  // 1. Decrement stock atomically via RPC
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc('decrement_product_stock', {
+    p_product_id: product_id,
+    p_tenant_id: req.user!.tenant_id,
+    p_qty: requestedQty,
+  });
+
+  if (rpcErr) throw rpcErr;
+  const updatedProduct = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+  if (!updatedProduct) {
+    const currentStock = Number(product.stock ?? 0);
+    throw badRequest(`Insufficient stock for "${product.name}". Available: ${currentStock}`);
+  }
+
+  // 2. Insert standalone order
   const { data: order, error: insErr } = await supabase
     .from('standalone_orders')
     .insert({
@@ -238,14 +243,6 @@ export async function createStandaloneSale(req: Request, res: Response) {
 
   if (insErr) throw insErr;
 
-  // 2. Decrement stock
-  const newStock = Math.max(0, currentStock - requestedQty);
-  await supabase
-    .from('products')
-    .update({ stock: newStock })
-    .eq('id', product_id)
-    .eq('tenant_id', req.user!.tenant_id);
-
   // 3. Log stock decrement
   await supabase.from('product_stock_logs').insert({
     product_id,
@@ -253,7 +250,7 @@ export async function createStandaloneSale(req: Request, res: Response) {
     actor_id: req.user!.id,
     change_type: 'standalone_sale',
     delta: -requestedQty,
-    balance_after: newStock,
+    balance_after: updatedProduct.stock,
     reason: `Standalone sale (Walk-in)`,
   });
 

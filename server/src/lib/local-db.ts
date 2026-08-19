@@ -775,6 +775,47 @@ class QueryBuilder {
   }
 }
 
+/**
+ * Atomically adjust a product's stock by `delta` (negative to decrement),
+ * refusing to go below zero. Mirrors the Postgres RPC of the same intent.
+ * Returns the updated row, or null if the guard condition failed
+ * (insufficient stock) or the product/tenant pair didn't match.
+ */
+export function adjustProductStockAtomic(
+  productId: string,
+  tenantId: string,
+  delta: number
+): Record<string, any> | null {
+  const db = getDb();
+  db.run(
+    `UPDATE products SET stock = stock + ? WHERE id = ? AND tenant_id = ? AND stock + ? >= 0`,
+    [delta, productId, tenantId, delta]
+  );
+  const rowsModified = typeof (db as any).getRowsModified === 'function' ? (db as any).getRowsModified() : 0;
+  if (rowsModified === 0) {
+    return null;
+  }
+  const stmt = db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?');
+  stmt.bind([productId, tenantId]);
+  let row: Record<string, any> | null = null;
+  if (stmt.step()) row = stmt.getAsObject();
+  stmt.free();
+  saveDatabase();
+  return row;
+}
+
+/**
+ * Atomically decrement a product's stock by `qty`, refusing to go below zero.
+ * Returns the updated row, or null if insufficient stock.
+ */
+export function decrementProductStockAtomic(
+  productId: string,
+  tenantId: string,
+  qty: number
+): Record<string, any> | null {
+  return adjustProductStockAtomic(productId, tenantId, -qty);
+}
+
 // ─── Supabase-compatible wrapper ─────────────────────────────────────────────
 
 /**
@@ -784,6 +825,25 @@ class QueryBuilder {
 class LocalSupabase {
   from(table: string): QueryBuilder {
     return new QueryBuilder(table);
+  }
+
+  /**
+   * Execute RPC functions locally in offline SQLite mode.
+   */
+  async rpc(fnName: string, args: Record<string, any> = {}): Promise<{ data: any; error: any }> {
+    try {
+      if (fnName === 'decrement_product_stock') {
+        const updated = decrementProductStockAtomic(args.p_product_id, args.p_tenant_id, Number(args.p_qty));
+        return { data: updated ? [updated] : [], error: null };
+      }
+      if (fnName === 'adjust_product_stock') {
+        const updated = adjustProductStockAtomic(args.p_product_id, args.p_tenant_id, Number(args.p_delta));
+        return { data: updated ? [updated] : [], error: null };
+      }
+      return { data: null, error: { message: `Unknown RPC function: ${fnName}` } };
+    } catch (err: any) {
+      return { data: null, error: { message: err.message } };
+    }
   }
 
   // Stub for supabase.auth — not used in local mode

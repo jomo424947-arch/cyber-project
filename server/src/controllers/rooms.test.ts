@@ -34,11 +34,11 @@ describe('Gaming Rooms Management', () => {
     const singleRate = 25;
     const multiRate = 35;
 
-    const playModeSingle = 'single';
+    const playModeSingle: string = 'single';
     const effectiveRateSingle = playModeSingle === 'multiplayer' ? multiRate : singleRate;
     expect(effectiveRateSingle).toBe(25);
 
-    const playModeMulti = 'multiplayer';
+    const playModeMulti: string = 'multiplayer';
     const effectiveRateMulti = playModeMulti === 'multiplayer' ? multiRate : singleRate;
     expect(effectiveRateMulti).toBe(35);
   });
