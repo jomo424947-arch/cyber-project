@@ -15,6 +15,8 @@ import PricingPage from './pages/PricingPage';
 import EmployeesPage from './pages/EmployeesPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import ShiftsPage from './pages/ShiftsPage';
+import ExpensesPage from './pages/ExpensesPage';
 
 /** Wraps a page with the auth gate — redirects to /login if not authenticated. */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -231,6 +233,8 @@ export default function App() {
       <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
       <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+      <Route path="/shifts" element={<ProtectedRoute><ShiftsPage /></ProtectedRoute>} />
+      <Route path="/expenses" element={<ProtectedRoute><ExpensesPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
       <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />

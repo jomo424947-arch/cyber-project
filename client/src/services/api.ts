@@ -17,12 +17,21 @@ import type {
   Product,
   ProductSalesReport,
   SessionOrder,
+  SessionTransfer,
+  TransferSessionPayload,
+  EndSessionPayload,
   PricingTier,
   SessionPause,
   StockLog,
   StandaloneOrder,
   GamingRoom,
   CreateRoomPayload,
+  Shift,
+  ShiftExpense,
+  ShiftSummary,
+  StartShiftPayload,
+  CloseShiftPayload,
+  CreateExpensePayload,
 } from '../types';
 
 /**
@@ -46,6 +55,7 @@ export interface DataService {
   getTenants(secretKey: string): Promise<{ success: boolean; tenants: any[] }>;
   updateTenantStatus(id: string, status: string, secretKey: string): Promise<{ success: boolean }>;
   listPublicEmployees(): Promise<User[]>;
+  syncCloud?(): Promise<{ success: boolean; message: string }>;
 
   // employees management
   listEmployees(): Promise<User[]>;
@@ -63,8 +73,10 @@ export interface DataService {
   // sessions
   listSessions(filter?: 'active' | 'ended'): Promise<Session[]>;
   startSession(payload: StartSessionPayload): Promise<Session>;
-  endSession(id: string, payload?: { payment_method?: PaymentMethod; mark_paid?: boolean; ended_at?: string }): Promise<{ session: Session; invoice: Invoice }>;
+  endSession(id: string, payload?: EndSessionPayload): Promise<{ session: Session; invoice: Invoice }>;
   updateSession(id: string, patch: { started_at?: string; scheduled_end?: string | null; hourly_rate_override?: number | null; grace_period_minutes?: number }): Promise<Session>;
+  transferSession(id: string, payload: TransferSessionPayload): Promise<{ session: Session; transfer: SessionTransfer }>;
+  listSessionTransfers(id: string): Promise<SessionTransfer[]>;
   extendSession(id: string, additional_minutes: number): Promise<Session>;
   pauseSession(id: string, reason?: string): Promise<Session>;
   resumeSession(id: string): Promise<Session>;
@@ -112,4 +124,18 @@ export interface DataService {
   createRoom(payload: CreateRoomPayload): Promise<GamingRoom>;
   updateRoom(id: string, patch: Partial<{ name: string; icon: string; device_id: string | null; hourly_rate: number; hourly_rate_multi: number }>): Promise<GamingRoom>;
   deleteRoom(id: string): Promise<void>;
+
+  // shifts
+  listShifts(filter?: 'active' | 'closed', userId?: string): Promise<Shift[]>;
+  getActiveShift(): Promise<Shift | null>;
+  startShift(payload?: StartShiftPayload): Promise<Shift>;
+  closeShift(id: string, payload?: CloseShiftPayload): Promise<Shift>;
+  getShiftSummary(id: string): Promise<ShiftSummary>;
+
+  // expenses
+  listAllExpenses(shiftId?: string, category?: string): Promise<ShiftExpense[]>;
+  listShiftExpenses(shiftId: string): Promise<ShiftExpense[]>;
+  createShiftExpense(shiftId: string, payload: CreateExpensePayload): Promise<ShiftExpense>;
+  createQuickExpense(payload: CreateExpensePayload): Promise<ShiftExpense>;
+  deleteShiftExpense(shiftId: string, expenseId: string): Promise<void>;
 }

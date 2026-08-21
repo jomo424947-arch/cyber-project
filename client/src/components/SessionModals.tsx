@@ -17,7 +17,7 @@ const toLocalISOString = (date: Date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-// ─── Start Session modal ───────────────────────────────────────────────
+export { TransferSessionModal } from './TransferSessionModal';
 export function StartSessionModal({
   device,
   playMode = 'single',
@@ -48,9 +48,11 @@ export function StartSessionModal({
   
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [hasActiveShift, setHasActiveShift] = useState<boolean | null>(null);
 
   useEffect(() => {
     dataService.listCustomers().then(setCustomers).catch(() => setCustomers([]));
+    dataService.getActiveShift().then((shift) => setHasActiveShift(!!shift)).catch(() => setHasActiveShift(true));
   }, []);
 
   const filteredCustomers = useMemo(() => {
@@ -103,11 +105,56 @@ export function StartSessionModal({
       await dataService.startSession(payload);
       onDone();
     } catch (err: any) {
-      setErrorMsg(err.message || apiErrorMessage(err, 'Could not start session'));
+      const msg = apiErrorMessage(err, language === 'ar' ? 'فشل بدء الجلسة' : 'Could not start session');
+      setErrorMsg(msg);
+      if (err?.response?.data?.error?.code === 'NO_ACTIVE_SHIFT' || msg.includes('وردية') || msg.includes('shift')) {
+        setHasActiveShift(false);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  if (hasActiveShift === false) {
+    return (
+      <Modal
+        open
+        title={language === 'ar' ? 'تنبيه: لا توجد وردية مفتوحة' : 'Warning: No Active Shift'}
+        onClose={onClose}
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+              {t('cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                onClose();
+                window.location.href = '/shifts';
+              }}
+              style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+            >
+              {language === 'ar' ? 'الانتقال لصفحة الورديات لبدء الوردية' : 'Go to Shifts to Start'}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ textAlign: 'center', padding: '16px 8px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--accent-yellow)', marginBottom: '12px' }}>
+            schedule
+          </span>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar' ? 'يجب بدء الوردية أولاً' : 'Shift Required'}
+          </h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar'
+              ? 'حسب قواعد النظام المحاسبي، لا يمكن بدء أي جلسات أو إصدار فواتير دون وجود وردية عمل مفتوحة للموظف لتسجيل العهدة والإيرادات.'
+              : 'Per accounting rules, starting gaming sessions or generating invoices requires an active staff shift.'}
+          </p>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -252,8 +299,20 @@ export function StartSessionModal({
         )}
 
         {errorMsg && (
-          <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
-            {errorMsg}
+          <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '10px 12px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 68, 102, 0.3)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div>{errorMsg}</div>
+            {(errorMsg.includes('وردية') || errorMsg.includes('shift') || errorMsg.includes('400')) && (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  onClose();
+                  window.location.href = '/shifts';
+                }}
+                style={{ alignSelf: 'flex-start', fontSize: '12px', padding: '4px 12px', marginTop: '4px' }}
+              >
+                {language === 'ar' ? 'فتح صفحة الورديات لبدء الوردية' : 'Open Shifts to Start'}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -281,11 +340,28 @@ export function EndSessionModal({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [orders, setOrders] = useState<SessionOrder[] | null>(null);
+  const [transfers, setTransfers] = useState<any[] | null>(null);
+
+  // Discount state
+  const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
+  const [discountValue, setDiscountValue] = useState<string>('0');
+  
+  // Service fee state
+  const [serviceType, setServiceType] = useState<'none' | 'percentage' | 'fixed'>('none');
+  const [serviceValue, setServiceValue] = useState<string>('0');
+
+  // Rounding mode state
+  const [roundingMode, setRoundingMode] = useState<'none' | 'floor_5' | 'nearest_5' | 'nearest_10'>('none');
+  const [invoiceNotes, setInvoiceNotes] = useState<string>('');
 
   useEffect(() => {
     dataService.listSessionOrders(session.id)
       .then(setOrders)
       .catch((err) => console.error('Failed to list session orders in end modal:', err));
+
+    dataService.listSessionTransfers(session.id)
+      .then(setTransfers)
+      .catch((err) => console.error('Failed to list session transfers in end modal:', err));
   }, [session.id]);
 
   const startedTime = new Date(session.started_at).getTime();
@@ -294,7 +370,13 @@ export function EndSessionModal({
   const pausedMinutes = session.total_paused_minutes || 0;
   const rawMinutes = Math.max(0, Math.ceil((endingTime - startedTime) / 60000));
   const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
-  const billedMinutes = Math.max(30, effectiveMinutes);
+  
+  // Previous transfers
+  const transfersCost = transfers ? transfers.reduce((sum, t) => sum + Number(t.cost || 0), 0) : 0;
+  const transfersMinutes = transfers ? transfers.reduce((sum, t) => sum + Number(t.duration_minutes || 0), 0) : 0;
+  
+  const minBilling = transfersMinutes > 0 ? 0 : 30;
+  const billedMinutes = Math.max(minBilling, effectiveMinutes);
   
   const rate = Number(
     session.hourly_rate_override !== null
@@ -316,9 +398,56 @@ export function EndSessionModal({
 
   const baseMinutes = billedMinutes - overtimeMinutes;
   const baseCost = (baseMinutes / 60) * rate;
+  const currentSegmentCost = baseCost + overtimeCost;
+  const totalDeviceCost = currentSegmentCost + transfersCost;
 
+  // Café orders cost
   const cafeCost = orders ? orders.reduce((sum, ord) => sum + Number(ord.total_price), 0) : 0;
-  const totalCost = baseCost + overtimeCost + cafeCost;
+  
+  // Subtotal before discounts and fees
+  const subtotal = Math.round((totalDeviceCost + cafeCost) * 100) / 100;
+
+  // 1. Discount calculation
+  const parsedDiscountVal = parseFloat(discountValue) || 0;
+  let discountAmount = 0;
+  if (discountType === 'percentage' && parsedDiscountVal > 0) {
+    discountAmount = Math.round(subtotal * (Math.min(100, parsedDiscountVal) / 100) * 100) / 100;
+  } else if (discountType === 'fixed' && parsedDiscountVal > 0) {
+    discountAmount = Math.min(subtotal, Math.round(parsedDiscountVal * 100) / 100);
+  }
+  const afterDiscount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+  // 2. Service fee calculation
+  const parsedServiceVal = parseFloat(serviceValue) || 0;
+  let serviceFee = 0;
+  if (serviceType === 'percentage' && parsedServiceVal > 0) {
+    serviceFee = Math.round(afterDiscount * (parsedServiceVal / 100) * 100) / 100;
+  } else if (serviceType === 'fixed' && parsedServiceVal > 0) {
+    serviceFee = Math.round(parsedServiceVal * 100) / 100;
+  }
+  const beforeRounding = Math.round((afterDiscount + serviceFee) * 100) / 100;
+
+  // 3. Cash Rounding / Fakkah calculation
+  let calculatedDelta = 0;
+  if (roundingMode === 'floor_5') {
+    const target = Math.floor(beforeRounding / 5) * 5;
+    calculatedDelta = Math.round((target - beforeRounding) * 100) / 100;
+  } else if (roundingMode === 'nearest_5') {
+    const target = Math.round(beforeRounding / 5) * 5;
+    calculatedDelta = Math.round((target - beforeRounding) * 100) / 100;
+  } else if (roundingMode === 'nearest_10') {
+    const target = Math.round(beforeRounding / 10) * 10;
+    calculatedDelta = Math.round((target - beforeRounding) * 100) / 100;
+  }
+  const finalTotalCost = Math.max(0, Math.round((beforeRounding + calculatedDelta) * 100) / 100);
+
+  // Rounding options dynamic targets
+  const floor5Target = Math.floor(beforeRounding / 5) * 5;
+  const floor5Diff = Math.round((floor5Target - beforeRounding) * 100) / 100;
+  const nearest5Target = Math.round(beforeRounding / 5) * 5;
+  const nearest5Diff = Math.round((nearest5Target - beforeRounding) * 100) / 100;
+  const nearest10Target = Math.round(beforeRounding / 10) * 10;
+  const nearest10Diff = Math.round((nearest10Target - beforeRounding) * 100) / 100;
 
   const submit = async () => {
     setLoading(true);
@@ -336,6 +465,12 @@ export function EndSessionModal({
         ended_at: new Date(endedAt).toISOString(),
         mark_paid: markPaid,
         payment_method: paymentMethod,
+        discount_type: discountType,
+        discount_value: parsedDiscountVal,
+        service_fee: serviceFee,
+        service_rate: serviceType === 'percentage' ? parsedServiceVal : 0,
+        rounding_delta: calculatedDelta,
+        notes: invoiceNotes.trim() || undefined,
       });
 
       onDone();
@@ -350,8 +485,20 @@ export function EndSessionModal({
     <>
       <Modal
         open
-        title={language === 'ar' ? `إنهاء الجلسة · ${session.device?.name ?? 'الجهاز'}` : `End Session · ${session.device?.name ?? 'Device'}`}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-symbols-outlined" style={{ color: 'var(--accent-red)', fontSize: '22px' }}>
+              receipt_long
+            </span>
+            <span>
+              {language === 'ar'
+                ? `إنهاء الجلسة وإصدار الفاتورة · ${session.device?.name ?? 'الجهاز'}`
+                : `End Session & Invoice · ${session.device?.name ?? 'Device'}`}
+            </span>
+          </div>
+        }
         onClose={onClose}
+        width={580}
         footer={
           <>
             <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
@@ -360,14 +507,23 @@ export function EndSessionModal({
               loading={loading} 
               disabled={session.is_paused}
               onClick={submit} 
-              style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+              style={{
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 18px',
+                fontWeight: 700,
+              }}
             >
-              {language === 'ar' ? 'إنهاء وإصدار الفاتورة' : 'End & Generate Invoice'}
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+              {language === 'ar' ? `إنهاء ودفع (${formatCurrency(finalTotalCost)})` : `End & Checkout (${formatCurrency(finalTotalCost)})`}
             </Button>
           </>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left', maxHeight: '72vh', overflowY: 'auto', paddingRight: '4px' }}>
+          
           <Input
             type="datetime-local"
             label={language === 'ar' ? 'وقت الانتهاء' : 'End Time'}
@@ -376,15 +532,16 @@ export function EndSessionModal({
             onChange={(e) => setEndedAt(e.target.value)}
           />
 
+          {/* Session Breakdown Box */}
           <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border-default)' }}>
             <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={session.customer ? `@${session.customer.username} (${session.customer.name})` : (language === 'ar' ? 'مستغل خارجي' : 'Walk-in')} />
-            <Row label={language === 'ar' ? 'سعر الساعة' : 'Hourly Rate'} value={`${formatCurrency(rate)} / ${language === 'ar' ? 'ساعة' : 'hr'}`} />
+            <Row label={language === 'ar' ? 'الجهاز الحالي' : 'Current Device'} value={`${session.device?.name} (${formatCurrency(rate)}/س)`} />
             <Row label={language === 'ar' ? 'تاريخ البدء' : 'Started At'} value={new Date(session.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)} />
             <Row 
-              label={language === 'ar' ? 'الوقت المحسوب' : 'Billed Time'} 
+              label={language === 'ar' ? 'الوقت المحسوب للجهاز الحالي' : 'Current Billed Time'} 
               value={language === 'ar' 
-                ? `${billedMinutes} دقيقة (الفعلي: ${effectiveMinutes} د، الحد الأدنى 30 د)`
-                : `${billedMinutes} minutes (effective: ${effectiveMinutes}m, min 30m)`
+                ? `${billedMinutes} دقيقة (الفعلي: ${effectiveMinutes} د)`
+                : `${billedMinutes} minutes (effective: ${effectiveMinutes}m)`
               } 
             />
             {pausedMinutes > 0 && (
@@ -395,63 +552,362 @@ export function EndSessionModal({
               />
             )}
             
-            <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-            
-            <Row label={language === 'ar' ? 'التكلفة الأساسية' : 'Base Cost'} value={formatCurrency(baseCost)} />
-            
-            {session.session_type === 'fixed' && (
+            <Row label={language === 'ar' ? 'تكلفة الجهاز الحالي' : 'Current Device Cost'} value={formatCurrency(currentSegmentCost)} />
+
+            {/* Previous Transfers Breakdown */}
+            {transfers && transfers.length > 0 && (
               <>
+                <hr style={{ border: '0', borderTop: '1px dashed var(--border-default)', margin: '4px 0' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+                    {language === 'ar' ? 'مراحل التحويل السابقة:' : 'Previous Transfers:'}
+                  </span>
+                  {transfers.map((tr, idx) => (
+                    <div key={tr.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <span>{tr.from_device?.name ?? 'الجهاز السابق'} ({tr.duration_minutes} دقيقة)</span>
+                      <span style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{formatCurrency(tr.cost)}</span>
+                    </div>
+                  ))}
+                </div>
+                <Row label={language === 'ar' ? 'إجمالي تكلفة التحويلات السابقة' : 'Transfers Total'} value={formatCurrency(transfersCost)} valueColor="var(--accent-purple)" />
+              </>
+            )}
+
+            {/* Overtime in fixed sessions */}
+            {session.session_type === 'fixed' && overtimeMinutes > 0 && (
+              <>
+                <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
                 <Row 
                   label={language === 'ar' ? 'دقائق الوقت الإضافي' : 'Overtime Minutes'} 
-                  value={language === 'ar'
-                    ? `${overtimeMinutes} دقيقة (مع تطبيق ${session.grace_period_minutes} د سماح)`
-                    : `${overtimeMinutes} mins (${session.grace_period_minutes}m grace applied)`
-                  } 
-                  valueColor={overtimeMinutes > 0 ? 'var(--accent-red)' : 'var(--text-secondary)'}
+                  value={`${overtimeMinutes} دقيقة`} 
+                  valueColor="var(--accent-red)"
                 />
                 <Row 
                   label={language === 'ar' ? 'تكلفة الوقت الإضافي' : 'Overtime Cost'} 
                   value={formatCurrency(overtimeCost)} 
-                  valueColor={overtimeCost > 0 ? 'var(--accent-red)' : 'var(--text-secondary)'}
+                  valueColor="var(--accent-red)"
                 />
               </>
             )}
 
+            {/* Café Orders */}
             {cafeCost > 0 && (
               <>
                 <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: isRtl ? 0 : '8px', paddingRight: isRtl ? '8px' : 0 }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {language === 'ar' ? 'طلبات البوفيه:' : 'Café Orders:'}
                   </span>
                   {(orders ?? []).map((ord) => (
                     <div key={ord.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      <span>{ord.product?.name} (x{ord.quantity})</span>
+                      <span>{ord.product?.name} (×{ord.quantity})</span>
                       <span>{formatCurrency(ord.total_price)}</span>
                     </div>
                   ))}
                 </div>
-                <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
                 <Row label={language === 'ar' ? 'إجمالي تكلفة البوفيه' : 'Total Café Cost'} value={formatCurrency(cafeCost)} valueColor="var(--accent-cyan)" />
               </>
             )}
 
             <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
             
+            {/* Subtotal */}
             <Row 
-              label={language === 'ar' ? 'إجمالي الحساب' : 'Total Cost'} 
-              value={formatCurrency(totalCost)} 
-              valueColor="var(--accent-green)" 
+              label={language === 'ar' ? 'المجموع الفرعي (قبل الخصم والخدمة)' : 'Subtotal'} 
+              value={formatCurrency(subtotal)} 
+              valueColor="#FFFFFF" 
               isBold 
             />
           </div>
 
+          {/* ─── SECTION 1: DISCOUNT / التخفيض ─── */}
+          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>local_offer</span>
+                {language === 'ar' ? 'الخصم / التخفيض' : 'Discount'}
+              </span>
+              {discountAmount > 0 && (
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)' }}>
+                  - {formatCurrency(discountAmount)}
+                </span>
+              )}
+            </div>
+
+            {/* Quick Discount Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[
+                { id: 'none', label: language === 'ar' ? 'بدون' : 'None', type: 'none', val: '0' },
+                { id: '5%', label: '5%', type: 'percentage', val: '5' },
+                { id: '10%', label: '10%', type: 'percentage', val: '10' },
+                { id: '15%', label: '15%', type: 'percentage', val: '15' },
+                { id: '20%', label: '20%', type: 'percentage', val: '20' },
+                { id: 'fixed', label: language === 'ar' ? 'مبلغ ثابت' : 'Fixed', type: 'fixed', val: discountType === 'fixed' ? discountValue : '10' },
+              ].map((p) => {
+                const isActive = discountType === p.type && (p.type === 'fixed' || discountValue === p.val);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setDiscountType(p.type as any);
+                      if (p.type === 'none') {
+                        setDiscountValue('0');
+                      } else {
+                        setDiscountValue(p.val);
+                      }
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '16px',
+                      border: isActive ? '1px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                      background: isActive ? 'rgba(0, 194, 255, 0.2)' : 'var(--bg-input)',
+                      color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {discountType !== 'none' && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Input
+                  type="number"
+                  min="0"
+                  label={discountType === 'percentage' ? (language === 'ar' ? 'نسبة الخصم (%)' : 'Discount (%)') : (language === 'ar' ? 'مبلغ الخصم (ج)' : 'Discount Amount (EGP)')}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ─── SECTION 2: SERVICE FEE / خدمة الصالة ─── */}
+          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>room_service</span>
+                {language === 'ar' ? 'رسوم الخدمة / خدمة الصالة' : 'Service Fee'}
+              </span>
+              {serviceFee > 0 && (
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)' }}>
+                  + {formatCurrency(serviceFee)}
+                </span>
+              )}
+            </div>
+
+            {/* Quick Service Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[
+                { id: 'none', label: language === 'ar' ? 'بدون خدمة' : 'None', type: 'none', val: '0' },
+                { id: '5%', label: '5%', type: 'percentage', val: '5' },
+                { id: '10%', label: '10%', type: 'percentage', val: '10' },
+                { id: '12%', label: '12%', type: 'percentage', val: '12' },
+                { id: 'fixed', label: language === 'ar' ? 'قيمة ثابتة' : 'Fixed', type: 'fixed', val: serviceType === 'fixed' ? serviceValue : '10' },
+              ].map((p) => {
+                const isActive = serviceType === p.type && (p.type === 'fixed' || serviceValue === p.val);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setServiceType(p.type as any);
+                      if (p.type === 'none') {
+                        setServiceValue('0');
+                      } else {
+                        setServiceValue(p.val);
+                      }
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '16px',
+                      border: isActive ? '1px solid var(--accent-yellow)' : '1px solid var(--border-default)',
+                      background: isActive ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-input)',
+                      color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {serviceType !== 'none' && (
+              <Input
+                type="number"
+                min="0"
+                label={serviceType === 'percentage' ? (language === 'ar' ? 'نسبة الخدمة (%)' : 'Service Rate (%)') : (language === 'ar' ? 'مبلغ الخدمة (ج)' : 'Service Amount (EGP)')}
+                value={serviceValue}
+                onChange={(e) => setServiceValue(e.target.value)}
+              />
+            )}
+          </div>
+
+          {/* ─── SECTION 3: CASH ROUNDING / تسوية الفكة ─── */}
+          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>price_change</span>
+                {language === 'ar' ? 'تقريب الحساب / تسوية الفكة' : 'Cash Rounding & Change'}
+              </span>
+              {calculatedDelta !== 0 && (
+                <span style={{ fontSize: '12px', fontWeight: 700, color: calculatedDelta < 0 ? 'var(--accent-green)' : 'var(--accent-cyan)' }}>
+                  {calculatedDelta < 0 ? `- ${formatCurrency(Math.abs(calculatedDelta))}` : `+ ${formatCurrency(calculatedDelta)}`}
+                </span>
+              )}
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
+              {language === 'ar' 
+                ? `المبلغ قبل التقريب: ${formatCurrency(beforeRounding)}. يمكنك تقريب المبلغ لتفادي مشاكل الفكة:` 
+                : `Amount before rounding: ${formatCurrency(beforeRounding)}.`}
+            </p>
+
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {/* Option 1: Exact (No Rounding) */}
+              <button
+                type="button"
+                onClick={() => setRoundingMode('none')}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: '16px',
+                  border: roundingMode === 'none' ? '1px solid #38bdf8' : '1px solid var(--border-default)',
+                  background: roundingMode === 'none' ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-input)',
+                  color: roundingMode === 'none' ? '#FFFFFF' : 'var(--text-secondary)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {language === 'ar' ? `المبلغ الدقيق (${formatCurrency(beforeRounding)})` : `Exact (${formatCurrency(beforeRounding)})`}
+              </button>
+
+              {/* Option 2: Floor 5 (Forgive change / خصم الفكة) */}
+              {floor5Diff !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRoundingMode('floor_5')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '16px',
+                    border: roundingMode === 'floor_5' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                    background: roundingMode === 'floor_5' ? 'rgba(0, 194, 255, 0.2)' : 'var(--bg-input)',
+                    color: roundingMode === 'floor_5' ? '#FFFFFF' : 'var(--accent-cyan)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {language === 'ar' ? `خصم الفكة لـ ${formatCurrency(floor5Target)} (${floor5Diff} ج)` : `Floor to ${formatCurrency(floor5Target)}`}
+                </button>
+              )}
+
+              {/* Option 3: Nearest 5 */}
+              {nearest5Diff !== 0 && nearest5Target !== floor5Target && (
+                <button
+                  type="button"
+                  onClick={() => setRoundingMode('nearest_5')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '16px',
+                    border: roundingMode === 'nearest_5' ? '1px solid #38bdf8' : '1px solid var(--border-default)',
+                    background: roundingMode === 'nearest_5' ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-input)',
+                    color: roundingMode === 'nearest_5' ? '#FFFFFF' : 'var(--text-secondary)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {language === 'ar' ? `تقريب لأقرب 5 (${formatCurrency(nearest5Target)})` : `Nearest 5 (${formatCurrency(nearest5Target)})`}
+                </button>
+              )}
+
+              {/* Option 4: Nearest 10 */}
+              {nearest10Diff !== 0 && nearest10Target !== floor5Target && nearest10Target !== nearest5Target && (
+                <button
+                  type="button"
+                  onClick={() => setRoundingMode('nearest_10')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '16px',
+                    border: roundingMode === 'nearest_10' ? '1px solid #38bdf8' : '1px solid var(--border-default)',
+                    background: roundingMode === 'nearest_10' ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-input)',
+                    color: roundingMode === 'nearest_10' ? '#FFFFFF' : 'var(--text-secondary)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {language === 'ar' ? `تقريب لأقرب 10 (${formatCurrency(nearest10Target)})` : `Nearest 10 (${formatCurrency(nearest10Target)})`}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ─── FINAL NET TOTAL BOX ─── */}
+          <div
+            style={{
+              padding: '14px 16px',
+              background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.08) 0%, rgba(0, 102, 255, 0.03) 100%)',
+              border: '1px solid rgba(0, 194, 255, 0.28)',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFFFFF' }}>
+                {language === 'ar' ? 'الإجمالي الصافي المطلوب دفعه:' : 'Net Total Due:'}
+              </span>
+              <span
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 900,
+                  color: 'var(--accent-cyan)',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  textShadow: '0 0 12px rgba(0, 194, 255, 0.35)',
+                }}
+              >
+                {formatCurrency(finalTotalCost)}
+              </span>
+            </div>
+
+            {(discountAmount > 0 || serviceFee > 0 || calculatedDelta !== 0) && (
+              <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                <span>المجموع: {formatCurrency(subtotal)}</span>
+                {discountAmount > 0 && <span style={{ color: 'var(--accent-cyan)' }}>خصم: -{formatCurrency(discountAmount)}</span>}
+                {serviceFee > 0 && <span style={{ color: 'var(--accent-yellow)' }}>خدمة: +{formatCurrency(serviceFee)}</span>}
+                {calculatedDelta !== 0 && <span>تقريب: {calculatedDelta > 0 ? `+${calculatedDelta}` : calculatedDelta} ج</span>}
+              </div>
+            )}
+          </div>
+
+          <Input
+            label={language === 'ar' ? 'ملاحظات الفاتورة (اختياري)' : 'Invoice Notes (optional)'}
+            placeholder={language === 'ar' ? 'مثال: سبب الخصم أو ملاحظات الدفع' : 'e.g. Discount reason...'}
+            value={invoiceNotes}
+            onChange={(e) => setInvoiceNotes(e.target.value)}
+          />
+
           {session.is_paused && (
-            <div style={{ color: 'var(--accent-yellow)', fontSize: '13px', padding: '10px 12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', border: '1px solid var(--accent-yellow)' }}>
-              ⚠️ {language === 'ar' ? 'الجلسة معلّقة حالياً. يرجى استئناف الجلسة أولاً قبل إنهائها.' : 'Session is currently paused. Please resume the session before ending it.'}
+            <div style={{ color: 'var(--accent-yellow)', fontSize: '13px', padding: '10px 12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', border: '1px solid var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>pause_circle</span>
+              <span>{language === 'ar' ? 'الجلسة معلّقة حالياً. يرجى استئناف الجلسة أولاً قبل إنهائها.' : 'Session is currently paused. Please resume the session before ending it.'}</span>
             </div>
           )}
 
+          {/* Payment Method & Shift Checkbox */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
               <input 
@@ -508,8 +964,9 @@ export function EndSessionModal({
                             {language === 'ar' ? 'امسح الـ QR للتحويل الفوري' : 'Scan QR code to pay'}
                           </span>
                           {walletPhoneNumber ? (
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', fontFamily: 'JetBrains Mono, monospace' }}>
-                              📱 {walletPhoneNumber}
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>phone_iphone</span>
+                              {walletPhoneNumber}
                             </span>
                           ) : (
                             <span style={{ fontSize: '11px', color: '#475569' }}>
@@ -522,8 +979,9 @@ export function EndSessionModal({
                         </div>
                       </div>
                     ) : (
-                      <div style={{ padding: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent-yellow)', lineHeight: '1.5' }}>
-                        ⚠️ {language === 'ar' ? 'لم يتم تعيين صورة الـ QR للمحفظة في الإعدادات بعد (الديفولت فارغة). يمكنك رفع صورة QR فودافون كاش من صفحة الإعدادات.' : 'No E-Wallet QR image set in settings yet. You can upload your QR code in the Settings page.'}
+                      <div style={{ padding: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent-yellow)', lineHeight: '1.5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
+                        <span>{language === 'ar' ? 'لم يتم تعيين صورة الـ QR للمحفظة في الإعدادات بعد (الديفولت فارغة). يمكنك رفع صورة QR فودافون كاش من صفحة الإعدادات.' : 'No E-Wallet QR image set in settings yet. You can upload your QR code in the Settings page.'}</span>
                       </div>
                     )}
 
@@ -589,6 +1047,7 @@ export function EndSessionModal({
       </Modal>
 
       {/* QR Code Zoom Popup Modal */}
+      {/* QR Code Zoom Popup Modal */}
       {showQrZoom && walletQrUrl && (
         <Modal
           open
@@ -606,8 +1065,9 @@ export function EndSessionModal({
               <img src={walletQrUrl} alt="QR Code Large" style={{ width: '240px', height: '240px', objectFit: 'contain' }} />
             </div>
             {walletPhoneNumber && (
-              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
-                📱 {walletPhoneNumber}
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>phone_iphone</span>
+                {walletPhoneNumber}
               </div>
             )}
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>

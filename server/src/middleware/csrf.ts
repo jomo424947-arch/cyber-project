@@ -23,11 +23,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
 
   // Ensure csrf-token cookie is set for same-site browser contexts
   if (!cookieToken) {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecure = process.env.USE_HTTPS === 'true';
     res.cookie('csrf-token', activeToken, {
       httpOnly: false,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
+      secure: isSecure,
+      sameSite: 'lax',
       path: '/',
     });
   }

@@ -138,7 +138,9 @@ export async function updateEmployee(req: Request, res: Response) {
   }
 
   // Update locally in SQLite
-  const patch: any = { full_name, role };
+  const patch: any = {};
+  if (full_name !== undefined) patch.full_name = full_name;
+  if (role !== undefined) patch.role = role;
   if (password) {
     patch.password_hash = hashPassword(password);
   }

@@ -211,5 +211,31 @@ export async function deleteRoom(req: Request, res: Response) {
 
   if (delErr) throw delErr;
 
+  // Also permanently delete the associated device if present
+  if (room.device_id) {
+    try {
+      const { data: sessions } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('device_id', room.device_id)
+        .eq('tenant_id', req.user!.tenant_id);
+
+      if (sessions && sessions.length > 0) {
+        for (const s of sessions) {
+          await supabase.from('invoices').delete().eq('session_id', s.id).eq('tenant_id', req.user!.tenant_id);
+        }
+        await supabase.from('sessions').delete().eq('device_id', room.device_id).eq('tenant_id', req.user!.tenant_id);
+      }
+
+      await supabase
+        .from('devices')
+        .delete()
+        .eq('id', room.device_id)
+        .eq('tenant_id', req.user!.tenant_id);
+    } catch (devCleanErr) {
+      console.warn('[rooms] Could not clean up associated device:', devCleanErr);
+    }
+  }
+
   res.json({ message: 'Room deleted successfully', id });
 }

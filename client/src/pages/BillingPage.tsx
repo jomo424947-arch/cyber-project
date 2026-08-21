@@ -253,6 +253,23 @@ export default function BillingPage() {
                 },
               },
               {
+                key: 'employee',
+                header: language === 'ar' ? 'الموظف المسئول' : 'Staff Member',
+                render: (i: Invoice) => {
+                  const staffName = i.creator?.full_name || i.creator?.email?.split('@')[0] || (language === 'ar' ? 'غير محدد' : '—');
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
+                        badge
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {staffName}
+                      </span>
+                    </div>
+                  );
+                },
+              },
+              {
                 key: 'startTime',
                 header: language === 'ar' ? 'وقت البدء' : 'Start Time',
                 render: (i: Invoice) => {

@@ -18,15 +18,12 @@ import { verifyToken } from '../lib/local-auth';
  */
 export async function verifyJWT(req: Request, _res: Response, next: NextFunction) {
   try {
-    let token = req.cookies?.['sb-access-token'];
-
-    // Fallback to Authorization header if cookie is not present (e.g. for API testing tools)
-    if (!token) {
-      const header = req.headers.authorization;
-      if (header && header.toLowerCase().startsWith('bearer ')) {
-        token = header.slice(7).trim();
-      }
-    }
+    let token =
+      (req.headers.authorization && req.headers.authorization.toLowerCase().startsWith('bearer ')
+        ? req.headers.authorization.slice(7).trim()
+        : null) ||
+      (req.headers['x-access-token'] as string) ||
+      req.cookies?.['sb-access-token'];
 
     if (!token) {
       throw unauthorized('Missing session token');

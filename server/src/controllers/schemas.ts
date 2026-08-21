@@ -56,10 +56,22 @@ export const startSessionSchema = z.object({
   grace_period_minutes: z.number().int().nonnegative().default(0),
 });
 
+export const transferSessionSchema = z.object({
+  target_device_id: z.string().uuid('Valid target_device_id required'),
+  play_mode: z.enum(['single', 'multiplayer']).optional(),
+  hourly_rate_override: z.number().nonnegative().optional().nullable(),
+});
+
 export const endSessionSchema = z.object({
   payment_method: z.enum(['cash', 'card', 'transfer', 'wallet']).optional(),
   mark_paid: z.boolean().optional(),
   ended_at: z.string().optional(),
+  discount_type: z.enum(['none', 'percentage', 'fixed']).optional().default('none'),
+  discount_value: z.number().nonnegative().optional().default(0),
+  service_fee: z.number().nonnegative().optional().default(0),
+  service_rate: z.number().nonnegative().optional().default(0),
+  rounding_delta: z.number().optional().default(0),
+  notes: z.string().max(500).optional().nullable(),
 });
 
 export const extendSessionSchema = z.object({
@@ -144,4 +156,22 @@ export const updateRoomSchema = z.object({
   hourly_rate: z.number().nonnegative().optional(),
   hourly_rate_multi: z.number().nonnegative().optional(),
 });
+
+export const startShiftSchema = z.object({
+  opening_cash: z.number().nonnegative('Opening cash must be non-negative').optional().default(0),
+  notes: z.string().max(500).optional(),
+});
+
+export const closeShiftSchema = z.object({
+  closing_cash: z.number().nonnegative('Closing cash must be non-negative').optional().nullable(),
+  notes: z.string().max(500).optional(),
+});
+
+export const createExpenseSchema = z.object({
+  amount: z.number().positive('Amount must be positive'),
+  category: z.string().max(100).optional().default(''),
+  description: z.string().min(1, 'Description required').max(300),
+});
+
+
 

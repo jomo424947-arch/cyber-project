@@ -1,12 +1,10 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { DeviceCard } from '../components/DeviceCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
@@ -17,9 +15,11 @@ import { apiErrorMessage } from '../services/http';
 import {
   StartSessionModal,
   EndSessionModal,
-  EditSessionModal
+  EditSessionModal,
+  TransferSessionModal,
 } from '../components/SessionModals';
-import type { Device, DeviceType, Session, PricingTier } from '../types';
+import { DeviceFormModal } from '../components/DeviceFormModal';
+import type { Device, DeviceType, Session } from '../types';
 
 export default function DevicesPage() {
   const now = useNow(1000);
@@ -55,6 +55,7 @@ export default function DevicesPage() {
   const [startTarget, setStartTarget] = useState<Device | null>(null);
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Session | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -207,6 +208,7 @@ export default function DevicesPage() {
                     now={now}
                     onAction={handleAction}
                     onEditSession={(session) => setEditTarget(session)}
+                    onTransferSession={(session) => setTransferTarget(session)}
                     onExtendSession={handleExtendSession}
                     onPauseSession={handlePauseSession}
                     onResumeSession={handleResumeSession}
@@ -258,6 +260,7 @@ export default function DevicesPage() {
                     now={now}
                     onAction={handleAction}
                     onEditSession={(session) => setEditTarget(session)}
+                    onTransferSession={(session) => setTransferTarget(session)}
                     onExtendSession={handleExtendSession}
                     onPauseSession={handlePauseSession}
                     onResumeSession={handleResumeSession}
@@ -291,6 +294,19 @@ export default function DevicesPage() {
           onDone={() => {
             setEndTarget(null);
             toast(language === 'ar' ? 'تم إنهاء الجلسة وحساب الفاتورة' : 'Session ended — invoice generated', 'success');
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Transfer session modal */}
+      {transferTarget && (
+        <TransferSessionModal
+          session={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onDone={() => {
+            setTransferTarget(null);
+            toast(language === 'ar' ? 'تم تحويل الجلسة بنجاح' : 'Session transferred successfully', 'success');
             refetch();
           }}
         />
@@ -352,158 +368,5 @@ export default function DevicesPage() {
         </Modal>
       )}
     </Layout>
-  );
-}
-
-function DeviceFormModal({
-  title,
-  initial,
-  existingDevices = [],
-  onClose,
-  onDone,
-}: {
-  title: string;
-  initial: Device | null;
-  existingDevices?: Device[];
-  onClose: () => void;
-  onDone: (patch: Record<string, unknown>) => void;
-}) {
-  const [name, setName] = useState(initial?.name ?? '');
-  const [type, setType] = useState<DeviceType>(initial?.type ?? 'pc');
-  const [hourlyRate, setHourlyRate] = useState(String(initial?.hourly_rate ?? ''));
-  const [hourlyRateMulti, setHourlyRateMulti] = useState(String(initial?.hourly_rate_multi ?? ''));
-  const [specsCpu, setSpecsCpu] = useState((initial?.specs as Record<string, string>)?.CPU ?? '');
-  const [specsGpu, setSpecsGpu] = useState((initial?.specs as Record<string, string>)?.GPU ?? '');
-  const [specsRam, setSpecsRam] = useState((initial?.specs as Record<string, string>)?.RAM ?? '');
-  const [loading, setLoading] = useState(false);
-  const [pricingTiers, setPricingTiers] = useState<Record<string, { rate: number; rateMulti: number }>>({});
-  const { t, language } = useLanguage();
-
-  const getFallbackFromDevices = (devType: string) => {
-    const match = existingDevices.find((d) => d.type === devType);
-    if (match) {
-      return { rate: match.hourly_rate, rateMulti: match.hourly_rate_multi };
-    }
-    return null;
-  };
-
-  useEffect(() => {
-    async function loadPricing() {
-      try {
-        const tiers = await dataService.getPricing();
-        const map: Record<string, { rate: number; rateMulti: number }> = {};
-        tiers.forEach((tier: PricingTier) => {
-          map[tier.type] = { rate: tier.hourly_rate, rateMulti: tier.hourly_rate_multi };
-        });
-        setPricingTiers(map);
-
-        if (!initial) {
-          const defaultTier = map[type] || getFallbackFromDevices(type);
-          if (defaultTier) {
-            setHourlyRate(String(defaultTier.rate));
-            setHourlyRateMulti(String(defaultTier.rateMulti));
-          }
-        }
-      } catch {
-        if (!initial) {
-          const defaultTier = getFallbackFromDevices(type);
-          if (defaultTier) {
-            setHourlyRate(String(defaultTier.rate));
-            setHourlyRateMulti(String(defaultTier.rateMulti));
-          }
-        }
-      }
-    }
-    loadPricing();
-  }, []);
-
-  const handleTypeChange = (newType: DeviceType) => {
-    setType(newType);
-    if (!initial) {
-      const tier = pricingTiers[newType] || getFallbackFromDevices(newType);
-      if (tier) {
-        setHourlyRate(String(tier.rate));
-        setHourlyRateMulti(String(tier.rateMulti));
-      }
-    }
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      const specs: Record<string, string> = {};
-      if (specsCpu) specs.CPU = specsCpu;
-      if (specsGpu) specs.GPU = specsGpu;
-      if (specsRam) specs.RAM = specsRam;
-      const rate = parseFloat(hourlyRate || '0');
-      const rateMulti = parseFloat(hourlyRateMulti || '0');
-      if (Number.isNaN(rate) || rate < 0 || Number.isNaN(rateMulti) || rateMulti < 0) {
-        throw new Error('Invalid hourly rate');
-      }
-      const patch: Record<string, unknown> = {
-        name,
-        type,
-        hourly_rate: rate,
-        hourly_rate_multi: rateMulti,
-        specs: Object.keys(specs).length > 0 ? specs : null,
-      };
-      await onDone(patch);
-    } catch (err) {
-      // handled by parent
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isValid = name.trim() && !Number.isNaN(parseFloat(hourlyRate)) && !Number.isNaN(parseFloat(hourlyRateMulti));
-
-  return (
-    <Modal
-      open
-      title={title}
-      onClose={onClose}
-      width={480}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
-          <Button loading={loading} disabled={!isValid} onClick={handleSubmit}>
-            {initial ? t('save') : (language === 'ar' ? 'تسجيل الجهاز' : 'Add Device')}
-          </Button>
-        </>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Input label={language === 'ar' ? 'معرّف الجهاز (الاسم)' : 'Device Name'} placeholder="e.g. PS 5, PC-05" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <Select label={language === 'ar' ? 'القسم / النوع' : 'Category'} value={type} onChange={(e) => handleTypeChange(e.target.value as DeviceType)}>
-          <option value="pc">{language === 'ar' ? 'كمبيوتر مكتبى (PC)' : 'PC'}</option>
-          <option value="console">{language === 'ar' ? 'منصة ألعاب (Console)' : 'Console'}</option>
-          <option value="vr">{language === 'ar' ? 'واقع افتراضي (VR)' : 'VR'}</option>
-        </Select>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <Input
-            label={language === 'ar' ? 'سعر الساعة فردي ($)' : 'Single Rate ($/hr)'}
-            type="number"
-            step="0.5"
-            min="0"
-            value={hourlyRate}
-            onChange={(e) => setHourlyRate(e.target.value)}
-          />
-          <Input
-            label={language === 'ar' ? 'سعر الساعة جماعي ($)' : 'Multi Rate ($/hr)'}
-            type="number"
-            step="0.5"
-            min="0"
-            value={hourlyRateMulti}
-            onChange={(e) => setHourlyRateMulti(e.target.value)}
-          />
-        </div>
-        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '14px' }}>
-          <span className="ccms-eyebrow">{language === 'ar' ? 'مواصفات العتاد والقطع (اختياري)' : 'Hardware Specifications (optional)'}</span>
-        </div>
-        <Input label={language === 'ar' ? 'المعالج (CPU)' : 'CPU'} placeholder="e.g. i5-12400F" value={specsCpu} onChange={(e) => setSpecsCpu(e.target.value)} />
-        <Input label={language === 'ar' ? 'كرت الشاشة (GPU)' : 'GPU'} placeholder="e.g. RTX 3060" value={specsGpu} onChange={(e) => setSpecsGpu(e.target.value)} />
-        <Input label={language === 'ar' ? 'الذاكرة (RAM)' : 'RAM'} placeholder="e.g. 16GB" value={specsRam} onChange={(e) => setSpecsRam(e.target.value)} />
-      </div>
-    </Modal>
   );
 }

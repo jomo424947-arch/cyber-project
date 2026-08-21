@@ -7,14 +7,16 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
 import { SessionOrdersRow } from '../components/SessionOrdersRow';
-import { EndSessionModal } from '../components/SessionModals';
+import { EndSessionModal, TransferSessionModal } from '../components/SessionModals';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
+import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatCurrency, formatDateTime } from '../utils/format';
 import { AddCafeModal } from '../components/AddCafeModal';
+import { StartShiftModal, CloseShiftModal, ExpenseModal, ShiftDetailsModal } from '../components/ShiftModals';
 import type { Session } from '../types';
 
 export default function DashboardPage() {
@@ -24,18 +26,60 @@ export default function DashboardPage() {
   const { t, language, isRtl } = useLanguage();
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
   const [endTarget, setEndTarget] = useState<Session | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Session | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  // Shift Modals state
+  const [showStartShiftModal, setShowStartShiftModal] = useState(false);
+  const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  const handlePause = async (session: Session) => {
+    try {
+      await dataService.pauseSession(session.id);
+      toast(language === 'ar' ? 'تم تعليق الجلسة' : 'Session paused', 'success');
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not pause session'), 'error');
+    }
+  };
+
+  const handleResume = async (session: Session) => {
+    try {
+      await dataService.resumeSession(session.id);
+      toast(language === 'ar' ? 'تم استئناف الجلسة' : 'Session resumed', 'success');
+      refetch();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not resume session'), 'error');
+    }
+  };
+
+  const handleRefresh = async () => {
+    setSyncing(true);
+    try {
+      if (dataService.syncCloud) {
+        await dataService.syncCloud();
+      }
+    } catch (e) {
+      // ignore sync errors, refetch local
+    }
+    await refetch();
+    setSyncing(false);
+  };
 
   // Fetch everything in parallel via a single async wrapper.
   const { data, loading, error, refetch } = useAsync(async () => {
-    const [devices, sessions, invoices, reservations, revReport, salesReport] = await Promise.all([
+    const [devices, sessions, invoices, reservations, revReport, salesReport, activeShift] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
       dataService.listInvoices(),
       dataService.listReservations(),
       dataService.revenueReport().catch(() => null),
       dataService.getProductSalesReport().catch(() => null),
+      dataService.getActiveShift().catch(() => null),
     ]);
-    return { devices, sessions, invoices, reservations, revReport, salesReport };
+    return { devices, sessions, invoices, reservations, revReport, salesReport, activeShift };
   }, []);
 
   const stats = useMemo(() => {
@@ -46,17 +90,13 @@ export default function DashboardPage() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const revenue = data.invoices
+    const invoiceRevenue = data.invoices
       .filter((i) => i.paid && i.paid_at && new Date(i.paid_at) >= todayStart)
       .reduce((sum, i) => sum + i.amount, 0);
 
-    let cafeRevenue = data.revReport?.totals?.today_cafe ?? 0;
-    if (revenue > 0 && cafeRevenue > revenue) cafeRevenue = revenue;
-
-    let deviceRevenue = data.revReport?.totals?.today_device ?? Math.max(0, revenue - cafeRevenue);
-    if (deviceRevenue + cafeRevenue > revenue && revenue > 0) {
-      deviceRevenue = Math.max(0, revenue - cafeRevenue);
-    }
+    const cafeRevenue = data.revReport?.totals?.today_cafe ?? 0;
+    const deviceRevenue = data.revReport?.totals?.today_device ?? invoiceRevenue;
+    const revenue = data.revReport?.totals?.today ?? (deviceRevenue + cafeRevenue);
 
     const pending = data.reservations.filter((r) => r.status === 'pending').length;
     return { active, available, revenue, deviceRevenue, cafeRevenue, pending };
@@ -108,17 +148,118 @@ export default function DashboardPage() {
     <Layout
       title=""
       subtitle=""
+      currentShift={data.activeShift}
       actions={
-        <button 
-          className="ccms-btn ccms-btn-ghost" 
-          onClick={refetch}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '34px', fontSize: '12px' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
-          {language === 'ar' ? 'تحديث' : 'Refresh'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {data.activeShift ? (
+            <>
+              <button
+                className="ccms-btn ccms-btn-ghost"
+                onClick={() => setShowExpenseModal(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minHeight: '34px', fontSize: '12px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-red)' }}>receipt_long</span>
+                {language === 'ar' ? 'تسجيل مصروف' : 'Expense'}
+              </button>
+              <button
+                className="ccms-btn ccms-btn-danger"
+                onClick={() => setShowCloseShiftModal(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minHeight: '34px', fontSize: '12px', fontWeight: 600 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>lock_clock</span>
+                {language === 'ar' ? 'إغلاق الوردية' : 'End Shift'}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setShowStartShiftModal(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                background: '#0066FF',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 18px',
+                fontSize: '13px',
+                fontWeight: 700,
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0, 102, 255, 0.3)',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#0052CC')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#0066FF')}
+            >
+              <span style={{ fontSize: '16px', fontWeight: 900, lineHeight: 1 }}>+</span>
+              <span>{language === 'ar' ? 'بدء وردية جديدة' : 'Start Shift'}</span>
+            </button>
+          )}
+
+          <button
+            className="ccms-btn ccms-btn-ghost"
+            onClick={() => setShowDetailsModal(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              minHeight: '34px',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--accent-cyan)',
+              border: '1px solid rgba(0, 194, 255, 0.3)',
+              background: 'rgba(0, 194, 255, 0.08)',
+              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>analytics</span>
+            {language === 'ar' ? 'تفاصيل الوردية' : 'Shift Details'}
+          </button>
+
+          <button 
+            className="ccms-btn ccms-btn-ghost" 
+            onClick={handleRefresh}
+            disabled={syncing}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '34px', fontSize: '12px' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', animation: syncing ? 'spin 1s linear infinite' : 'none' }}>sync</span>
+            {language === 'ar' ? (syncing ? 'مزامنة...' : 'تحديث') : (syncing ? 'Syncing…' : 'Refresh')}
+          </button>
+        </div>
       }
     >
+      {/* Shift Alert Banner if no active shift */}
+      {!data.activeShift && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '14px 20px',
+            marginBottom: '20px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.12) 0%, rgba(234, 179, 8, 0.05) 100%)',
+            border: '1px solid rgba(234, 179, 8, 0.35)',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '26px', color: 'var(--accent-yellow)' }}>
+            warning_amber
+          </span>
+          <div>
+            <strong style={{ fontSize: '14px', color: 'var(--text-primary)', display: 'block' }}>
+              {language === 'ar' ? 'لا توجد وردية عمل مفتوحة حالياً' : 'No Active Work Shift'}
+            </strong>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              {language === 'ar'
+                ? 'لبدء تسجيل فواتير اللعب وحركة النقدية بالدرج، اضغط على زر بدء الوردية.'
+                : 'Start a work shift to log cashier revenue and register receipts.'}
+            </span>
+          </div>
+        </div>
+      )}
       {/* Stat cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
         {/* Row 1: Operations (2 Cards) */}
@@ -254,30 +395,109 @@ export default function DashboardPage() {
               },
               {
                 key: 'actions',
-                header: '',
+                header: language === 'ar' ? 'التحكم' : 'Actions',
                 align: 'right',
                 render: (s) => (
-                  <button
-                    className="ccms-btn ccms-btn-ghost"
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      minHeight: '28px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      borderColor: 'var(--accent-cyan)',
-                      color: 'var(--accent-cyan)',
-                      fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCafeTarget(s);
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
-                    {language === 'ar' ? 'مشروب +' : '+ Café'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    {/* Pause / Resume Button */}
+                    {!s.is_paused ? (
+                      <button
+                        type="button"
+                        className="ccms-btn ccms-btn-ghost"
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          minHeight: '28px',
+                          color: 'var(--accent-yellow)',
+                          borderColor: 'rgba(245, 158, 11, 0.4)',
+                          fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePause(s);
+                        }}
+                        title={language === 'ar' ? 'تعليق الجلسة' : 'Pause Session'}
+                      >
+                        ⏸ {language === 'ar' ? 'تعليق' : 'Pause'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="ccms-btn ccms-btn-ghost"
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          minHeight: '28px',
+                          color: 'var(--accent-green)',
+                          borderColor: 'rgba(34, 197, 94, 0.4)',
+                          fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResume(s);
+                        }}
+                        title={language === 'ar' ? 'استئناف الجلسة' : 'Resume Session'}
+                      >
+                        ▶ {language === 'ar' ? 'استئناف' : 'Resume'}
+                      </button>
+                    )}
+
+                    {/* Transfer Button */}
+                    <button
+                      type="button"
+                      className="ccms-btn ccms-btn-ghost"
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        minHeight: '28px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        borderColor: 'rgba(168, 85, 247, 0.4)',
+                        color: 'var(--accent-purple)',
+                        fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTransferTarget(s);
+                      }}
+                      title={language === 'ar' ? 'تحويل لجهاز أو غرفة أخرى' : 'Transfer Session'}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+                      {language === 'ar' ? 'تحويل' : 'Transfer'}
+                    </button>
+
+                    {/* Add Cafe Button */}
+                    <button
+                      type="button"
+                      className="ccms-btn ccms-btn-ghost"
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        minHeight: '28px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        borderColor: 'var(--accent-cyan)',
+                        color: 'var(--accent-cyan)',
+                        fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCafeTarget(s);
+                      }}
+                      title={language === 'ar' ? 'إضافة طلب كافيه' : 'Add Café Item'}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
+                      {language === 'ar' ? 'مشروب +' : '+ Café'}
+                    </button>
+                  </div>
                 ),
               },
             ]}
@@ -296,17 +516,60 @@ export default function DashboardPage() {
           onDone={refetch}
         />
       )}
+      {transferTarget && (
+        <TransferSessionModal
+          session={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onDone={() => {
+            setTransferTarget(null);
+            toast(language === 'ar' ? 'تم تحويل الجلسة بنجاح' : 'Session transferred successfully', 'success');
+            refetch();
+          }}
+        />
+      )}
       {endTarget && (
         <EndSessionModal
           session={endTarget}
           onClose={() => setEndTarget(null)}
           onDone={() => {
             setEndTarget(null);
-            toast('Session ended successfully', 'success');
+            toast(language === 'ar' ? 'تم إنهاء الجلسة وحساب الفاتورة بنجاح' : 'Session ended successfully', 'success');
             refetch();
           }}
         />
       )}
+      {/* Shift Modals */}
+      <StartShiftModal
+        open={showStartShiftModal}
+        onClose={() => setShowStartShiftModal(false)}
+        onStarted={() => {
+          setShowStartShiftModal(false);
+          refetch();
+        }}
+      />
+      <CloseShiftModal
+        open={showCloseShiftModal}
+        shift={data?.activeShift || null}
+        onClose={() => setShowCloseShiftModal(false)}
+        onClosed={() => {
+          setShowCloseShiftModal(false);
+          refetch();
+        }}
+      />
+      <ExpenseModal
+        open={showExpenseModal}
+        shift={data?.activeShift || null}
+        onClose={() => setShowExpenseModal(false)}
+        onAdded={() => {
+          setShowExpenseModal(false);
+          refetch();
+        }}
+      />
+      <ShiftDetailsModal
+        open={showDetailsModal}
+        shift={data?.activeShift || null}
+        onClose={() => setShowDetailsModal(false)}
+      />
     </Layout>
   );
 }

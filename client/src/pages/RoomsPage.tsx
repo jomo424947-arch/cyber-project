@@ -17,6 +17,7 @@ import {
   StartSessionModal,
   EndSessionModal,
   EditSessionModal,
+  TransferSessionModal,
 } from '../components/SessionModals';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -73,6 +74,7 @@ export default function RoomsPage() {
   const [startPlayMode, setStartPlayMode] = useState<PlayMode>('single');
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Session | null>(null);
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
 
   const handleCreateOrUpdateRoom = async (roomData: {
@@ -670,6 +672,25 @@ export default function RoomsPage() {
                         )}
 
                         <button
+                          onClick={() => setTransferTarget(session)}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(168, 85, 247, 0.4)',
+                            background: 'rgba(168, 85, 247, 0.1)',
+                            color: 'var(--accent-purple)',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>swap_horiz</span>
+                          {language === 'ar' ? 'تحويل' : 'Transfer'}
+                        </button>
+
+                        <button
                           onClick={() => setCafeTarget(session)}
                           style={{
                             padding: '4px 8px',
@@ -795,7 +816,20 @@ export default function RoomsPage() {
           onClose={() => setEndTarget(null)}
           onDone={() => {
             setEndTarget(null);
-            toast('Session ended — invoice generated', 'success');
+            toast(language === 'ar' ? 'تم إنهاء الجلسة وحساب الفاتورة' : 'Session ended — invoice generated', 'success');
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Transfer session modal */}
+      {transferTarget && (
+        <TransferSessionModal
+          session={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onDone={() => {
+            setTransferTarget(null);
+            toast(language === 'ar' ? 'تم تحويل الجلسة بنجاح' : 'Session transferred successfully', 'success');
             refetch();
           }}
         />
@@ -808,7 +842,7 @@ export default function RoomsPage() {
           onClose={() => setEditTarget(null)}
           onDone={() => {
             setEditTarget(null);
-            toast('Session details updated', 'success');
+            toast(language === 'ar' ? 'تم تحديث بيانات الجلسة' : 'Session details updated', 'success');
             refetch();
           }}
         />

@@ -5,7 +5,6 @@ import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
@@ -19,6 +18,7 @@ import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { DEVICE_TYPE_META } from '../utils/constants';
 import { formatCurrency } from '../utils/format';
+import { DeviceFormModal } from '../components/DeviceFormModal';
 import type { Device, DeviceType } from '../types';
 
 export default function SettingsPage() {
@@ -218,115 +218,12 @@ export default function SettingsPage() {
         >
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
             {language === 'ar'
-              ? `هل أنت متأكد من رغبتك في حذف الجهاز ${deleting.name} نهائياً؟ سيتم حذفه من قاعدة البيانات بالكامل.`
-              : `Are you sure you want to remove node ${deleting.name}? This device will be permanently deleted from the database.`}
+              ? `هل أنت متأكد من رغبتك في إزالة الجهاز (${deleting.name}) من النظام؟`
+              : `Are you sure you want to remove device (${deleting.name}) from the system?`}
           </p>
         </Modal>
       )}
     </Layout>
-  );
-}
-
-function DeviceFormModal({
-  title,
-  initial,
-  onClose,
-  onDone,
-}: {
-  title: string;
-  initial: Device | null;
-  onClose: () => void;
-  onDone: (patch: Record<string, unknown>) => void;
-}) {
-  const isMobile = useIsMobile();
-  const [name, setName] = useState(initial?.name ?? '');
-  const [type, setType] = useState<DeviceType>(initial?.type ?? 'pc');
-  const [hourlyRate, setHourlyRate] = useState(String(initial?.hourly_rate ?? '5'));
-  const [hourlyRateMulti, setHourlyRateMulti] = useState(String(initial?.hourly_rate_multi ?? '5'));
-  const [specsCpu, setSpecsCpu] = useState((initial?.specs as Record<string, string>)?.CPU ?? '');
-  const [specsGpu, setSpecsGpu] = useState((initial?.specs as Record<string, string>)?.GPU ?? '');
-  const [specsRam, setSpecsRam] = useState((initial?.specs as Record<string, string>)?.RAM ?? '');
-  const [loading, setLoading] = useState(false);
-  const { t, language } = useLanguage();
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      const specs: Record<string, string> = {};
-      if (specsCpu) specs.CPU = specsCpu;
-      if (specsGpu) specs.GPU = specsGpu;
-      if (specsRam) specs.RAM = specsRam;
-      const rate = parseFloat(hourlyRate);
-      const rateMulti = parseFloat(hourlyRateMulti);
-      if (Number.isNaN(rate) || rate < 0 || Number.isNaN(rateMulti) || rateMulti < 0) {
-        throw new Error('Invalid hourly rate');
-      }
-      const patch: Record<string, unknown> = {
-        name,
-        type,
-        hourly_rate: rate,
-        hourly_rate_multi: rateMulti,
-        specs: Object.keys(specs).length > 0 ? specs : null,
-      };
-      await onDone(patch);
-    } catch (err) {
-      // handled by parent
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isValid = name.trim() && !Number.isNaN(parseFloat(hourlyRate)) && !Number.isNaN(parseFloat(hourlyRateMulti));
-
-  return (
-    <Modal
-      open
-      title={title}
-      onClose={onClose}
-      width={480}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
-          <Button loading={loading} disabled={!isValid} onClick={handleSubmit}>
-            {initial ? t('save') : (language === 'ar' ? 'تسجيل الجهاز' : 'Add Node')}
-          </Button>
-        </>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Input label={language === 'ar' ? 'معرّف الجهاز (الاسم)' : 'Node Identifier'} placeholder="e.g. PC-05" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <Select label={language === 'ar' ? 'القسم / النوع' : 'Category'} value={type} onChange={(e) => setType(e.target.value as DeviceType)}>
-          <option value="pc">{language === 'ar' ? 'كمبيوتر مكتبى (PC)' : 'PC'}</option>
-          <option value="console">{language === 'ar' ? 'منصة ألعاب (Console)' : 'Console'}</option>
-          <option value="vr">{language === 'ar' ? 'واقع افتراضي (VR)' : 'VR'}</option>
-          <option value="table">{language === 'ar' ? 'طربيزة (بلياردو / تنس)' : 'Table (Billiard/Tennis)'}</option>
-        </Select>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
-          <Input
-            label={language === 'ar' ? 'سعر الساعة فردي ($)' : 'Single Rate ($/hr)'}
-            type="number"
-            step="0.5"
-            min="0"
-            value={hourlyRate}
-            onChange={(e) => setHourlyRate(e.target.value)}
-          />
-          <Input
-            label={language === 'ar' ? 'سعر الساعة جماعي ($)' : 'Multi Rate ($/hr)'}
-            type="number"
-            step="0.5"
-            min="0"
-            value={hourlyRateMulti}
-            onChange={(e) => setHourlyRateMulti(e.target.value)}
-          />
-        </div>
-        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '14px' }}>
-          <span className="ccms-eyebrow">{language === 'ar' ? 'مواصفات العتاد والقطع (اختياري)' : 'Hardware Specifications (optional)'}</span>
-        </div>
-        <Input label={language === 'ar' ? 'المعالج (CPU)' : 'CPU'} placeholder="e.g. i5-12400F" value={specsCpu} onChange={(e) => setSpecsCpu(e.target.value)} />
-        <Input label={language === 'ar' ? 'كرت الشاشة (GPU)' : 'GPU'} placeholder="e.g. RTX 3060" value={specsGpu} onChange={(e) => setSpecsGpu(e.target.value)} />
-        <Input label={language === 'ar' ? 'الذاكرة (RAM)' : 'RAM'} placeholder="e.g. 16GB" value={specsRam} onChange={(e) => setSpecsRam(e.target.value)} />
-      </div>
-    </Modal>
   );
 }
 
@@ -718,8 +615,9 @@ function PaymentSettingsSection() {
           </div>
 
           {phone && (
-            <div style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', maxWidth: '100%', wordBreak: 'break-all' }}>
-              📱 {phone}
+            <div style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', maxWidth: '100%', wordBreak: 'break-all', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>phone_iphone</span>
+              {phone}
             </div>
           )}
 

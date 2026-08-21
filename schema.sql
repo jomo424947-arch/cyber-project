@@ -254,15 +254,25 @@ create policy "staff write sessions"
 
 -- ----------------------------------------------------------------------------
 -- 6. invoices — billing records linked to sessions
--- Updated in migration 008 (tenant_id)
+-- Updated in migration 008 (tenant_id), 014 (subtotal, discounts, service, rounding)
 -- ----------------------------------------------------------------------------
 create table if not exists public.invoices (
   id             uuid primary key default gen_random_uuid(),
   session_id     uuid not null unique references public.sessions(id) on delete cascade,
   amount         numeric(10,2) not null check (amount >= 0),
+  subtotal       numeric(10,2) default 0,
+  discount_amount numeric(10,2) default 0,
+  discount_type  text default 'none' check (discount_type in ('none','percentage','fixed')),
+  discount_value numeric(10,2) default 0,
+  service_fee    numeric(10,2) default 0,
+  service_rate   numeric(10,2) default 0,
+  rounding_delta numeric(10,2) default 0,
+  notes          text,
   paid           boolean not null default false,
   payment_method text default 'cash'
                  check (payment_method in ('cash','card','transfer','wallet')),
+  shift_id       uuid references public.shifts(id) on delete set null,
+  created_by     uuid references public.users(id) on delete set null,
   issued_at      timestamptz not null default now(),
   paid_at        timestamptz,
   tenant_id      uuid references public.tenants(id) on delete cascade
@@ -270,6 +280,8 @@ create table if not exists public.invoices (
 
 create index if not exists idx_invoices_session on public.invoices(session_id);
 create index if not exists idx_invoices_paid    on public.invoices(paid);
+create index if not exists idx_invoices_shift   on public.invoices(shift_id);
+create index if not exists idx_invoices_creator on public.invoices(created_by);
 create index if not exists idx_invoices_tenant  on public.invoices(tenant_id);
 
 alter table public.invoices enable row level security;
@@ -279,6 +291,43 @@ create policy "staff read invoices"
   using ( public.is_staff() );
 
 create policy "staff write invoices"
+  on public.invoices for all to authenticated
+  using ( public.is_staff() )
+  with check ( public.is_staff() );
+
+-- ----------------------------------------------------------------------------
+-- 6b. session_transfers — device/room transfer history per session
+-- Added in migration 014
+-- ----------------------------------------------------------------------------
+create table if not exists public.session_transfers (
+  id                uuid primary key default gen_random_uuid(),
+  session_id        uuid not null references public.sessions(id) on delete cascade,
+  from_device_id    uuid not null references public.devices(id),
+  to_device_id      uuid not null references public.devices(id),
+  started_at        timestamptz not null,
+  transferred_at    timestamptz not null default now(),
+  duration_minutes  integer not null,
+  hourly_rate       numeric(10,2) not null,
+  play_mode         text not null default 'single' check (play_mode in ('single','multiplayer')),
+  cost              numeric(10,2) not null default 0,
+  transferred_by    uuid references public.users(id) on delete set null,
+  tenant_id         uuid references public.tenants(id) on delete cascade,
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists idx_session_transfers_session on public.session_transfers(session_id);
+create index if not exists idx_session_transfers_tenant  on public.session_transfers(tenant_id);
+
+alter table public.session_transfers enable row level security;
+
+create policy "staff read session_transfers"
+  on public.session_transfers for select to authenticated
+  using ( public.is_staff() );
+
+create policy "staff write session_transfers"
+  on public.session_transfers for all to authenticated
+  using ( public.is_staff() )
+  with check ( public.is_staff() );
   on public.invoices for all to authenticated
   using ( public.is_staff() )
   with check ( public.is_staff() );
@@ -522,6 +571,72 @@ create policy "admin write rooms"
   on public.rooms for all to authenticated
   using ( public.is_admin() )
   with check ( public.is_admin() );
+
+-- ----------------------------------------------------------------------------
+-- 13. shifts — staff work shifts & cash drawer tracking
+-- Added in migration 013
+-- ----------------------------------------------------------------------------
+create table if not exists public.shifts (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references public.users(id) on delete cascade,
+  tenant_id      uuid references public.tenants(id) on delete cascade,
+  started_at     timestamptz not null default now(),
+  ended_at       timestamptz,
+  opening_cash   numeric(10,2) not null default 0 check (opening_cash >= 0),
+  closing_cash   numeric(10,2) check (closing_cash >= 0),
+  total_revenue  numeric(10,2) not null default 0 check (total_revenue >= 0),
+  total_expenses numeric(10,2) not null default 0 check (total_expenses >= 0),
+  notes          text,
+  status         text not null default 'active' check (status in ('active','closed')),
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists idx_shifts_user   on public.shifts(user_id);
+create index if not exists idx_shifts_tenant on public.shifts(tenant_id);
+create index if not exists idx_shifts_status on public.shifts(status);
+
+create unique index if not exists idx_shifts_one_active_per_user
+  on public.shifts(user_id) where status = 'active';
+
+alter table public.shifts enable row level security;
+
+create policy "staff read shifts"
+  on public.shifts for select to authenticated
+  using ( public.is_staff() );
+
+create policy "staff write shifts"
+  on public.shifts for all to authenticated
+  using ( public.is_staff() )
+  with check ( public.is_staff() );
+
+-- ----------------------------------------------------------------------------
+-- 14. shift_expenses — expenses recorded during shifts
+-- Added in migration 013
+-- ----------------------------------------------------------------------------
+create table if not exists public.shift_expenses (
+  id          uuid primary key default gen_random_uuid(),
+  shift_id    uuid not null references public.shifts(id) on delete cascade,
+  tenant_id   uuid references public.tenants(id) on delete cascade,
+  amount      numeric(10,2) not null check (amount > 0),
+  category    text not null default '',
+  description text not null,
+  created_by  uuid references public.users(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists idx_shift_expenses_shift  on public.shift_expenses(shift_id);
+create index if not exists idx_shift_expenses_tenant on public.shift_expenses(tenant_id);
+
+alter table public.shift_expenses enable row level security;
+
+create policy "staff read shift_expenses"
+  on public.shift_expenses for select to authenticated
+  using ( public.is_staff() );
+
+create policy "staff write shift_expenses"
+  on public.shift_expenses for all to authenticated
+  using ( public.is_staff() )
+  with check ( public.is_staff() );
 
 -- ============================================================================
 -- Seed data — starter devices (optional, per tenant).

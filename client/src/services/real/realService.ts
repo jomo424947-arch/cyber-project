@@ -1,4 +1,4 @@
-import { http } from '../http';
+import { http, clearStoredTokens } from '../http';
 import type { DataService } from '../api';
 import type {
   User,
@@ -23,6 +23,9 @@ import type {
   StockLog,
   StandaloneOrder,
   GamingRoom,
+  Shift,
+  ShiftExpense,
+  ShiftSummary,
 } from '../../types';
 
 // The backend wraps every list response in { data: [...] }.
@@ -55,7 +58,11 @@ export const realService: DataService = {
   },
 
   async logout() {
-    await http.post('/api/auth/logout');
+    try {
+      await http.post('/api/auth/logout');
+    } finally {
+      clearStoredTokens();
+    }
   },
 
   async getMe() {
@@ -95,6 +102,11 @@ export const realService: DataService = {
 
   async getActivationStatus() {
     const { data } = await http.get<{ status: string; tenant: { tenant_id: string; name: string; owner_email: string } | null }>('/api/auth/status');
+    return data;
+  },
+
+  async syncCloud() {
+    const { data } = await http.post<{ success: boolean; message: string }>('/api/auth/sync');
     return data;
   },
 
@@ -184,6 +196,14 @@ export const realService: DataService = {
   },
   async updateSession(id, patch) {
     const { data } = await http.patch<OneWrap<Session>>(`/api/sessions/${id}`, patch);
+    return data.data;
+  },
+  async transferSession(id, payload) {
+    const { data } = await http.post<{ data: Session; transfer: any }>(`/api/sessions/${id}/transfer`, payload);
+    return { session: data.data, transfer: data.transfer };
+  },
+  async listSessionTransfers(id) {
+    const { data } = await http.get<ListWrap<any>>(`/api/sessions/${id}/transfers`);
     return data.data;
   },
   async extendSession(id, additional_minutes) {
@@ -347,5 +367,66 @@ export const realService: DataService = {
   },
   async deleteRoom(id) {
     await http.delete(`/api/rooms/${id}`);
+  },
+
+  // ─── Shifts ──────────────────────────────────────────────────────────────
+
+  async listShifts(filter, userId) {
+    const params = new URLSearchParams();
+    if (filter) params.append('status', filter);
+    if (userId) params.append('user_id', userId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const { data } = await http.get<ListWrap<Shift>>(`/api/shifts${qs}`);
+    return data.data;
+  },
+
+  async getActiveShift() {
+    const { data } = await http.get<OneWrap<Shift | null>>('/api/shifts/active');
+    return data.data;
+  },
+
+  async startShift(payload) {
+    const { data } = await http.post<OneWrap<Shift>>('/api/shifts/start', payload || {});
+    return data.data;
+  },
+
+  async closeShift(id, payload) {
+    const { data } = await http.post<OneWrap<Shift>>(`/api/shifts/${id}/close`, payload || {});
+    return data.data;
+  },
+
+  async getShiftSummary(id) {
+    const { data } = await http.get<OneWrap<ShiftSummary>>(`/api/shifts/${id}/summary`);
+    return data.data;
+  },
+
+  // ─── Expenses ────────────────────────────────────────────────────────────
+
+  async listAllExpenses(shiftId, category) {
+    const params = new URLSearchParams();
+    if (shiftId) params.append('shift_id', shiftId);
+    if (category) params.append('category', category);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const { data } = await http.get<ListWrap<ShiftExpense>>(`/api/shifts/expenses${qs}`);
+    return data.data;
+  },
+
+  async listShiftExpenses(shiftId) {
+    const { data } = await http.get<ListWrap<ShiftExpense>>(`/api/shifts/${shiftId}/expenses`);
+    return data.data;
+  },
+
+  async createShiftExpense(shiftId, payload) {
+    const { data } = await http.post<OneWrap<ShiftExpense>>(`/api/shifts/${shiftId}/expenses`, payload);
+    return data.data;
+  },
+
+  async createQuickExpense(payload) {
+    const { data } = await http.post<OneWrap<ShiftExpense>>('/api/shifts/expenses', payload);
+    return data.data;
+  },
+
+  async deleteShiftExpense(shiftId, expenseId) {
+    await http.delete(`/api/shifts/${shiftId}/expenses/${expenseId}`);
   },
 };

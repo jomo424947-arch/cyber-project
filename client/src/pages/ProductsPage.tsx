@@ -783,6 +783,28 @@ function ProductFormModal({
             onChange={(e) => setCostPrice(e.target.value)}
           />
         </div>
+        {costPrice !== '' && price !== '' && Number(costPrice) >= Number(price) && (
+          <div
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              background: 'rgba(234, 179, 8, 0.12)',
+              border: '1px solid rgba(234, 179, 8, 0.35)',
+              color: 'var(--accent-yellow)',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>warning</span>
+            <span>
+              {language === 'ar'
+                ? 'تنبيه: سعر التكلفة أعلى من أو مساوي لسعر البيع! يرجى التأكد من الأرقام لتفادي الخسارة.'
+                : 'Warning: Cost price is greater than or equal to selling price!'}
+            </span>
+          </div>
+        )}
         <Input
           label={language === 'ar' ? 'الكمية المتاحة في المخزون (القطع)' : 'Available Stock Quantity (Units)'}
           type="number"

@@ -30,6 +30,7 @@ interface JoinDef {
   alias: string;        // e.g. "device"
   table: string;        // e.g. "devices"
   columns: string[];    // e.g. ["id","name","type"]
+  fkCol?: string;       // e.g. "from_device_id"
 }
 
 // FK map: child_table.column → parent_table
@@ -41,6 +42,8 @@ const FK_MAP: Record<string, Record<string, string>> = {
   },
   invoices: {
     session_id: 'sessions',
+    shift_id: 'shifts',
+    created_by: 'users',
   },
   reservations: {
     device_id: 'devices',
@@ -60,6 +63,11 @@ const FK_MAP: Record<string, Record<string, string>> = {
     paused_by: 'users',
     resumed_by: 'users',
   },
+  session_transfers: {
+    from_device_id: 'devices',
+    to_device_id: 'devices',
+    transferred_by: 'users',
+  },
   product_stock_logs: {
     product_id: 'products',
     actor_id: 'users',
@@ -69,6 +77,13 @@ const FK_MAP: Record<string, Record<string, string>> = {
   },
   standalone_orders: {
     product_id: 'products',
+    created_by: 'users',
+  },
+  shifts: {
+    user_id: 'users',
+  },
+  shift_expenses: {
+    shift_id: 'shifts',
     created_by: 'users',
   },
 };
@@ -156,13 +171,14 @@ class QueryBuilder {
     const baseParts: string[] = [];
 
     for (const part of parts) {
-      // Match alias:table(inner)
-      const joinMatch = part.match(/^(\w+):(\w+)\((.+)\)$/s);
+      // Match alias:table(inner) with optional !fkCol e.g. from_device:devices!from_device_id(id,name,type)
+      const joinMatch = part.match(/^(\w+):([a-zA-Z0-9_!]+)\((.+)\)$/s);
       if (joinMatch) {
-        const [, alias, table, inner] = joinMatch;
+        const [, alias, tableRaw, inner] = joinMatch;
+        const [table, explicitFk] = tableRaw.split('!');
         // Check if inner contains nested joins
         const { baseCols: innerCols, joins: innerJoins } = this._parseSelect(inner);
-        joins.push({ alias, table, columns: innerCols.split(',').map(c => c.trim()).filter(Boolean) });
+        joins.push({ alias, table, columns: innerCols.split(',').map(c => c.trim()).filter(Boolean), fkCol: explicitFk });
         if (innerJoins.length > 0) {
           nestedJoins.set(alias, innerJoins);
         }
@@ -515,14 +531,23 @@ class QueryBuilder {
 
     for (const join of this._joins) {
       const fkMap = FK_MAP[this._table];
-      if (!fkMap) continue;
 
       // Find the FK column that points to the join table
-      let fkCol: string | null = null;
-      for (const [col, tbl] of Object.entries(fkMap)) {
-        if (tbl === join.table) {
-          fkCol = col;
-          break;
+      let fkCol: string | null = join.fkCol || null;
+      if (!fkCol) {
+        if (row[`${join.alias}_id`] !== undefined) {
+          fkCol = `${join.alias}_id`;
+        } else if (join.alias === 'transferrer' && row['transferred_by'] !== undefined) {
+          fkCol = 'transferred_by';
+        } else if (join.alias === 'creator' && row['created_by'] !== undefined) {
+          fkCol = 'created_by';
+        } else if (fkMap) {
+          for (const [col, tbl] of Object.entries(fkMap)) {
+            if (tbl === join.table) {
+              fkCol = col;
+              break;
+            }
+          }
         }
       }
 
@@ -532,8 +557,7 @@ class QueryBuilder {
       }
 
       const cols = join.columns.map(c => `"${c}"`).join(', ');
-      // FIX: Wrap in try/finally to guarantee stmt.free() is always called,
-      // preventing memory leaks when exceptions are thrown.
+      // Wrap in try/finally to guarantee stmt.free() is always called
       const stmt = db.prepare(`SELECT ${cols} FROM "${join.table}" WHERE "id" = ?`);
       try {
         stmt.bind([row[fkCol]]);
@@ -552,7 +576,6 @@ class QueryBuilder {
               }
               if (nestedFkCol && joinRow[nestedFkCol]) {
                 const nestedCols = nested.columns.map(c => `"${c}"`).join(', ');
-                // FIX: Also wrap nested statements in try/finally
                 const nestedStmt = db.prepare(`SELECT ${nestedCols} FROM "${nested.table}" WHERE "id" = ?`);
                 try {
                   nestedStmt.bind([joinRow[nestedFkCol]]);
@@ -585,7 +608,12 @@ class QueryBuilder {
   private _convertTypes(row: Record<string, any>): Record<string, any> {
     const boolCols = ['paid', 'archived', 'is_overtime', 'is_paused', 'edited_start_at', 'synced'];
     const jsonCols = ['specs'];
-    const numericCols = ['hourly_rate', 'hourly_rate_multi', 'hourly_rate_override', 'amount', 'total_cost', 'price', 'cost_price', 'unit_price', 'total_price'];
+    const numericCols = [
+      'hourly_rate', 'hourly_rate_multi', 'hourly_rate_override', 'amount', 'total_cost', 
+      'price', 'cost_price', 'unit_price', 'total_price', 'opening_cash', 'closing_cash', 
+      'total_revenue', 'total_expenses', 'cost', 'duration_minutes', 'subtotal', 
+      'discount_amount', 'discount_value', 'service_fee', 'service_rate', 'rounding_delta'
+    ];
 
     for (const key of Object.keys(row)) {
       if (boolCols.includes(key)) {
@@ -611,7 +639,7 @@ class QueryBuilder {
     if (!data.id) data.id = crypto.randomUUID();
 
     // Auto-inject tenant_id for multi-tenant tables
-    const multiTenantTables = ['users', 'devices', 'customers', 'sessions', 'invoices', 'reservations', 'products', 'session_pauses', 'rooms'];
+    const multiTenantTables = ['users', 'devices', 'customers', 'sessions', 'invoices', 'reservations', 'products', 'session_pauses', 'rooms', 'shifts', 'shift_expenses'];
     if (multiTenantTables.includes(this._table) && !data.tenant_id) {
       try {
         const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');

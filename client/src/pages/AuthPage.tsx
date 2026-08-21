@@ -61,25 +61,6 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
   }, [resetForm]);
 
   // Auto-detect reset password token from URL hash (Supabase email links)
-  const [employees, setEmployees] = useState<User[]>([]);
-  const [useManualEmail, setUseManualEmail] = useState(false);
-
-  useEffect(() => {
-    if (view === 'login') {
-      async function fetchEmployees() {
-        try {
-          const list = await dataService.listPublicEmployees();
-          setEmployees(list);
-          if (list.length > 0 && !useManualEmail) {
-            setEmail(list[0].email);
-          }
-        } catch (err) {
-          console.warn('Failed to load employees list:', err);
-        }
-      }
-      fetchEmployees();
-    }
-  }, [view, useManualEmail]);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -261,65 +242,17 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                 <p className="auth-form-subtitle">{t('sign_in_subtitle')}</p>
 
                 <form onSubmit={handleLogin} className="auth-form" noValidate>
-                  <Field label={employees.length > 0 && !useManualEmail ? (language === 'ar' ? 'اسم الموظف' : 'Employee Name') : t('employee_email')}>
-                    {employees.length > 0 && !useManualEmail ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <select
-                          id="auth-email"
-                          className="ccms-input"
-                          value={email}
-                          onChange={(e) => {
-                            if (e.target.value === '__manual__') {
-                              setUseManualEmail(true);
-                              setEmail('');
-                            } else {
-                              setEmail(e.target.value);
-                            }
-                          }}
-                          autoFocus
-                          style={{
-                            background: 'var(--bg-input)',
-                            color: 'var(--text-primary)',
-                            border: '1px solid var(--text-muted)'
-                          }}
-                        >
-                          {employees.map((emp) => (
-                            <option key={emp.id} value={emp.email} style={{ background: 'var(--bg-surface)' }}>
-                              {emp.full_name || emp.email}
-                            </option>
-                          ))}
-                          <option value="__manual__" style={{ background: 'var(--bg-surface)', fontStyle: 'italic', color: 'var(--accent-cyan)' }}>
-                            {language === 'ar' ? ' أدخل بريد إلكتروني آخر...' : ' Enter another email...'}
-                          </option>
-                        </select>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <input
-                          id="auth-email"
-                          type="email"
-                          className="ccms-input"
-                          placeholder="you@cafe.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          autoComplete="email"
-                          autoFocus
-                        />
-                        {employees.length > 0 && (
-                          <button
-                            type="button"
-                            className="auth-link-btn"
-                            onClick={() => {
-                              setUseManualEmail(false);
-                              if (employees.length > 0) setEmail(employees[0].email);
-                            }}
-                            style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--text-muted)' }}
-                          >
-                            {language === 'ar' ? '← العودة لقائمة الموظفين' : '← Back to employees list'}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                  <Field label={t('employee_email')}>
+                    <input
+                      id="auth-email"
+                      type="email"
+                      className="ccms-input"
+                      placeholder="you@cafe.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      autoFocus
+                    />
                   </Field>
 
                   <Field label={t('password')}>

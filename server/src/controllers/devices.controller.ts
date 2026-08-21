@@ -122,50 +122,49 @@ export async function updateDevice(req: Request, res: Response) {
   res.json({ data: data as DbDevice });
 }
 
-/** DELETE /api/devices/:id — remove a device (admin only). */
+/** DELETE /api/devices/:id — remove a device permanently (admin only). */
 export async function deleteDevice(req: Request, res: Response) {
   if (req.user?.role !== 'admin') {
     throw forbidden('Only admins can delete devices');
   }
   const { id } = req.params;
+  const tenantId = req.user!.tenant_id;
 
-  // 1. Auto-end active sessions on this device
+  // 1. Unlink any room referencing this device
   await supabase
-    .from('sessions')
-    .update({ status: 'ended', ended_at: new Date().toISOString() })
+    .from('rooms')
+    .delete()
     .eq('device_id', id)
-    .eq('status', 'active')
-    .eq('tenant_id', req.user!.tenant_id);
+    .eq('tenant_id', tenantId);
 
-  // 2. Check if device has any session history
-  const { data: sessions, error: sErr } = await supabase
+  // 2. Delete any reservations on this device
+  await supabase
+    .from('reservations')
+    .delete()
+    .eq('device_id', id)
+    .eq('tenant_id', tenantId);
+
+  // 3. Delete any sessions & invoices linked to this device
+  const { data: sessions } = await supabase
     .from('sessions')
     .select('id')
     .eq('device_id', id)
-    .eq('tenant_id', req.user!.tenant_id)
-    .limit(1);
-
-  if (sErr) throw sErr;
+    .eq('tenant_id', tenantId);
 
   if (sessions && sessions.length > 0) {
-    // Has history, archive instead of deleting
-    const { error: updErr } = await supabase
-      .from('devices')
-      .update({ archived: true, status: 'offline' })
-      .eq('id', id)
-      .eq('tenant_id', req.user!.tenant_id);
-    if (updErr) throw updErr;
-    res.json({ message: 'Device archived', action: 'archived' });
-  } else {
-    // Zero history, permanent delete
-    const { error, count } = await supabase
-      .from('devices')
-      .delete({ count: 'exact' })
-      .eq('id', id)
-      .eq('tenant_id', req.user!.tenant_id);
-
-    if (error) throw error;
-    if (!count) throw notFound('Device not found');
-    res.json({ message: 'Device removed', action: 'deleted' });
+    for (const s of sessions) {
+      await supabase.from('invoices').delete().eq('session_id', s.id).eq('tenant_id', tenantId);
+    }
+    await supabase.from('sessions').delete().eq('device_id', id).eq('tenant_id', tenantId);
   }
+
+  // 4. Permanent delete device from database
+  const { error } = await supabase
+    .from('devices')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', tenantId);
+
+  if (error) throw error;
+  res.json({ message: 'Device deleted permanently', action: 'deleted' });
 }

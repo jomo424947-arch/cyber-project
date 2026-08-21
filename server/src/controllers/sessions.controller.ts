@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { supabase } from '../lib/supabase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import type { DbSession } from '../lib/types';
-import { calculateSessionCost } from '../lib/billing';
+import { calculateSessionCost, calculateInvoiceAdjustments } from '../lib/billing';
 import { getDb, saveDatabase, setSuppressSave } from '../lib/database';
 
 
@@ -64,6 +64,20 @@ export async function startSession(req: Request, res: Response) {
     hourly_rate_override,
     grace_period_minutes = 0
   } = req.body;
+
+  // 0. Verify staff has an active shift before starting any session
+  const { data: activeShift, error: shiftErr } = await supabase
+    .from('shifts')
+    .select('id')
+    .eq('user_id', req.user!.id)
+    .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (shiftErr) throw shiftErr;
+  if (!activeShift) {
+    throw badRequest('لا يمكنك بدء جلسة بدون وجود وردية مفتوحة. يرجى بدء الوردية أولاً من صفحة الورديات.', 'NO_ACTIVE_SHIFT');
+  }
 
   // 1. Resolve / create the customer.
   let finalCustomerId = customer_id as string | null;
@@ -448,10 +462,194 @@ export async function extendSession(req: Request, res: Response) {
   res.json({ data: updated as unknown as DbSession });
 }
 
+/** POST /api/sessions/:id/transfer — transfer an active session from one device/room to another. */
+export async function transferSession(req: Request, res: Response) {
+  const { id } = req.params;
+  const { target_device_id, play_mode, hourly_rate_override } = req.body;
+
+  // 1. Fetch active session
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi)')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+  if (session.status === 'ended') throw conflict('Cannot transfer an ended session', 'SESSION_ENDED');
+  if (session.is_paused) {
+    throw badRequest('لا يمكن تحويل الجلسة وهي معلّقة (Paused). يرجى استئناف الجلسة أولاً قبل تحويلها.', 'SESSION_PAUSED');
+  }
+
+  if (session.device_id === target_device_id) {
+    throw badRequest('الجهاز أو الغرفة الهدف هي نفس الجهاز الحالي للجلسة');
+  }
+
+  // 2. Fetch target device
+  const { data: targetDevice, error: tdErr } = await supabase
+    .from('devices')
+    .select('id, name, type, status, hourly_rate, hourly_rate_multi, archived')
+    .eq('id', target_device_id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (tdErr) throw tdErr;
+  if (!targetDevice) throw notFound('Target device not found');
+  if (targetDevice.archived || targetDevice.status === 'offline') {
+    throw badRequest('الجهاز أو الغرفة الهدف غير متاحة (Offline)');
+  }
+  if (targetDevice.status === 'in_use') {
+    throw conflict('الجهاز أو الغرفة الهدف مشغولة حالياً بجلسة أخرى', 'DEVICE_BUSY');
+  }
+
+  // Guard against an already-active session for target device
+  const { data: existingTargetSession } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('device_id', target_device_id)
+    .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (existingTargetSession) {
+    throw conflict('الجهاز الهدف لديه جلسة نشطة بالفعل', 'SESSION_ACTIVE');
+  }
+
+  // 3. Compute cost and duration for the segment on the current device
+  const now = new Date();
+  const startedAt = new Date(session.started_at);
+  const currentRate = session.play_mode === 'multiplayer'
+    ? Number(session.device?.hourly_rate_multi ?? 0)
+    : Number(session.device?.hourly_rate ?? 0);
+
+  const effectiveRate = Number(
+    session.hourly_rate_override !== undefined && session.hourly_rate_override !== null
+      ? session.hourly_rate_override
+      : currentRate
+  );
+
+  const rawMinutes = Math.max(0, Math.ceil((now.getTime() - startedAt.getTime()) / 60000));
+  const pausedMinutes = Number(session.total_paused_minutes || 0);
+  const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
+  const segmentCost = Math.round((effectiveMinutes / 60) * effectiveRate * 100) / 100;
+
+  // 4. Save transfer segment record
+  const { data: transferRecord, error: trErr } = await supabase
+    .from('session_transfers')
+    .insert({
+      session_id: id,
+      from_device_id: session.device_id,
+      to_device_id: target_device_id,
+      started_at: session.started_at,
+      transferred_at: now.toISOString(),
+      duration_minutes: effectiveMinutes,
+      hourly_rate: effectiveRate,
+      play_mode: session.play_mode,
+      cost: segmentCost,
+      transferred_by: req.user!.id,
+      tenant_id: req.user!.tenant_id,
+    })
+    .select('*, from_device:devices!from_device_id(id,name,type), to_device:devices!to_device_id(id,name,type)')
+    .single();
+
+  if (trErr) throw trErr;
+
+  // 5. Update devices statuses
+  // Free old device
+  await supabase
+    .from('devices')
+    .update({ status: 'available' })
+    .eq('id', session.device_id)
+    .eq('tenant_id', req.user!.tenant_id);
+
+  // Mark target device in_use
+  await supabase
+    .from('devices')
+    .update({ status: 'in_use' })
+    .eq('id', target_device_id)
+    .eq('tenant_id', req.user!.tenant_id);
+
+  // 6. Update session: switch device_id, set started_at to now for new segment, update play_mode if provided
+  const newPlayMode = play_mode || session.play_mode;
+  const newOverride = hourly_rate_override !== undefined ? hourly_rate_override : null;
+
+  const { data: updatedSession, error: updErr } = await supabase
+    .from('sessions')
+    .update({
+      device_id: target_device_id,
+      started_at: now.toISOString(),
+      play_mode: newPlayMode,
+      hourly_rate_override: newOverride,
+      total_paused_minutes: 0,
+    })
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
+    .single();
+
+  if (updErr) throw updErr;
+
+  // 7. Audit log
+  await supabase.from('session_audit_log').insert({
+    session_id: id,
+    edited_by: req.user!.id,
+    field_changed: 'transfer_device',
+    old_value: `${session.device?.name ?? 'Device'} (${rawMinutes} دقيقة - ${segmentCost} ج)`,
+    new_value: targetDevice.name,
+  });
+
+  res.json({
+    data: updatedSession as unknown as DbSession,
+    transfer: transferRecord,
+  });
+}
+
+/** GET /api/sessions/:id/transfers — list all transfer segments for a session. */
+export async function listSessionTransfers(req: Request, res: Response) {
+  const { id } = req.params;
+
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+
+  const { data, error } = await supabase
+    .from('session_transfers')
+    .select('*, from_device:devices!from_device_id(id,name,type), to_device:devices!to_device_id(id,name,type), transferrer:users(full_name)')
+    .eq('session_id', id)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    if (error.code === 'PGRST205' || error.message?.includes('does not exist')) {
+      res.json({ data: [] });
+      return;
+    }
+    throw error;
+  }
+
+  res.json({ data: data || [] });
+}
+
 /** POST /api/sessions/:id/end — end a session, compute duration + cost, generate invoice. */
 export async function endSession(req: Request, res: Response) {
   const { id } = req.params;
-  const { payment_method = 'cash', mark_paid = false, ended_at } = req.body;
+  const { 
+    payment_method = 'cash', 
+    mark_paid = false, 
+    ended_at,
+    discount_type = 'none',
+    discount_value = 0,
+    service_fee = 0,
+    service_rate = 0,
+    rounding_delta = 0,
+    notes = null,
+  } = req.body;
 
   // 1. Load the active session + device rate.
   const { data: session, error: sErr } = await supabase
@@ -467,7 +665,7 @@ export async function endSession(req: Request, res: Response) {
     throw badRequest('Please resume the session before ending it', 'SESSION_PAUSED');
   }
 
-  // 2. Compute duration and cost
+  // 2. Compute duration and cost for current active segment
   const startedAt = new Date(session.started_at).getTime();
   const sessionEnd = ended_at ? new Date(ended_at) : new Date();
 
@@ -478,9 +676,7 @@ export async function endSession(req: Request, res: Response) {
     throw badRequest('Session end time cannot be in the future');
   }
 
-  // FIX: Check backdate permission BEFORE any DB writes.
-  // Previously this check came AFTER session update + invoice creation, meaning
-  // a non-admin could end with a backdated time and data would already be saved.
+  // Check backdate permission BEFORE any DB writes
   const isEndBackdated = ended_at && (new Date().getTime() - sessionEnd.getTime() > 60000);
   if (isEndBackdated && req.user?.role !== 'admin') {
     throw forbidden('Only admins can backdate session end times');
@@ -489,6 +685,23 @@ export async function endSession(req: Request, res: Response) {
   const deviceHourlyRate = session.play_mode === 'multiplayer' 
     ? Number(session.device?.hourly_rate_multi ?? 0) 
     : Number(session.device?.hourly_rate ?? 0);
+
+  // Fetch prior transfer segments
+  let previousTransfersCost = 0;
+  let previousTransfersMinutes = 0;
+  try {
+    const { data: transfers, error: trErr } = await supabase
+      .from('session_transfers')
+      .select('cost, duration_minutes')
+      .eq('session_id', id);
+
+    if (!trErr && transfers) {
+      previousTransfersCost = transfers.reduce((sum: number, t: any) => sum + Number(t.cost || 0), 0);
+      previousTransfersMinutes = transfers.reduce((sum: number, t: any) => sum + Number(t.duration_minutes || 0), 0);
+    }
+  } catch (trCatchErr) {
+    console.warn('[session] Could not query session_transfers:', trCatchErr);
+  }
 
   const {
     rawMinutes,
@@ -499,7 +712,7 @@ export async function endSession(req: Request, res: Response) {
     overtimeMinutes,
     isOvertime,
     overtimeCost,
-    totalCost,
+    totalCost: currentSegmentCost,
   } = calculateSessionCost({
     startedAt: session.started_at,
     endedAt: sessionEnd,
@@ -510,7 +723,11 @@ export async function endSession(req: Request, res: Response) {
     gracePeriodMinutes: session.grace_period_minutes,
     overtimeRateMultiplier: Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0),
     pausedMinutes: Number(session.total_paused_minutes || 0),
+    minBillingMinutes: previousTransfersMinutes > 0 ? 0 : 30,
   });
+
+  const totalDeviceCost = Math.round((currentSegmentCost + previousTransfersCost) * 100) / 100;
+  const totalBilledMinutes = billedMinutes + previousTransfersMinutes;
 
   // Fetch total café orders cost
   let cafeTotalCost = 0;
@@ -529,12 +746,22 @@ export async function endSession(req: Request, res: Response) {
     const sumCents = (orders ?? []).reduce((sum: number, ord: any) => sum + Math.round(Number(ord.total_price) * 100), 0);
     cafeTotalCost = sumCents / 100;
   }
-  const finalTotalCost = Math.round((totalCost + cafeTotalCost) * 100) / 100;
+
+  const rawSubtotal = Math.round((totalDeviceCost + cafeTotalCost) * 100) / 100;
+
+  // Compute adjustments: Discount, Service Fee, and Cash Rounding
+  const adj = calculateInvoiceAdjustments({
+    subtotal: rawSubtotal,
+    discountType: discount_type,
+    discountValue: Number(discount_value || 0),
+    serviceFee: Number(service_fee || 0),
+    serviceRate: Number(service_rate || 0),
+    roundingDelta: Number(rounding_delta || 0),
+  });
+
+  const finalTotalCost = adj.finalAmount;
 
   // FIX: Use SQLite transaction (offline mode) to keep all writes atomic.
-  // If invoice creation or device update fails, the session update is rolled back.
-  // In cloud (Supabase) mode, transactions are not available via REST API, but
-  // we use a try/finally to guarantee the device is always freed.
   const isOfflineMode = process.env.OFFLINE_MODE === 'true';
   let rawDb: any = null;
   if (isOfflineMode) {
@@ -548,12 +775,11 @@ export async function endSession(req: Request, res: Response) {
 
   try {
     // 3. End the session atomically.
-    // Using status check in update prevents duplicate ending race condition.
     const { data: endedData, error: endErr } = await supabase
       .from('sessions')
       .update({
         ended_at: sessionEnd.toISOString(),
-        duration_minutes: billedMinutes,
+        duration_minutes: totalBilledMinutes,
         total_cost: finalTotalCost,
         status: 'ended',
         is_overtime: isOvertime,
@@ -571,21 +797,76 @@ export async function endSession(req: Request, res: Response) {
     if (!endedData) throw conflict('Session already ended or not found', 'SESSION_ENDED');
     ended = endedData;
 
-    // 4. Auto-generate an invoice.
-    const { data: invoiceData, error: invErr } = await supabase
+    // 4. Auto-generate an invoice linked to the staff's active shift if present.
+    let activeShiftId: string | null = null;
+    try {
+      const { data: activeShift } = await supabase
+        .from('shifts')
+        .select('id, total_revenue')
+        .eq('user_id', req.user!.id)
+        .eq('status', 'active')
+        .eq('tenant_id', req.user!.tenant_id)
+        .maybeSingle();
+
+      if (activeShift) {
+        activeShiftId = activeShift.id;
+        if (mark_paid && finalTotalCost > 0) {
+          const newRev = Number(activeShift.total_revenue || 0) + finalTotalCost;
+          await supabase
+            .from('shifts')
+            .update({ total_revenue: newRev })
+            .eq('id', activeShift.id)
+            .eq('tenant_id', req.user!.tenant_id);
+        }
+      }
+    } catch (shiftErr) {
+      console.warn('[sessions] Could not link active shift to invoice:', shiftErr);
+    }
+
+    // Check if invoice already exists for this session to prevent UNIQUE constraint collisions
+    const { data: existingInv } = await supabase
       .from('invoices')
-      .insert({
-        session_id: id,
-        amount: finalTotalCost,
-        paid: !!mark_paid,
-        payment_method,
-        paid_at: mark_paid ? sessionEnd.toISOString() : null,
-        tenant_id: req.user!.tenant_id,
-      })
-      .select('*')
-      .single();
-    if (invErr) throw invErr;
-    invoice = invoiceData;
+      .select('id')
+      .eq('session_id', id)
+      .maybeSingle();
+
+    const invoicePayload = {
+      session_id: id,
+      amount: finalTotalCost,
+      subtotal: adj.subtotal,
+      discount_amount: adj.discountAmount,
+      discount_type,
+      discount_value: Number(discount_value || 0),
+      service_fee: adj.serviceFee,
+      service_rate: Number(service_rate || 0),
+      rounding_delta: adj.roundingDelta,
+      notes: notes ?? null,
+      paid: !!mark_paid,
+      payment_method,
+      paid_at: mark_paid ? sessionEnd.toISOString() : null,
+      shift_id: activeShiftId,
+      created_by: req.user!.id,
+      tenant_id: req.user!.tenant_id,
+    };
+
+    if (existingInv) {
+      const { data: updInv, error: invUpdErr } = await supabase
+        .from('invoices')
+        .update(invoicePayload)
+        .eq('id', existingInv.id)
+        .select('*')
+        .single();
+      if (invUpdErr) throw invUpdErr;
+      invoice = updInv;
+    } else {
+      const { data: invoiceData, error: invErr } = await supabase
+        .from('invoices')
+        .insert(invoicePayload)
+        .select('*')
+        .single();
+      if (invErr) throw invErr;
+      invoice = invoiceData;
+    }
 
     // 5. Audit end backdating if applicable
     if (isEndBackdated) {
@@ -603,10 +884,11 @@ export async function endSession(req: Request, res: Response) {
       }
     }
 
-    // 6. Free the device.
+    // 6. Free the device (unless it was archived/deleted).
+    const newDeviceStatus = session.device?.archived ? 'offline' : 'available';
     const { error: devErr } = await supabase
       .from('devices')
-      .update({ status: 'available' })
+      .update({ status: newDeviceStatus })
       .eq('id', session.device_id)
       .eq('tenant_id', req.user!.tenant_id);
     if (devErr) throw devErr;
@@ -623,8 +905,6 @@ export async function endSession(req: Request, res: Response) {
       try { rawDb.run('ROLLBACK'); } catch { /* ignore rollback errors */ }
       setSuppressSave(false);
     } else {
-      // Cloud mode: try to free the device even if invoice creation failed,
-      // so the device doesn't get stuck in 'in_use' state.
       if (ended) {
         supabase
           .from('devices')
@@ -646,9 +926,15 @@ export async function endSession(req: Request, res: Response) {
       raw_minutes: rawMinutes, 
       paused_minutes: session.total_paused_minutes || 0,
       effective_minutes: effectiveMinutes,
-      billed_minutes: billedMinutes, 
-      device_cost: totalCost, 
-      cafe_cost: cafeTotalCost, 
+      billed_minutes: totalBilledMinutes, 
+      device_cost: totalDeviceCost,
+      current_segment_cost: currentSegmentCost,
+      transfers_cost: previousTransfersCost,
+      cafe_cost: cafeTotalCost,
+      subtotal: adj.subtotal,
+      discount_amount: adj.discountAmount,
+      service_fee: adj.serviceFee,
+      rounding_delta: adj.roundingDelta,
       total_cost: finalTotalCost, 
       overtime_minutes: overtimeMinutes, 
       overtime_cost: overtimeCost 

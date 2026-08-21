@@ -78,10 +78,21 @@ export interface Invoice {
   id: string;
   session_id: string;
   amount: number;
+  subtotal?: number;
+  discount_amount?: number;
+  discount_type?: 'none' | 'percentage' | 'fixed';
+  discount_value?: number;
+  service_fee?: number;
+  service_rate?: number;
+  rounding_delta?: number;
+  notes?: string | null;
   paid: boolean;
   payment_method: PaymentMethod;
+  shift_id?: string | null;
+  created_by?: string | null;
   issued_at: string;
   paid_at: string | null;
+  creator?: Pick<User, 'id' | 'full_name' | 'email'>;
   session?: {
     id: string;
     started_at: string;
@@ -93,6 +104,24 @@ export interface Invoice {
     device?: Pick<Device, 'id' | 'name' | 'type'>;
     customer?: Pick<Customer, 'id' | 'name'>;
   };
+}
+
+export interface SessionTransfer {
+  id: string;
+  session_id: string;
+  from_device_id: string;
+  to_device_id: string;
+  started_at: string;
+  transferred_at: string;
+  duration_minutes: number;
+  hourly_rate: number;
+  play_mode: 'single' | 'multiplayer';
+  cost: number;
+  transferred_by: string | null;
+  created_at: string;
+  from_device?: Pick<Device, 'id' | 'name' | 'type'>;
+  to_device?: Pick<Device, 'id' | 'name' | 'type'>;
+  transferrer?: Pick<User, 'id' | 'full_name'>;
 }
 
 export type ReservationStatus = 'pending' | 'active' | 'cancelled' | 'completed';
@@ -222,12 +251,14 @@ export interface StockLog {
 
 export interface StandaloneOrder {
   id: string;
+  tenant_id?: string | null;
   product_id: string;
   quantity: number;
   unit_price: number;
   cost_price?: number | null;
   total_price: number;
   payment_method: PaymentMethod;
+  shift_id?: string | null;
   created_by?: string | null;
   created_at: string;
   product?: Product;
@@ -300,4 +331,93 @@ export interface CreateRoomPayload {
   hourly_rate?: number;
   hourly_rate_multi?: number;
 }
+
+// ----- Shifts & Expenses -----
+export type ShiftStatus = 'active' | 'closed';
+
+export interface Shift {
+  id: string;
+  user_id: string;
+  tenant_id?: string | null;
+  started_at: string;
+  ended_at: string | null;
+  opening_cash: number;
+  closing_cash: number | null;
+  total_revenue: number;
+  total_expenses: number;
+  notes: string | null;
+  status: ShiftStatus;
+  created_at: string;
+  user?: Pick<User, 'id' | 'email' | 'full_name'>;
+}
+
+export interface ShiftExpense {
+  id: string;
+  shift_id: string;
+  tenant_id?: string | null;
+  amount: number;
+  category: string;
+  description: string;
+  created_by: string | null;
+  created_at: string;
+  creator?: Pick<User, 'id' | 'full_name' | 'email'>;
+  shift?: Pick<Shift, 'id' | 'started_at' | 'ended_at' | 'status' | 'user_id'>;
+}
+
+
+export interface ShiftSummary {
+  shift: Shift;
+  total_revenue: number;
+  invoices_revenue?: number;
+  standalone_revenue?: number;
+  total_expenses: number;
+  net_cash: number;
+  opening_cash: number;
+  expected_closing: number;
+  closing_cash: number | null;
+  cash_difference: number | null;
+  invoice_count: number;
+  paid_invoice_count: number;
+  standalone_orders_count?: number;
+  expense_count: number;
+  invoices: Invoice[];
+  standalone_orders?: StandaloneOrder[];
+  expenses: ShiftExpense[];
+}
+
+export interface StartShiftPayload {
+  opening_cash?: number;
+  notes?: string;
+}
+
+export interface CloseShiftPayload {
+  closing_cash?: number;
+  notes?: string;
+}
+
+export interface CreateExpensePayload {
+  amount: number;
+  category?: string;
+  description: string;
+}
+
+export interface TransferSessionPayload {
+  target_device_id: string;
+  play_mode?: 'single' | 'multiplayer';
+  hourly_rate_override?: number | null;
+}
+
+export interface EndSessionPayload {
+  payment_method?: PaymentMethod;
+  mark_paid?: boolean;
+  ended_at?: string;
+  discount_type?: 'none' | 'percentage' | 'fixed';
+  discount_value?: number;
+  service_fee?: number;
+  service_rate?: number;
+  rounding_delta?: number;
+  notes?: string | null;
+}
+
+
 

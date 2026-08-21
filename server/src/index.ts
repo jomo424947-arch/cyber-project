@@ -27,6 +27,7 @@ import productRoutes from './routes/products.routes';
 import pricingRoutes from './routes/pricing.routes';
 import employeeRoutes from './routes/employees.routes';
 import roomRoutes from './routes/rooms.routes';
+import shiftRoutes from './routes/shifts.routes';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import { supabase } from './lib/supabase';
 import { csrfProtection } from './middleware/csrf';
@@ -39,7 +40,7 @@ const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-const allowedOrigins = [origin, 'http://localhost:5173', 'http://localhost:3000', 'file://', 'null'];
+const allowedOrigins = [origin, 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000', 'file://', 'null'];
 
 // General API Rate Limiting to prevent DOS/brute-force
 const apiLimiter = rateLimit({
@@ -69,6 +70,8 @@ const authLimiter = rateLimit({
 });
 
 app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -82,7 +85,7 @@ app.use(helmet({
 }));
 app.use(cors({
   origin: (requestOrigin, callback) => {
-    if (!requestOrigin || allowedOrigins.includes(requestOrigin) || requestOrigin.startsWith('file://')) {
+    if (!requestOrigin || allowedOrigins.includes(requestOrigin) || requestOrigin.startsWith('file://') || requestOrigin === 'null' || requestOrigin.includes('localhost') || requestOrigin.includes('127.0.0.1')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'), false);
@@ -113,6 +116,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/shifts', shiftRoutes);
 
 // Serve Static Frontend if compiled client/dist exists
 let clientDistPath = path.resolve(__dirname, '../../client/dist');

@@ -138,8 +138,18 @@ CREATE TABLE IF NOT EXISTS invoices (
   id              TEXT PRIMARY KEY,
   session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   amount          REAL NOT NULL CHECK (amount >= 0),
+  subtotal        REAL DEFAULT 0,
+  discount_amount REAL DEFAULT 0,
+  discount_type   TEXT DEFAULT 'none' CHECK (discount_type IN ('none','percentage','fixed')),
+  discount_value  REAL DEFAULT 0,
+  service_fee     REAL DEFAULT 0,
+  service_rate    REAL DEFAULT 0,
+  rounding_delta  REAL DEFAULT 0,
+  notes           TEXT,
   paid            INTEGER NOT NULL DEFAULT 0,
   payment_method  TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash','card','transfer','wallet')),
+  shift_id        TEXT REFERENCES shifts(id),
+  created_by      TEXT REFERENCES users(id),
   issued_at       TEXT NOT NULL DEFAULT (datetime('now')),
   paid_at         TEXT,
   tenant_id       TEXT,
@@ -150,6 +160,28 @@ CREATE TABLE IF NOT EXISTS invoices (
 CREATE INDEX IF NOT EXISTS idx_invoices_session ON invoices(session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_session_unique ON invoices(session_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_paid    ON invoices(paid);
+
+-- session_transfers (tracks device transfers during an active session)
+CREATE TABLE IF NOT EXISTS session_transfers (
+  id                TEXT PRIMARY KEY,
+  session_id        TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  from_device_id    TEXT NOT NULL REFERENCES devices(id),
+  to_device_id      TEXT NOT NULL REFERENCES devices(id),
+  started_at        TEXT NOT NULL,
+  transferred_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  duration_minutes  INTEGER NOT NULL,
+  hourly_rate       REAL NOT NULL,
+  play_mode         TEXT NOT NULL DEFAULT 'single' CHECK (play_mode IN ('single', 'multiplayer')),
+  cost              REAL NOT NULL DEFAULT 0,
+  transferred_by    TEXT REFERENCES users(id),
+  tenant_id         TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  synced            INTEGER NOT NULL DEFAULT 0,
+  synced_at         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_transfers_session ON session_transfers(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_transfers_tenant ON session_transfers(tenant_id);
 
 -- reservations
 CREATE TABLE IF NOT EXISTS reservations (
@@ -226,6 +258,7 @@ CREATE TABLE IF NOT EXISTS standalone_orders (
   cost_price     REAL,
   total_price    REAL NOT NULL,
   payment_method TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash','card','transfer','wallet')),
+  shift_id       TEXT REFERENCES shifts(id),
   created_by     TEXT REFERENCES users(id),
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   synced         INTEGER NOT NULL DEFAULT 0,
@@ -281,6 +314,46 @@ CREATE TABLE IF NOT EXISTS rooms (
 
 CREATE INDEX IF NOT EXISTS idx_rooms_tenant ON rooms(tenant_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_device ON rooms(device_id) WHERE device_id IS NOT NULL;
+
+-- shifts
+CREATE TABLE IF NOT EXISTS shifts (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(id),
+  tenant_id       TEXT,
+  started_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  ended_at        TEXT,
+  opening_cash    REAL NOT NULL DEFAULT 0,
+  closing_cash    REAL,
+  total_revenue   REAL NOT NULL DEFAULT 0,
+  total_expenses  REAL NOT NULL DEFAULT 0,
+  notes           TEXT,
+  status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','closed')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  synced          INTEGER NOT NULL DEFAULT 0,
+  synced_at       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_shifts_user ON shifts(user_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_status ON shifts(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shifts_one_active_per_user ON shifts(user_id) WHERE status = 'active';
+
+-- shift_expenses
+CREATE TABLE IF NOT EXISTS shift_expenses (
+  id          TEXT PRIMARY KEY,
+  shift_id    TEXT NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+  tenant_id   TEXT,
+  amount      REAL NOT NULL CHECK (amount > 0),
+  category    TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL,
+  created_by  TEXT REFERENCES users(id),
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  synced      INTEGER NOT NULL DEFAULT 0,
+  synced_at   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_shift_expenses_shift ON shift_expenses(shift_id);
+CREATE INDEX IF NOT EXISTS idx_shift_expenses_tenant ON shift_expenses(tenant_id);
 
 -- sync_queue for tracking what needs to be pushed to Supabase
 CREATE TABLE IF NOT EXISTS sync_queue (
@@ -453,6 +526,120 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     `);
   } catch (rErr: any) {
     console.error('[database] Rooms table creation/migration failed:', rErr.message);
+  }
+
+  // Auto-migration helper for shifts and shift_expenses
+  try {
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS shifts (
+        id              TEXT PRIMARY KEY,
+        user_id         TEXT NOT NULL REFERENCES users(id),
+        tenant_id       TEXT,
+        started_at      TEXT NOT NULL DEFAULT (datetime('now')),
+        ended_at        TEXT,
+        opening_cash    REAL NOT NULL DEFAULT 0,
+        closing_cash    REAL,
+        total_revenue   REAL NOT NULL DEFAULT 0,
+        total_expenses  REAL NOT NULL DEFAULT 0,
+        notes           TEXT,
+        status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','closed')),
+        created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+        synced          INTEGER NOT NULL DEFAULT 0,
+        synced_at       TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_shifts_user ON shifts(user_id);
+      CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_shifts_status ON shifts(status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_shifts_one_active_per_user ON shifts(user_id) WHERE status = 'active';
+
+      CREATE TABLE IF NOT EXISTS shift_expenses (
+        id          TEXT PRIMARY KEY,
+        shift_id    TEXT NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+        tenant_id   TEXT,
+        amount      REAL NOT NULL CHECK (amount > 0),
+        category    TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL,
+        created_by  TEXT REFERENCES users(id),
+        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        synced      INTEGER NOT NULL DEFAULT 0,
+        synced_at   TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_shift_expenses_shift ON shift_expenses(shift_id);
+      CREATE INDEX IF NOT EXISTS idx_shift_expenses_tenant ON shift_expenses(tenant_id);
+    `);
+
+    // Add shift_id and created_by to invoices if missing
+    const invoicesInfo = _db.exec("PRAGMA table_info(invoices)");
+    const invoiceCols = invoicesInfo[0]?.values.map(v => v[1] as string) || [];
+    if (!invoiceCols.includes('shift_id')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN shift_id TEXT REFERENCES shifts(id);');
+      _db.run('CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);');
+    }
+    if (!invoiceCols.includes('created_by')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN created_by TEXT REFERENCES users(id);');
+      _db.run('CREATE INDEX IF NOT EXISTS idx_invoices_created_by ON invoices(created_by);');
+    }
+
+    // Auto-migration for invoice discounts, service fee, and rounding columns
+    if (!invoiceCols.includes('subtotal')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN subtotal REAL DEFAULT 0;');
+    }
+    if (!invoiceCols.includes('discount_amount')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN discount_amount REAL DEFAULT 0;');
+    }
+    if (!invoiceCols.includes('discount_type')) {
+      _db.run("ALTER TABLE invoices ADD COLUMN discount_type TEXT DEFAULT 'none';");
+    }
+    if (!invoiceCols.includes('discount_value')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN discount_value REAL DEFAULT 0;');
+    }
+    if (!invoiceCols.includes('service_fee')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN service_fee REAL DEFAULT 0;');
+    }
+    if (!invoiceCols.includes('service_rate')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN service_rate REAL DEFAULT 0;');
+    }
+    if (!invoiceCols.includes('rounding_delta')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN rounding_delta REAL DEFAULT 0;');
+    }
+    if (!invoiceCols.includes('notes')) {
+      _db.run('ALTER TABLE invoices ADD COLUMN notes TEXT;');
+    }
+
+    // Auto-migration for session_transfers table
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS session_transfers (
+        id                TEXT PRIMARY KEY,
+        session_id        TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        from_device_id    TEXT NOT NULL REFERENCES devices(id),
+        to_device_id      TEXT NOT NULL REFERENCES devices(id),
+        started_at        TEXT NOT NULL,
+        transferred_at    TEXT NOT NULL DEFAULT (datetime('now')),
+        duration_minutes  INTEGER NOT NULL,
+        hourly_rate       REAL NOT NULL,
+        play_mode         TEXT NOT NULL DEFAULT 'single' CHECK (play_mode IN ('single', 'multiplayer')),
+        cost              REAL NOT NULL DEFAULT 0,
+        transferred_by    TEXT REFERENCES users(id),
+        tenant_id         TEXT,
+        created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+        synced            INTEGER NOT NULL DEFAULT 0,
+        synced_at         TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_session_transfers_session ON session_transfers(session_id);
+      CREATE INDEX IF NOT EXISTS idx_session_transfers_tenant ON session_transfers(tenant_id);
+    `);
+
+    // Auto-migration for standalone_orders shift_id column
+    const soTableInfo = _db.exec("PRAGMA table_info(standalone_orders)");
+    const soCols = soTableInfo[0]?.values.map(v => v[1] as string) || [];
+    if (!soCols.includes('shift_id')) {
+      console.log('[database] Running migration: adding shift_id column to standalone_orders...');
+      _db.run('ALTER TABLE standalone_orders ADD COLUMN shift_id TEXT;');
+      console.log('[database] standalone_orders shift_id migration completed successfully.');
+    }
+    _db.run('CREATE INDEX IF NOT EXISTS idx_standalone_orders_shift ON standalone_orders(shift_id);');
+  } catch (sErr: any) {
+    console.error('[database] Shifts/expenses/transfers migration failed:', sErr.message);
   }
 
   // Persist after schema creation and migrations

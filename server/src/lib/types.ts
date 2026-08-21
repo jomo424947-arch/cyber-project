@@ -82,15 +82,45 @@ export interface DbInvoice {
   id: string;
   session_id: string;
   amount: number;
+  subtotal?: number;
+  discount_amount?: number;
+  discount_type?: 'none' | 'percentage' | 'fixed';
+  discount_value?: number;
+  service_fee?: number;
+  service_rate?: number;
+  rounding_delta?: number;
+  notes?: string | null;
   paid: boolean;
   payment_method: PaymentMethod;
+  shift_id?: string | null;
+  created_by?: string | null;
   issued_at: string;
   paid_at: string | null;
   // joined relations
+  creator?: Pick<DbUser, 'id' | 'full_name' | 'email'>;
   session?: Pick<DbSession, 'id' | 'started_at' | 'ended_at' | 'duration_minutes' | 'device_id'> & {
     device?: Pick<DbDevice, 'id' | 'name' | 'type'>;
     customer?: Pick<DbCustomer, 'id' | 'name'>;
   };
+}
+
+export interface DbSessionTransfer {
+  id: string;
+  session_id: string;
+  from_device_id: string;
+  to_device_id: string;
+  started_at: string;
+  transferred_at: string;
+  duration_minutes: number;
+  hourly_rate: number;
+  play_mode: 'single' | 'multiplayer';
+  cost: number;
+  transferred_by: string | null;
+  tenant_id: string | null;
+  created_at: string;
+  from_device?: Pick<DbDevice, 'id' | 'name' | 'type'>;
+  to_device?: Pick<DbDevice, 'id' | 'name' | 'type'>;
+  transferrer?: Pick<DbUser, 'id' | 'full_name'>;
 }
 
 export type ReservationStatus = 'pending' | 'active' | 'cancelled' | 'completed';
@@ -118,6 +148,34 @@ export interface DbSessionPause {
   paused_by: string | null;
   resumed_by: string | null;
   reason: string | null;
+}
+
+export interface DbShift {
+  id: string;
+  user_id: string;
+  tenant_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  opening_cash: number;
+  closing_cash: number | null;
+  total_revenue: number;
+  total_expenses: number;
+  notes: string | null;
+  status: 'active' | 'closed';
+  created_at: string;
+  user?: Pick<DbUser, 'id' | 'email' | 'full_name'>;
+}
+
+export interface DbShiftExpense {
+  id: string;
+  shift_id: string;
+  tenant_id: string | null;
+  amount: number;
+  category: string;
+  description: string;
+  created_by: string | null;
+  created_at: string;
+  creator?: Pick<DbUser, 'id' | 'full_name' | 'email'>;
 }
 
 export interface DbRoom {

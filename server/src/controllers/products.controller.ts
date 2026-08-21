@@ -225,7 +225,31 @@ export async function createStandaloneSale(req: Request, res: Response) {
     throw badRequest(`Insufficient stock for "${product.name}". Available: ${currentStock}`);
   }
 
-  // 2. Insert standalone order
+  // 2. Link to active shift if present and update shift total_revenue
+  let activeShiftId: string | null = null;
+  try {
+    const { data: activeShift } = await supabase
+      .from('shifts')
+      .select('id, total_revenue')
+      .eq('user_id', req.user!.id)
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .maybeSingle();
+
+    if (activeShift) {
+      activeShiftId = activeShift.id;
+      const newRev = Number(activeShift.total_revenue || 0) + totalPrice;
+      await supabase
+        .from('shifts')
+        .update({ total_revenue: newRev })
+        .eq('id', activeShift.id)
+        .eq('tenant_id', req.user!.tenant_id);
+    }
+  } catch (shiftErr) {
+    console.warn('[products] Could not link active shift to standalone sale:', shiftErr);
+  }
+
+  // 3. Insert standalone order
   const { data: order, error: insErr } = await supabase
     .from('standalone_orders')
     .insert({
@@ -236,6 +260,7 @@ export async function createStandaloneSale(req: Request, res: Response) {
       cost_price: costPrice,
       total_price: totalPrice,
       payment_method,
+      shift_id: activeShiftId,
       created_by: req.user!.id,
     })
     .select('*, product:products(id,name,price,stock)')

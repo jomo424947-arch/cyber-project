@@ -16,7 +16,8 @@ import { formatElapsed, formatDuration, formatCurrency, formatDateTime } from '.
 import { 
   EndSessionModal, 
   EditSessionModal, 
-  AuditLogModal 
+  AuditLogModal,
+  TransferSessionModal,
 } from '../components/SessionModals';
 import { AddCafeModal } from '../components/AddCafeModal';
 import type { Session } from '../types';
@@ -31,6 +32,7 @@ export default function SessionsPage() {
 
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Session | null>(null);
   const [auditTarget, setAuditTarget] = useState<Session | null>(null);
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
 
@@ -270,6 +272,25 @@ export default function SessionsPage() {
                           >
                             {t('edit')}
                           </button>
+                          <button
+                            type="button"
+                            className="ccms-btn ccms-btn-ghost"
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '11px',
+                              minHeight: '32px',
+                              color: 'var(--accent-purple)',
+                              borderColor: 'rgba(168, 85, 247, 0.4)',
+                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            onClick={() => setTransferTarget(s)}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+                            {language === 'ar' ? 'تحويل' : 'Transfer'}
+                          </button>
                           {s.session_type === 'fixed' && (
                             <button
                               type="button"
@@ -429,6 +450,19 @@ export default function SessionsPage() {
           onDone={() => {
             setEndTarget(null);
             toast(language === 'ar' ? 'تم إنهاء الجلسة بنجاح' : 'Session ended successfully', 'success');
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Transfer session modal */}
+      {transferTarget && (
+        <TransferSessionModal
+          session={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onDone={() => {
+            setTransferTarget(null);
+            toast(language === 'ar' ? 'تم تحويل الجلسة بنجاح' : 'Session transferred successfully', 'success');
             refetch();
           }}
         />

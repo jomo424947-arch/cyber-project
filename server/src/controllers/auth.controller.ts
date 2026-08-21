@@ -8,13 +8,13 @@ import { getDb, saveDatabase } from '../lib/database';
 
 // ─── Cookie helpers ────────────────────────────────────────────────────────
 
-const IS_PROD = process.env.NODE_ENV === 'production';
+const IS_SECURE = process.env.USE_HTTPS === 'true';
 
 /** Duration for access token cookie — 1 hour. */
 const ACCESS_COOKIE_OPTS = {
   httpOnly: true,
-  secure: IS_PROD,
-  sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax',
+  secure: IS_SECURE,
+  sameSite: 'lax' as const,
   path: '/',
   maxAge: 60 * 60 * 1000, // 1 hour
 };
@@ -22,8 +22,8 @@ const ACCESS_COOKIE_OPTS = {
 /** Default refresh token cookie (session-only unless "remember me"). */
 const REFRESH_COOKIE_OPTS = {
   httpOnly: true,
-  secure: IS_PROD,
-  sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax',
+  secure: IS_SECURE,
+  sameSite: 'lax' as const,
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
@@ -37,6 +37,11 @@ const REFRESH_REMEMBER_OPTS = {
 function setAuthCookies(res: Response, accessToken: string, refreshToken: string, remember = false) {
   res.cookie('sb-access-token', accessToken, ACCESS_COOKIE_OPTS);
   res.cookie('sb-refresh-token', refreshToken, remember ? REFRESH_REMEMBER_OPTS : REFRESH_COOKIE_OPTS);
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('X-Access-Token', accessToken);
+    res.setHeader('X-Refresh-Token', refreshToken);
+    res.setHeader('Access-Control-Expose-Headers', 'X-CSRF-Token, X-Access-Token, X-Refresh-Token');
+  }
 }
 
 function clearAuthCookies(res: Response) {
@@ -164,8 +169,17 @@ export async function login(req: Request, res: Response) {
         const refreshToken = signRefreshToken({ id: userId });
         setAuthCookies(res, accessToken, refreshToken, rememberMe);
 
+        if (tenantId) {
+          try {
+            const { pullFromCloud } = require('../lib/sync-engine');
+            pullFromCloud(tenantId).catch((err: any) => console.warn('[auth] Cloud login pull failed:', err.message));
+          } catch {}
+        }
+
         res.json({
           user: { id: userId, email: userEmail, full_name: fullName, role, tenant_id: tenantId },
+          token: accessToken,
+          refreshToken,
         });
         return;
       }
@@ -195,6 +209,13 @@ export async function login(req: Request, res: Response) {
   const refreshToken = signRefreshToken({ id: user.id });
   setAuthCookies(res, accessToken, refreshToken, rememberMe);
 
+  if (user.tenant_id) {
+    try {
+      const { pullFromCloud } = require('../lib/sync-engine');
+      pullFromCloud(user.tenant_id).catch((err: any) => console.warn('[auth] Local login pull failed:', err.message));
+    } catch {}
+  }
+
   res.json({
     user: {
       id: user.id,
@@ -203,6 +224,8 @@ export async function login(req: Request, res: Response) {
       role: user.role,
       tenant_id: user.tenant_id ?? null,
     },
+    token: accessToken,
+    refreshToken,
   });
 }
 
@@ -261,6 +284,8 @@ export async function signup(req: Request, res: Response): Promise<void> {
         full_name: fullName || email.split('@')[0],
         role: userRole,
       },
+      token: accessToken,
+      refreshToken,
     });
   } else {
     // Cloud Mode: self-signup is disabled.
@@ -289,7 +314,10 @@ export async function logout(req: Request, res: Response) {
 
 /** Silently refresh the access token using the refresh token cookie. */
 export async function refresh(req: Request, res: Response) {
-  const refreshToken = req.cookies?.['sb-refresh-token'];
+  const refreshToken =
+    req.cookies?.['sb-refresh-token'] ||
+    req.body?.refreshToken ||
+    (req.headers['x-refresh-token'] as string);
   if (!refreshToken) {
     clearAuthCookies(res);
     throw unauthorized('No refresh token');
@@ -343,6 +371,8 @@ export async function refresh(req: Request, res: Response) {
       role: profile.role,
       tenant_id: (profile as any).tenant_id ?? null,
     },
+    token: newAccessToken,
+    refreshToken: newRefreshToken,
   });
 }
 
@@ -831,3 +861,14 @@ export async function updateTenantStatus(req: Request, res: Response) {
     message: 'Tenant status updated successfully',
   });
 }
+
+/** POST /api/auth/sync — Manually trigger bidirectional cloud sync. */
+export async function triggerSync(_req: Request, res: Response) {
+  const { runSync } = require('../lib/sync-engine');
+  await runSync();
+  res.json({
+    success: true,
+    message: 'Synchronization completed successfully',
+  });
+}
+

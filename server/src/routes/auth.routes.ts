@@ -17,6 +17,7 @@ import {
   registerTenant,
   getTenants,
   updateTenantStatus,
+  triggerSync,
 } from '../controllers/auth.controller';
 import {
   loginSchema,
@@ -51,26 +52,30 @@ const authLimiter = rateLimit({
 
 // ─── Public routes (no authentication required) ────────────────────────────
 
-router.get('/status',          asyncHandler(getActivationStatus));
+router.get('/status', asyncHandler(getActivationStatus));
 router.get('/employees-public', asyncHandler(listEmployeesPublic));
-router.post('/activate',       authLimiter, asyncHandler(activateTenant));
-router.post('/login',          authLimiter, validate(loginSchema),          asyncHandler(login));
-router.post('/signup',         authLimiter, validate(signupSchema),         asyncHandler(signup));
-router.post('/refresh',        asyncHandler(refresh));
-router.post('/forgot-password',authLimiter, validate(forgotPasswordSchema), asyncHandler(forgotPassword));
-router.post('/reset-password',             validate(resetPasswordSchema),   asyncHandler(resetPassword));
-router.post('/verify-email',               validate(verifyEmailSchema),     asyncHandler(verifyEmail));
+router.post('/activate', authLimiter, asyncHandler(activateTenant));
+router.post('/login', authLimiter, validate(loginSchema), asyncHandler(login));
+router.post('/signup', authLimiter, validate(signupSchema), asyncHandler(signup));
+router.post('/refresh', asyncHandler(refresh));
+router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), asyncHandler(forgotPassword));
+router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(resetPassword));
+router.post('/verify-email', validate(verifyEmailSchema), asyncHandler(verifyEmail));
 
 // Google OAuth — GET endpoints are CSRF-exempt (no state mutation)
-router.get('/oauth/google',    asyncHandler(googleLogin));
+router.get('/oauth/google', asyncHandler(googleLogin));
 router.get('/callback/google', asyncHandler(googleCallback));
+
+// ─── Super Admin routes (protected by SUPER_ADMIN_KEY) ─────────────────────
+
+router.post('/register-tenant', asyncHandler(registerTenant));
+router.get('/tenants', asyncHandler(getTenants));
+router.patch('/tenants/:id/status', asyncHandler(updateTenantStatus));
 
 // ─── Protected routes (JWT required) ──────────────────────────────────────
 
-router.get('/me',               verifyJWT, asyncHandler(me));
-router.post('/logout',          verifyJWT, asyncHandler(logout));
-router.post('/register-tenant',     verifyJWT, asyncHandler(registerTenant));
-router.get('/tenants',              verifyJWT, asyncHandler(getTenants));
-router.patch('/tenants/:id/status', verifyJWT, asyncHandler(updateTenantStatus));
+router.get('/me', verifyJWT, asyncHandler(me));
+router.post('/logout', verifyJWT, asyncHandler(logout));
+router.post('/sync', verifyJWT, asyncHandler(triggerSync));
 
 export default router;

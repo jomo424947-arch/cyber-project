@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -6,22 +6,61 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { dataService } from '../services';
+import { formatCurrency } from '../utils/format';
+import { StartShiftModal, CloseShiftModal } from './ShiftModals';
+import type { Shift } from '../types';
 
 interface LayoutProps {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
+  currentShift?: Shift | null;
 }
 
-export function Layout({ title, subtitle, actions, children }: LayoutProps) {
+export function Layout({ title, subtitle, actions, children, currentShift }: LayoutProps) {
   const isMobile = useIsMobile();
   const { user, isAdmin, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [activeShift, setActiveShift] = useState<Shift | null>(null);
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
   const { language, setLanguage, t, isRtl } = useLanguage();
   const { theme, toggleTheme } = useTheme();
+
+  const effectiveShift = currentShift !== undefined ? currentShift : activeShift;
+
+  const refreshActiveShift = () => {
+    dataService.getActiveShift()
+      .then((s) => setActiveShift(s))
+      .catch(() => setActiveShift(null));
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchShift = () => {
+      dataService.getActiveShift()
+        .then((s) => {
+          if (mounted) setActiveShift(s);
+        })
+        .catch(() => {});
+    };
+
+    fetchShift();
+    window.addEventListener('shift-changed', fetchShift);
+    window.addEventListener('focus', fetchShift);
+    const interval = setInterval(fetchShift, 5000);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('shift-changed', fetchShift);
+      window.removeEventListener('focus', fetchShift);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleLogout = async () => {
     setShowMoreMenu(false);
@@ -70,8 +109,44 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          {/* Left panel */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }} />
+          {/* Left panel: Active shift badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {effectiveShift ? (
+              <button
+                onClick={() => navigate('/shifts')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'rgba(34, 197, 94, 0.12)',
+                  border: '1px solid rgba(34, 197, 94, 0.35)',
+                  borderRadius: '20px',
+                  padding: '6px 14px',
+                  color: 'var(--accent-green)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title={language === 'ar' ? 'عرض تفاصيل الوردية النشطة' : 'View active shift details'}
+              >
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: 'var(--accent-green)',
+                    animation: 'pulse 1.5s infinite',
+                  }}
+                />
+                <span>{language === 'ar' ? 'الوردية نشطة' : 'Active Shift'}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>•</span>
+                <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                  +{formatCurrency(Number(effectiveShift.total_revenue || 0))}
+                </span>
+              </button>
+            ) : null}
+          </div>
 
           {/* Right panel: User controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -527,6 +602,25 @@ export function Layout({ title, subtitle, actions, children }: LayoutProps) {
           )}
         </>
       )}
+
+      {/* Global Quick Shift Modals */}
+      <StartShiftModal
+        open={showStartModal}
+        onClose={() => setShowStartModal(false)}
+        onStarted={() => {
+          setShowStartModal(false);
+          refreshActiveShift();
+        }}
+      />
+      <CloseShiftModal
+        open={showCloseModal}
+        shift={activeShift}
+        onClose={() => setShowCloseModal(false)}
+        onClosed={() => {
+          setShowCloseModal(false);
+          refreshActiveShift();
+        }}
+      />
     </div>
   );
 }

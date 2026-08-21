@@ -8,6 +8,7 @@ export interface BillingParams {
   gracePeriodMinutes?: number;
   overtimeRateMultiplier?: number;
   pausedMinutes?: number; // NEW — total minutes the session was paused
+  minBillingMinutes?: number; // Optional override for minimum billing duration (default 30)
 }
 
 export interface BillingResult {
@@ -33,7 +34,7 @@ function roundCurrency(amount: number): number {
  * Standalone, pure billing logic function that computes CCMS session costs.
  * 
  * Rules:
- *  - Minimum billed duration is 30 minutes (applied to effectiveMinutes).
+ *  - Minimum billed duration is 30 minutes (applied to effectiveMinutes), unless minBillingMinutes is overridden.
  *  - Ceiling-to-minute rounding for partial minutes.
  *  - hourlyRateOverride takes precedence over deviceHourlyRate.
  *  - Overtime applies to fixed-type sessions using effectiveMinutes (not raw).
@@ -94,7 +95,8 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
   const pausedMinutes = Math.max(0, Math.round(params.pausedMinutes || 0));
   const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
 
-  const billedMinutes = Math.max(MIN_BILLING_MINUTES, effectiveMinutes);
+  const minBilling = params.minBillingMinutes !== undefined ? Math.max(0, params.minBillingMinutes) : MIN_BILLING_MINUTES;
+  const billedMinutes = Math.max(minBilling, effectiveMinutes);
 
   const effectiveRate = Number(
     params.hourlyRateOverride !== undefined && params.hourlyRateOverride !== null
@@ -143,5 +145,63 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
     totalCost,
   };
 }
+
+export interface InvoiceAdjustmentParams {
+  subtotal: number;
+  discountType?: 'none' | 'percentage' | 'fixed';
+  discountValue?: number;
+  serviceFee?: number;
+  serviceRate?: number;
+  roundingDelta?: number;
+}
+
+export interface InvoiceAdjustmentResult {
+  subtotal: number;
+  discountAmount: number;
+  afterDiscount: number;
+  serviceFee: number;
+  beforeRounding: number;
+  roundingDelta: number;
+  finalAmount: number;
+}
+
+/**
+ * Calculates final invoice amounts taking into account discount, service fee, and cash rounding.
+ */
+export function calculateInvoiceAdjustments(params: InvoiceAdjustmentParams): InvoiceAdjustmentResult {
+  const subtotal = Math.max(0, roundCurrency(params.subtotal || 0));
+  let discountAmount = 0;
+
+  if (params.discountType === 'percentage' && params.discountValue && params.discountValue > 0) {
+    const pct = Math.min(100, Math.max(0, params.discountValue));
+    discountAmount = roundCurrency(subtotal * (pct / 100));
+  } else if (params.discountType === 'fixed' && params.discountValue && params.discountValue > 0) {
+    discountAmount = Math.min(subtotal, roundCurrency(params.discountValue));
+  }
+
+  const afterDiscount = Math.max(0, roundCurrency(subtotal - discountAmount));
+
+  let serviceFee = 0;
+  if (params.serviceRate && params.serviceRate > 0) {
+    serviceFee = roundCurrency(afterDiscount * (params.serviceRate / 100));
+  } else if (params.serviceFee && params.serviceFee > 0) {
+    serviceFee = roundCurrency(params.serviceFee);
+  }
+
+  const beforeRounding = roundCurrency(afterDiscount + serviceFee);
+  const roundingDelta = params.roundingDelta ? roundCurrency(params.roundingDelta) : 0;
+  const finalAmount = Math.max(0, roundCurrency(beforeRounding + roundingDelta));
+
+  return {
+    subtotal,
+    discountAmount,
+    afterDiscount,
+    serviceFee,
+    beforeRounding,
+    roundingDelta,
+    finalAmount,
+  };
+}
+
 
 

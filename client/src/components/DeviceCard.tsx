@@ -12,6 +12,7 @@ interface DeviceCardProps {
   now: number; // current ms, for the live timer
   onAction?: (device: Device) => void;
   onEditSession?: (session: Session) => void;
+  onTransferSession?: (session: Session) => void;
   onExtendSession?: (session: Session) => void;
   onPauseSession?: (session: Session) => void;
   onResumeSession?: (session: Session) => void;
@@ -19,12 +20,13 @@ interface DeviceCardProps {
   index?: number;
 }
 
-function getDeviceBgImage(type: string, name?: string): string {
+function getDeviceBgImage(type: string, name?: string, specs?: Record<string, any> | null): string {
   const lowerName = (name || '').toLowerCase();
+  const modelId = (specs?.model_id || '').toLowerCase();
   if (type === 'table' || lowerName.includes('billiards') || lowerName.includes('بلياردو')) {
     return '/assets/billiards_card_bg.jpg';
   }
-  if (lowerName.includes('ps4') || lowerName.includes('4')) {
+  if (modelId === 'ps4' || lowerName.includes('ps4') || (lowerName.includes('4') && !lowerName.includes('40'))) {
     return '/assets/ps4_card_bg.jpg';
   }
   if (type === 'pc' || lowerName.includes('pc')) {
@@ -33,8 +35,9 @@ function getDeviceBgImage(type: string, name?: string): string {
   return '/assets/ps5_card_bg.jpg';
 }
 
-function getDeviceBrandBadge(type: string, name?: string) {
+function getDeviceBrandBadge(type: string, name?: string, specs?: Record<string, any> | null) {
   const lowerName = (name || '').toLowerCase();
+  const model = String(specs?.model || specs?.model_id || '');
   const isBilliards = type === 'table' || lowerName.includes('billiards') || lowerName.includes('بلياردو');
   
   if (isBilliards) {
@@ -56,6 +59,131 @@ function getDeviceBrandBadge(type: string, name?: string) {
         fontFamily: 'Space Grotesk, sans-serif'
       }}>
         8
+      </div>
+    );
+  }
+
+  // Xbox
+  if (model.toLowerCase().includes('xbox') || lowerName.includes('xbox')) {
+    return (
+      <div style={{
+        minWidth: '36px',
+        height: '36px',
+        padding: '0 8px',
+        borderRadius: '18px',
+        border: '2px solid rgba(16, 185, 129, 0.8)',
+        background: 'rgba(10, 25, 15, 0.9)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#10b981',
+        fontWeight: 800,
+        fontSize: '12px',
+        boxShadow: '0 0 12px rgba(16, 185, 129, 0.4)',
+        fontFamily: 'Space Grotesk, sans-serif'
+      }}>
+        XBOX
+      </div>
+    );
+  }
+
+  // PS5
+  if (model === 'PS5' || lowerName.includes('ps5') || (!model && !lowerName.includes('ps4') && !lowerName.includes('ps3') && type === 'console')) {
+    return (
+      <div style={{
+        minWidth: '36px',
+        height: '36px',
+        padding: '0 8px',
+        borderRadius: '18px',
+        border: '2px solid rgba(0, 140, 255, 0.8)',
+        background: 'rgba(10, 15, 25, 0.9)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#0099FF',
+        fontWeight: 800,
+        fontSize: '12px',
+        boxShadow: '0 0 12px rgba(0, 150, 255, 0.4)',
+        fontFamily: 'Space Grotesk, sans-serif'
+      }}>
+        PS5
+      </div>
+    );
+  }
+
+  // PS4
+  if (model === 'PS4' || lowerName.includes('ps4')) {
+    return (
+      <div style={{
+        minWidth: '36px',
+        height: '36px',
+        padding: '0 8px',
+        borderRadius: '18px',
+        border: '2px solid rgba(59, 130, 246, 0.8)',
+        background: 'rgba(10, 15, 25, 0.9)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#3b82f6',
+        fontWeight: 800,
+        fontSize: '12px',
+        boxShadow: '0 0 12px rgba(59, 130, 246, 0.4)',
+        fontFamily: 'Space Grotesk, sans-serif'
+      }}>
+        PS4
+      </div>
+    );
+  }
+
+  // PS3
+  if (model === 'PS3' || lowerName.includes('ps3')) {
+    return (
+      <div style={{
+        minWidth: '36px',
+        height: '36px',
+        padding: '0 8px',
+        borderRadius: '18px',
+        border: '2px solid rgba(239, 68, 68, 0.8)',
+        background: 'rgba(25, 10, 10, 0.9)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ef4444',
+        fontWeight: 800,
+        fontSize: '12px',
+        boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)',
+        fontFamily: 'Space Grotesk, sans-serif'
+      }}>
+        PS3
+      </div>
+    );
+  }
+
+  // Nintendo Switch
+  if (model === 'SWITCH' || lowerName.includes('switch')) {
+    return (
+      <div style={{
+        minWidth: '36px',
+        height: '36px',
+        padding: '0 8px',
+        borderRadius: '18px',
+        border: '2px solid rgba(239, 68, 68, 0.8)',
+        background: 'rgba(30, 10, 15, 0.9)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ff4b4b',
+        fontWeight: 800,
+        fontSize: '11px',
+        boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)',
+        fontFamily: 'Space Grotesk, sans-serif'
+      }}>
+        SWITCH
       </div>
     );
   }
@@ -85,6 +213,7 @@ export function DeviceCard({
   now, 
   onAction, 
   onEditSession,
+  onTransferSession,
   onPauseSession,
   onResumeSession,
   onDeleteDevice,
@@ -93,7 +222,7 @@ export function DeviceCard({
   const isActive = device.status === 'in_use';
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const isBilliards = device.type === 'table' || device.name.toLowerCase().includes('billiards') || device.name.toLowerCase().includes('بلياردو');
-  const bgImg = getDeviceBgImage(device.type, device.name);
+  const bgImg = getDeviceBgImage(device.type, device.name, device.specs);
 
   let actionLabel = 'START SESSION';
   if (device.status === 'available') {
@@ -276,7 +405,7 @@ export function DeviceCard({
 
         {/* Top bar inside image: Brand Badge + Action buttons */}
         <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {getDeviceBrandBadge(device.type, device.name)}
+          {getDeviceBrandBadge(device.type, device.name, device.specs)}
 
           {/* Quick Management Buttons */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -320,6 +449,28 @@ export function DeviceCard({
                 ▶
               </button>
             )}
+            {isActive && activeSession && onTransferSession && (
+              <button
+                type="button"
+                title="تحويل الجلسة لغرفة أو جهاز آخر (Transfer Session)"
+                onClick={() => onTransferSession(activeSession)}
+                style={{
+                  background: 'rgba(10, 15, 25, 0.75)',
+                  backdropFilter: 'blur(4px)',
+                  border: '1px solid rgba(168, 85, 247, 0.5)',
+                  color: 'var(--accent-purple)',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+              </button>
+            )}
             {isActive && activeSession && onEditSession && (
               <button
                 type="button"
@@ -336,7 +487,7 @@ export function DeviceCard({
                   cursor: 'pointer',
                 }}
               >
-                ✏️
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit</span>
               </button>
             )}
             {onDeleteDevice && (
