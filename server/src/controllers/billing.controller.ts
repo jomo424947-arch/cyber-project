@@ -49,15 +49,26 @@ export async function payInvoice(req: Request, res: Response) {
   };
   if (payment_method) patch.payment_method = payment_method;
 
-  // If invoice had no shift or creator, we can link it to the payer's active shift
+  // If invoice had no shift or creator, we can link it to the payer's active shift or tenant active shift
   if (!existingInv.shift_id) {
-    const { data: activeShift } = await supabase
+    let { data: activeShift } = await supabase
       .from('shifts')
       .select('id')
       .eq('user_id', req.user!.id)
       .eq('status', 'active')
       .eq('tenant_id', req.user!.tenant_id)
       .maybeSingle();
+
+    if (!activeShift) {
+      const { data: tenantShift } = await supabase
+        .from('shifts')
+        .select('id')
+        .eq('status', 'active')
+        .eq('tenant_id', req.user!.tenant_id)
+        .order('started_at', { ascending: false })
+        .maybeSingle();
+      activeShift = tenantShift;
+    }
 
     if (activeShift) {
       patch.shift_id = activeShift.id;

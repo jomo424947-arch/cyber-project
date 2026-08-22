@@ -639,7 +639,22 @@ class QueryBuilder {
     if (!data.id) data.id = crypto.randomUUID();
 
     // Auto-inject tenant_id for multi-tenant tables
-    const multiTenantTables = ['users', 'devices', 'customers', 'sessions', 'invoices', 'reservations', 'products', 'session_pauses', 'rooms', 'shifts', 'shift_expenses'];
+    const multiTenantTables = [
+      'users',
+      'devices',
+      'customers',
+      'sessions',
+      'invoices',
+      'reservations',
+      'products',
+      'session_pauses',
+      'rooms',
+      'shifts',
+      'shift_expenses',
+      'standalone_orders',
+      'session_transfers',
+      'product_stock_logs',
+    ];
     if (multiTenantTables.includes(this._table) && !data.tenant_id) {
       try {
         const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');

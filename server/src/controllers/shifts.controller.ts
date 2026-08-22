@@ -29,15 +29,29 @@ export async function listShifts(req: Request, res: Response) {
   res.json({ data: (data ?? []) as unknown as DbShift[] });
 }
 
-/** GET /api/shifts/active — Get active shift for current logged-in user. */
+/** GET /api/shifts/active — Get active shift for current logged-in user or active tenant shift. */
 export async function getActiveShift(req: Request, res: Response) {
-  const { data, error } = await supabase
+  // 1. Check if the current user has their own active shift
+  let { data, error } = await supabase
     .from('shifts')
     .select('*, user:users(id, email, full_name)')
     .eq('user_id', req.user!.id)
     .eq('status', 'active')
     .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
+
+  // 2. If not found, fall back to any active shift for the tenant (shared branch shift)
+  if (!data && !error) {
+    const fallback = await supabase
+      .from('shifts')
+      .select('*, user:users(id, email, full_name)')
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .order('started_at', { ascending: false })
+      .maybeSingle();
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) throw error;
 
@@ -53,13 +67,25 @@ export async function startShift(req: Request, res: Response) {
   }
 
   // Check if user already has an active shift
-  const { data: existingActive } = await supabase
+  let { data: existingActive } = await supabase
     .from('shifts')
     .select('*, user:users(id, email, full_name)')
     .eq('user_id', req.user!.id)
     .eq('status', 'active')
     .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
+
+  // If no user shift, check if tenant already has an active shift
+  if (!existingActive) {
+    const { data: tenantActive } = await supabase
+      .from('shifts')
+      .select('*, user:users(id, email, full_name)')
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .order('started_at', { ascending: false })
+      .maybeSingle();
+    if (tenantActive) existingActive = tenantActive;
+  }
 
   if (existingActive) {
     res.json({ data: existingActive as unknown as DbShift, alreadyActive: true });
@@ -109,8 +135,8 @@ export async function closeShift(req: Request, res: Response) {
   if (fetchErr) throw fetchErr;
   if (!shift) throw notFound('Shift not found');
 
-  if (req.user!.role !== 'admin' && shift.user_id !== req.user!.id) {
-    throw forbidden('You can only close your own shift');
+  if (req.user!.role !== 'admin' && shift.user_id !== req.user!.id && shift.tenant_id !== req.user!.tenant_id) {
+    throw forbidden('You can only close shifts within your branch');
   }
 
   if (shift.status === 'closed') {
@@ -368,14 +394,26 @@ export async function createQuickExpense(req: Request, res: Response) {
     description: string;
   };
 
-  // Find active shift
-  const { data: activeShift, error: shiftErr } = await supabase
+  // Find active shift: user's or branch tenant's
+  let { data: activeShift, error: shiftErr } = await supabase
     .from('shifts')
     .select('id, status, total_expenses')
     .eq('user_id', req.user!.id)
     .eq('status', 'active')
     .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
+
+  if (!activeShift && !shiftErr) {
+    const fallback = await supabase
+      .from('shifts')
+      .select('id, status, total_expenses')
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .order('started_at', { ascending: false })
+      .maybeSingle();
+    activeShift = fallback.data;
+    shiftErr = fallback.error;
+  }
 
   if (shiftErr) throw shiftErr;
   if (!activeShift) {

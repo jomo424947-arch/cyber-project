@@ -13,7 +13,34 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'ax
  *                             and retries the original request once.
  */
 
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+function resolveBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined') {
+    const { hostname, port, protocol } = window.location;
+    // Check if custom server URL stored in localStorage
+    try {
+      const storedUrl = localStorage.getItem('ccms_server_url');
+      if (storedUrl && storedUrl.trim()) {
+        return storedUrl.trim().replace(/\/+$/, '');
+      }
+    } catch {
+      // Ignore storage error
+    }
+
+    // If running in browser or mobile on a remote host / LAN IP (e.g. 148.66.152.6 or 192.168.1.X)
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // If served directly from port 5000 or standard web port (80/443), relative '' works seamlessly
+      if (port === '5000' || !port || port === '80' || port === '443') {
+        return '';
+      }
+      // If dev server or different port, route to port 5000 on the same host
+      return `${protocol}//${hostname}:5000`;
+    }
+  }
+  return envUrl || 'http://localhost:5000';
+}
+
+const baseURL = resolveBaseUrl();
 
 export const http: AxiosInstance = axios.create({
   baseURL,

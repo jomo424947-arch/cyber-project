@@ -228,13 +228,24 @@ export async function createStandaloneSale(req: Request, res: Response) {
   // 2. Link to active shift if present and update shift total_revenue
   let activeShiftId: string | null = null;
   try {
-    const { data: activeShift } = await supabase
+    let { data: activeShift } = await supabase
       .from('shifts')
       .select('id, total_revenue')
       .eq('user_id', req.user!.id)
       .eq('status', 'active')
       .eq('tenant_id', req.user!.tenant_id)
       .maybeSingle();
+
+    if (!activeShift) {
+      const { data: tenantShift } = await supabase
+        .from('shifts')
+        .select('id, total_revenue')
+        .eq('status', 'active')
+        .eq('tenant_id', req.user!.tenant_id)
+        .order('started_at', { ascending: false })
+        .maybeSingle();
+      activeShift = tenantShift;
+    }
 
     if (activeShift) {
       activeShiftId = activeShift.id;

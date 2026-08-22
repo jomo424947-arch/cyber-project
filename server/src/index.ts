@@ -71,6 +71,8 @@ const authLimiter = rateLimit({
 
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false, // Prevents untrustworthy origin errors on HTTP/IP deployments
+  originAgentCluster: false, // Prevents origin-keyed agent cluster errors on IP deployments
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: {
     directives: {
@@ -79,17 +81,14 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", "http://localhost:*", "ws://localhost:*", process.env.CLIENT_ORIGIN || 'http://localhost:5173'],
+      connectSrc: ["'self'", "http:", "https:", "ws:", "wss:", "*"],
     },
   },
 }));
 app.use(cors({
   origin: (requestOrigin, callback) => {
-    if (!requestOrigin || allowedOrigins.includes(requestOrigin) || requestOrigin.startsWith('file://') || requestOrigin === 'null' || requestOrigin.includes('localhost') || requestOrigin.includes('127.0.0.1')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'), false);
-    }
+    // Dynamically allow requests from any client IP (mobile, tablet, desktop, electron, LAN, remote VPS)
+    callback(null, true);
   },
   credentials: true,
 }));
