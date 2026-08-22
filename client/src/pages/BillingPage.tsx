@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { StatCard } from '../components/StatCard';
 import { InvoiceDetailsModal } from '../components/InvoiceDetailsModal';
 import { useAsync } from '../hooks/useAsync';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
@@ -17,6 +18,7 @@ import type { Invoice } from '../types';
 type Filter = 'all' | 'paid' | 'unpaid';
 
 export default function BillingPage() {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>('all');
   const [payingId, setPayingId] = useState<string | null>(null);
@@ -100,18 +102,34 @@ export default function BillingPage() {
           <button 
             className="ccms-btn ccms-btn-ghost" 
             onClick={() => toast(language === 'ar' ? 'تم تصدير كشف الحساب بنجاح' : 'Excel summary sheet exported.', 'success')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+              minHeight: '38px',
+            }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
-            {language === 'ar' ? 'إنشاء كشف حساب' : 'Generate Receipt'}
+            <span>{language === 'ar' ? 'كشف حساب' : 'Generate Receipt'}</span>
           </button>
           <button 
             className="ccms-btn ccms-btn-primary" 
             onClick={() => toast(language === 'ar' ? 'جاري انتظار تأكيد الدفع الإلكتروني...' : 'Gateway scanner listening for payments...', 'info')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+              minHeight: '38px',
+            }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance_wallet</span>
-            {language === 'ar' ? 'تسجيل دفعة جديدة' : 'Process Payment'}
+            <span>{language === 'ar' ? 'تسجيل دفعة' : 'Process Payment'}</span>
           </button>
         </>
       }

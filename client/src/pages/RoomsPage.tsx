@@ -9,6 +9,7 @@ import { Select } from '../components/ui/Select';
 import { AddCafeModal } from '../components/AddCafeModal';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
@@ -36,6 +37,7 @@ const AVAILABLE_ROOM_ICONS = [
 type PlayMode = 'single' | 'multiplayer';
 
 export default function RoomsPage() {
+  const isMobile = useIsMobile();
   const now = useNow(1000);
   const { toast } = useToast();
   const { t, language, isRtl } = useLanguage();
@@ -198,27 +200,43 @@ export default function RoomsPage() {
           : `${roomsList.length} rooms · ${availableDevicesCount} available devices`
       }
       actions={
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           {isAdmin && (
             <Button
               onClick={() => {
                 setEditingRoom(null);
                 setShowRoomModal(true);
               }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                minHeight: '38px',
+              }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-              {language === 'ar' ? 'إضافة غرفة جديدة' : 'Add New Room'}
+              <span>{language === 'ar' ? 'إضافة غرفة' : 'Add Room'}</span>
             </Button>
           )}
 
           <button
             className="ccms-btn ccms-btn-ghost"
             onClick={refetch}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+              flex: isMobile ? (isAdmin ? '1 1 calc(50% - 4px)' : '1 1 100%') : 'none',
+              minHeight: '38px',
+            }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
-            {language === 'ar' ? 'تحديث' : 'Refresh'}
+            <span>{language === 'ar' ? 'تحديث' : 'Refresh'}</span>
           </button>
         </div>
       }

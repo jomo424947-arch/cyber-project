@@ -50,12 +50,17 @@ function createWindow() {
   // Start background API server
   startServer();
 
+  const iconPath = fs.existsSync(path.join(__dirname, 'icon.png'))
+    ? path.join(__dirname, 'icon.png')
+    : path.join(__dirname, '..', 'build', 'icon.ico');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 700,
-    title: 'CCMS — Cyber Café & Gaming Lounge System',
+    title: 'CCMS — Smart Management System',
+    icon: iconPath,
     autoHideMenuBar: true,
     show: false, // Don't show until content is ready
     backgroundColor: '#0A0A0A', // Match app dark background to prevent white flash

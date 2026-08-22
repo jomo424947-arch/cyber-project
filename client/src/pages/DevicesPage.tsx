@@ -7,6 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +23,7 @@ import { DeviceFormModal } from '../components/DeviceFormModal';
 import type { Device, DeviceType, Session } from '../types';
 
 export default function DevicesPage() {
+  const isMobile = useIsMobile();
   const now = useNow(1000);
   const { toast } = useToast();
   const { t, language } = useLanguage();
@@ -148,24 +150,38 @@ export default function DevicesPage() {
           : `${totalHallDevices} hall stations · ${availableHallDevices} available`
       }
       actions={
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            className="ccms-btn ccms-btn-ghost"
-            onClick={refetch}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
-            {language === 'ar' ? 'تحديث' : 'Refresh'}
-          </button>
+        <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           {isAdmin && (
             <Button
               onClick={() => setCreating(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                minHeight: '38px',
+              }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-              {language === 'ar' ? 'إضافة جهاز' : 'Add Device'}
+              <span>{language === 'ar' ? 'إضافة جهاز' : 'Add Device'}</span>
             </Button>
           )}
+          <button
+            className="ccms-btn ccms-btn-ghost"
+            onClick={refetch}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              flex: isMobile ? (isAdmin ? '1 1 calc(50% - 4px)' : '1 1 100%') : 'none',
+              minHeight: '38px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sync</span>
+            <span>{language === 'ar' ? 'تحديث' : 'Refresh'}</span>
+          </button>
         </div>
       }
     >

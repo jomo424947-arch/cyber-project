@@ -39,25 +39,33 @@
   "build": {
     "extends": null,
     "appId": "com.ccms.gaminglounge",
-    "productName": "CCMS Cyber Cafe",
+    "productName": "CCMS",
     "electronVersion": "31.2.0",
     "npmRebuild": false,
     "asar": true,
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "build/**/*"
     ],
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "CCMS",
+      "artifactName": "CCMS Setup ${version}.${ext}"
     }
   }
 }

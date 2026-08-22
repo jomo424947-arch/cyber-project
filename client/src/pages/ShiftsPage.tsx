@@ -10,12 +10,14 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
 import type { Shift, ShiftSummary } from '../types';
 
 export default function ShiftsPage() {
+  const isMobile = useIsMobile();
   const { user, logout } = useAuth();
   const { language, isRtl } = useLanguage();
   const { toast } = useToast();
@@ -242,13 +244,20 @@ export default function ShiftsPage() {
           : 'Live shift tracking, cashier reconciliation, on-shift expense logging, and per-staff invoice attribution.'
       }
       actions={
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           {activeShift ? (
             <>
               <Button
                 variant="ghost"
                 onClick={() => setShowExpenseModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                  minHeight: '38px',
+                }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-red)' }}>
                   receipt_long
@@ -258,7 +267,14 @@ export default function ShiftsPage() {
               <Button
                 variant="danger"
                 onClick={() => setShowCloseModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                  minHeight: '38px',
+                }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                   lock_clock
@@ -270,7 +286,14 @@ export default function ShiftsPage() {
             <Button
               variant="primary"
               onClick={() => setShowStartModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                flex: isMobile ? '1 1 100%' : 'none',
+                minHeight: '38px',
+              }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                 play_circle

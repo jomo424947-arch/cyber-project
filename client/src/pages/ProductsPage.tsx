@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatCard } from '../components/StatCard';
 import { useAsync } from '../hooks/useAsync';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
@@ -15,6 +16,7 @@ import { formatCurrency, formatDateTime } from '../utils/format';
 import type { Product, ProductSalesReport, PaymentMethod } from '../types';
 
 export default function ProductsPage() {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const { t, language, isRtl } = useLanguage();
 
@@ -59,21 +61,37 @@ export default function ProductsPage() {
           : `${allProducts.length} café product${allProducts.length === 1 ? '' : 's'} in inventory`
       }
       actions={
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <Button
             variant="ghost"
             onClick={() => setStandaloneSale(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', borderColor: 'var(--accent-green)', color: 'var(--accent-green)' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              borderColor: 'var(--accent-green)',
+              color: 'var(--accent-green)',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+              minHeight: '38px',
+            }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>point_of_sale</span>
-            {language === 'ar' ? 'بيع مباشر (بدون جلسة)' : 'Walk-in Sale'}
+            <span>{language === 'ar' ? 'بيع مباشر' : 'Walk-in Sale'}</span>
           </Button>
           <Button
             onClick={() => setCreating(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+              minHeight: '38px',
+            }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-            {language === 'ar' ? 'إضافة منتج جديد' : 'Add Product'}
+            <span>{language === 'ar' ? 'إضافة منتج' : 'Add Product'}</span>
           </Button>
         </div>
       }
@@ -86,6 +104,8 @@ export default function ProductsPage() {
           marginBottom: '24px',
           borderBottom: '1px solid var(--border-default)',
           paddingBottom: '12px',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         <button

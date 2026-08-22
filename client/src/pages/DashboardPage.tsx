@@ -10,6 +10,7 @@ import { SessionOrdersRow } from '../components/SessionOrdersRow';
 import { EndSessionModal, TransferSessionModal } from '../components/SessionModals';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
@@ -20,6 +21,7 @@ import { StartShiftModal, CloseShiftModal, ExpenseModal, ShiftDetailsModal } fro
 import type { Session } from '../types';
 
 export default function DashboardPage() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const now = useNow(1000);
   const { toast } = useToast();
@@ -150,24 +152,54 @@ export default function DashboardPage() {
       subtitle=""
       currentShift={data.activeShift}
       actions={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? '8px' : '10px',
+            flexWrap: 'wrap',
+            width: isMobile ? '100%' : 'auto',
+            maxWidth: '100%',
+          }}
+        >
           {data.activeShift ? (
             <>
               <button
                 className="ccms-btn ccms-btn-ghost"
                 onClick={() => setShowExpenseModal(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minHeight: '34px', fontSize: '12px' }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  minHeight: '38px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                  whiteSpace: 'nowrap',
+                }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-red)' }}>receipt_long</span>
-                {language === 'ar' ? 'تسجيل مصروف' : 'Expense'}
+                <span>{language === 'ar' ? 'تسجيل مصروف' : 'Expense'}</span>
               </button>
               <button
                 className="ccms-btn ccms-btn-danger"
                 onClick={() => setShowCloseShiftModal(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minHeight: '34px', fontSize: '12px', fontWeight: 600 }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  minHeight: '38px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                  whiteSpace: 'nowrap',
+                }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>lock_clock</span>
-                {language === 'ar' ? 'إغلاق الوردية' : 'End Shift'}
+                <span>{language === 'ar' ? 'إغلاق الوردية' : 'End Shift'}</span>
               </button>
             </>
           ) : (
@@ -182,13 +214,16 @@ export default function DashboardPage() {
                 color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '8px 18px',
+                padding: '8px 16px',
                 fontSize: '13px',
                 fontWeight: 700,
                 fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
                 cursor: 'pointer',
                 boxShadow: '0 2px 10px rgba(0, 102, 255, 0.3)',
                 transition: 'all 0.2s ease',
+                flex: isMobile ? '1 1 100%' : 'none',
+                minHeight: '38px',
+                whiteSpace: 'nowrap',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.background = '#0052CC')}
               onMouseLeave={(e) => (e.currentTarget.style.background = '#0066FF')}
@@ -204,8 +239,10 @@ export default function DashboardPage() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              minHeight: '34px',
+              minHeight: '38px',
+              padding: '8px 12px',
               fontSize: '12px',
               fontWeight: 600,
               color: 'var(--accent-cyan)',
@@ -213,20 +250,32 @@ export default function DashboardPage() {
               background: 'rgba(0, 194, 255, 0.08)',
               fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
               cursor: 'pointer',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+              whiteSpace: 'nowrap',
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>analytics</span>
-            {language === 'ar' ? 'تفاصيل الوردية' : 'Shift Details'}
+            <span>{language === 'ar' ? 'تفاصيل الوردية' : 'Shift Details'}</span>
           </button>
 
           <button 
             className="ccms-btn ccms-btn-ghost" 
             onClick={handleRefresh}
             disabled={syncing}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '34px', fontSize: '12px' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              minHeight: '38px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+              whiteSpace: 'nowrap',
+            }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px', animation: syncing ? 'spin 1s linear infinite' : 'none' }}>sync</span>
-            {language === 'ar' ? (syncing ? 'مزامنة...' : 'تحديث') : (syncing ? 'Syncing…' : 'Refresh')}
+            <span>{language === 'ar' ? (syncing ? 'مزامنة...' : 'تحديث') : (syncing ? 'Syncing…' : 'Refresh')}</span>
           </button>
         </div>
       }

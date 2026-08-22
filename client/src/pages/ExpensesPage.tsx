@@ -9,12 +9,14 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency } from '../utils/format';
 import type { ShiftExpense, Shift } from '../types';
 
 export default function ExpensesPage() {
+  const isMobile = useIsMobile();
   const { user, isAdmin } = useAuth();
   const { language, isRtl } = useLanguage();
   const { toast } = useToast();
@@ -173,7 +175,7 @@ export default function ExpensesPage() {
         <Button
           variant="primary"
           onClick={() => setShowAddModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: isMobile ? '100%' : 'auto', minHeight: '38px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
             add_circle

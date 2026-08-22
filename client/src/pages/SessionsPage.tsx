@@ -93,7 +93,7 @@ export default function SessionsPage() {
       }
     >
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--border-default)' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--border-default)', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '4px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} isRtl={isRtl}>
           {language === 'ar' ? `نشطة (${activeSessions.length})` : `Active (${activeSessions.length})`}
         </TabButton>
