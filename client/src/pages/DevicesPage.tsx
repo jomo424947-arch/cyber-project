@@ -18,8 +18,7 @@ import {
   EditSessionModal,
   TransferSessionModal,
 } from '../components/SessionModals';
-import { DeviceFormModal } from '../components/DeviceFormModal';
-import type { Device, DeviceType, Session } from '../types';
+import type { Device, DeviceType, Session, PricingTier } from '../types';
 
 export default function DevicesPage() {
   const now = useNow(1000);
@@ -53,9 +52,10 @@ export default function DevicesPage() {
   }, [data?.rooms]);
 
   const [startTarget, setStartTarget] = useState<Device | null>(null);
+  const [startPlayMode, setStartPlayMode] = useState<'single' | 'multiplayer'>('single');
+  const [playModes, setPlayModes] = useState<Record<string, 'single' | 'multiplayer'>>({});
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
-  const [transferTarget, setTransferTarget] = useState<Session | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -77,6 +77,7 @@ export default function DevicesPage() {
       const session = activeByDevice.get(device.id);
       if (session) setEndTarget(session);
     } else if (device.status === 'available') {
+      setStartPlayMode(playModes[device.id] ?? 'single');
       setStartTarget(device);
     } else {
       toast(`${device.name} is ${device.status} — manage it from Reservations or Settings.`, 'info');
@@ -206,9 +207,10 @@ export default function DevicesPage() {
                     index={i}
                     activeSession={activeByDevice.get(device.id)}
                     now={now}
+                    playMode={playModes[device.id] ?? 'single'}
+                    onPlayModeChange={(mode) => setPlayModes((prev) => ({ ...prev, [device.id]: mode }))}
                     onAction={handleAction}
                     onEditSession={(session) => setEditTarget(session)}
-                    onTransferSession={(session) => setTransferTarget(session)}
                     onExtendSession={handleExtendSession}
                     onPauseSession={handlePauseSession}
                     onResumeSession={handleResumeSession}
@@ -258,9 +260,10 @@ export default function DevicesPage() {
                     index={i}
                     activeSession={activeByDevice.get(device.id)}
                     now={now}
+                    playMode={playModes[device.id] ?? 'single'}
+                    onPlayModeChange={(mode) => setPlayModes((prev) => ({ ...prev, [device.id]: mode }))}
                     onAction={handleAction}
                     onEditSession={(session) => setEditTarget(session)}
-                    onTransferSession={(session) => setTransferTarget(session)}
                     onExtendSession={handleExtendSession}
                     onPauseSession={handlePauseSession}
                     onResumeSession={handleResumeSession}
@@ -277,6 +280,7 @@ export default function DevicesPage() {
       {startTarget && (
         <StartSessionModal
           device={startTarget}
+          playMode={startPlayMode}
           onClose={() => setStartTarget(null)}
           onDone={() => {
             setStartTarget(null);
@@ -320,6 +324,18 @@ export default function DevicesPage() {
           onDone={() => {
             setEditTarget(null);
             toast(language === 'ar' ? 'تم تحديث بيانات الجلسة' : 'Session details updated', 'success');
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Quick Cafe Order modal */}
+      {cafeTarget && (
+        <AddCafeModal
+          session={cafeTarget}
+          onClose={() => setCafeTarget(null)}
+          onDone={() => {
+            toast(language === 'ar' ? 'تم إضافة الطلب إلى الفاتورة' : 'Café item added to session', 'success');
             refetch();
           }}
         />

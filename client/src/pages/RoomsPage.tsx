@@ -17,7 +17,6 @@ import {
   StartSessionModal,
   EndSessionModal,
   EditSessionModal,
-  TransferSessionModal,
 } from '../components/SessionModals';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -76,6 +75,7 @@ export default function RoomsPage() {
   const [editTarget, setEditTarget] = useState<Session | null>(null);
   const [transferTarget, setTransferTarget] = useState<Session | null>(null);
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
+  const [auditTarget, setAuditTarget] = useState<Session | null>(null);
 
   const handleCreateOrUpdateRoom = async (roomData: {
     id?: string;
@@ -272,12 +272,12 @@ export default function RoomsPage() {
             const bgImage = deviceType === 'table'
               ? '/assets/billiards_card_bg.jpg'
               : isConsole
-              ? (i % 2 === 0 ? '/assets/ps4_card_bg.jpg' : '/assets/ps5_card_bg.jpg')
-              : '/assets/pc_card_bg.jpg';
+                ? (i % 2 === 0 ? '/assets/ps4_card_bg.jpg' : '/assets/ps5_card_bg.jpg')
+                : '/assets/pc_card_bg.jpg';
 
             const hourlyRate = playMode === 'multiplayer'
-              ? (device?.hourly_rate_multi || 30)
-              : (device?.hourly_rate || 20);
+              ? (device?.hourly_rate_multi ?? 30)
+              : (device?.hourly_rate ?? 20);
 
             return (
               <div
@@ -618,6 +618,34 @@ export default function RoomsPage() {
                             ) : session.session_type === 'fixed' && session.scheduled_end ? (
                               (() => {
                                 const endTime = new Date(session.scheduled_end).getTime();
+                                const graceMins = session.grace_period_minutes || 0;
+                                const graceTime = endTime + graceMins * 60000;
+                                const isGrace = now >= endTime && now < graceTime;
+                                const isOvertime = now >= graceTime;
+
+                                if (isGrace) {
+                                  const remainingGrace = Math.max(0, Math.floor((graceTime - now) / 1000));
+                                  const mins = Math.floor(remainingGrace / 60);
+                                  const secs = remainingGrace % 60;
+                                  return (
+                                    <span style={{ color: 'var(--accent-yellow)', fontWeight: 800 }}>
+                                      ⏳ {language === 'ar' ? 'سماح:' : 'Grace:'} {mins}:{secs.toString().padStart(2, '0')}
+                                    </span>
+                                  );
+                                }
+
+                                if (isOvertime) {
+                                  const overtimeElapsed = Math.floor((now - endTime) / 1000);
+                                  const hrs = Math.floor(overtimeElapsed / 3600);
+                                  const mins = Math.floor((overtimeElapsed % 3600) / 60);
+                                  const secs = overtimeElapsed % 60;
+                                  return (
+                                    <span className="pulse-warning" style={{ color: '#ef4444', fontWeight: 900, textShadow: '0 0 8px rgba(239, 68, 68, 0.5)' }}>
+                                      +{hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')} {language === 'ar' ? 'إضافي' : 'OT'}
+                                    </span>
+                                  );
+                                }
+
                                 const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
                                 const hrs = Math.floor(remaining / 3600);
                                 const mins = Math.floor((remaining % 3600) / 60);
@@ -631,8 +659,8 @@ export default function RoomsPage() {
                         </div>
                       </div>
 
-                      {/* Secondary Actions: Pause/Resume + Café */}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', paddingTop: '4px' }}>
+                      {/* Secondary Actions: Pause/Resume + Transfer + Café + Audit Logs */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', paddingTop: '4px', flexWrap: 'wrap' }}>
                         {!session.is_paused ? (
                           <button
                             onClick={() => handlePauseSession(session)}
@@ -707,6 +735,26 @@ export default function RoomsPage() {
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_cafe</span>
                           {language === 'ar' ? 'مشروب +' : '+ Café'}
+                        </button>
+
+                        <button
+                          onClick={() => setAuditTarget(session)}
+                          title={language === 'ar' ? 'سجل تدقيق الجلسة' : 'Session Audit Log'}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>history</span>
+                          {language === 'ar' ? 'سجل' : 'Logs'}
                         </button>
                       </div>
                     </div>
@@ -857,6 +905,14 @@ export default function RoomsPage() {
             toast(language === 'ar' ? 'تم إضافة الطلب إلى الفاتورة' : 'Café item added to session', 'success');
             refetch();
           }}
+        />
+      )}
+
+      {/* Session Audit Log Modal */}
+      {auditTarget && (
+        <AuditLogModal
+          session={auditTarget}
+          onClose={() => setAuditTarget(null)}
         />
       )}
     </Layout>

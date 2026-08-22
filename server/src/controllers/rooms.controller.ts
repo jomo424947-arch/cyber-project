@@ -30,13 +30,14 @@ export async function createRoom(req: Request, res: Response) {
     // 1. Verify device exists and belongs to current tenant
     const { data: dev, error: dErr } = await supabase
       .from('devices')
-      .select('id, name')
+      .select('id, name, archived')
       .eq('id', targetDeviceId)
       .eq('tenant_id', req.user!.tenant_id)
       .maybeSingle();
 
     if (dErr) throw dErr;
     if (!dev) throw notFound('Selected device not found');
+    if (dev.archived) throw badRequest('لا يمكن تعيين جهاز مؤرشف لغرفة. يرجى اختيار جهاز نشط.');
 
     // 2. Check if device is already assigned to another room
     const { data: existingRoom, error: rErr } = await supabase
@@ -126,6 +127,18 @@ export async function updateRoom(req: Request, res: Response) {
 
   if (device_id !== undefined && device_id !== currentRoom.device_id) {
     if (device_id !== null) {
+      // Check if device exists and is not archived
+      const { data: targetDev, error: tErr } = await supabase
+        .from('devices')
+        .select('id, name, archived')
+        .eq('id', device_id)
+        .eq('tenant_id', req.user!.tenant_id)
+        .maybeSingle();
+
+      if (tErr) throw tErr;
+      if (!targetDev) throw notFound('Selected device not found');
+      if (targetDev.archived) throw badRequest('لا يمكن تعيين جهاز مؤرشف لغرفة.');
+
       // Check if device is already assigned to another room
       const { data: otherRoom } = await supabase
         .from('rooms')
@@ -202,7 +215,7 @@ export async function deleteRoom(req: Request, res: Response) {
     }
   }
 
-  // Delete the room
+  // 1. Delete the room
   const { error: delErr } = await supabase
     .from('rooms')
     .delete()
@@ -211,31 +224,32 @@ export async function deleteRoom(req: Request, res: Response) {
 
   if (delErr) throw delErr;
 
-  // Also permanently delete the associated device if present
+  // 2. Clean up associated device if present
   if (room.device_id) {
-    try {
-      const { data: sessions } = await supabase
-        .from('sessions')
-        .select('id')
-        .eq('device_id', room.device_id)
+    const { data: sessions } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('device_id', room.device_id)
+      .eq('tenant_id', req.user!.tenant_id)
+      .limit(1);
+
+    if (sessions && sessions.length > 0) {
+      // Has history, archive so invoices/logs are preserved
+      await supabase
+        .from('devices')
+        .update({ archived: true, status: 'offline' })
+        .eq('id', room.device_id)
         .eq('tenant_id', req.user!.tenant_id);
-
-      if (sessions && sessions.length > 0) {
-        for (const s of sessions) {
-          await supabase.from('invoices').delete().eq('session_id', s.id).eq('tenant_id', req.user!.tenant_id);
-        }
-        await supabase.from('sessions').delete().eq('device_id', room.device_id).eq('tenant_id', req.user!.tenant_id);
-      }
-
+    } else {
+      // Zero history, delete permanently to prevent orphan ghost devices
       await supabase
         .from('devices')
         .delete()
         .eq('id', room.device_id)
         .eq('tenant_id', req.user!.tenant_id);
-    } catch (devCleanErr) {
-      console.warn('[rooms] Could not clean up associated device:', devCleanErr);
     }
   }
 
   res.json({ message: 'Room deleted successfully', id });
 }
+
