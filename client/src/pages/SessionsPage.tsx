@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { usePolling } from '../hooks/usePolling';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
@@ -40,6 +41,9 @@ export default function SessionsPage() {
     () => dataService.listSessions(),
     []
   );
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(refetch, 15000);
 
   const sessions = data ?? [];
 

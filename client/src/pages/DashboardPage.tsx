@@ -10,6 +10,7 @@ import { SessionOrdersRow } from '../components/SessionOrdersRow';
 import { EndSessionModal, TransferSessionModal } from '../components/SessionModals';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -83,6 +84,9 @@ export default function DashboardPage() {
     ]);
     return { devices, sessions, invoices, reservations, revReport, salesReport, activeShift };
   }, []);
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(refetch, 15000);
 
   const stats = useMemo(() => {
     if (!data) return { active: 0, available: 0, revenue: 0, deviceRevenue: 0, cafeRevenue: 0, pending: 0 };

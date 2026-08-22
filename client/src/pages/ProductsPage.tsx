@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatCard } from '../components/StatCard';
 import { useAsync } from '../hooks/useAsync';
+import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -27,6 +28,12 @@ export default function ProductsPage() {
     () => dataService.getProductSalesReport(),
     []
   );
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(() => {
+    refetch();
+    refetchReport();
+  }, 15000);
 
   const [search, setSearch] = useState('');
   const [reportSearch, setReportSearch] = useState('');

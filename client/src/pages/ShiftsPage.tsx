@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { usePolling } from '../hooks/usePolling';
 import { Layout } from '../components/Layout';
 import { Table } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
@@ -71,6 +72,9 @@ export default function ShiftsPage() {
   useEffect(() => {
     fetchShiftsData();
   }, []);
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(fetchShiftsData, 15000);
 
   // Live timer for active shift
   useEffect(() => {

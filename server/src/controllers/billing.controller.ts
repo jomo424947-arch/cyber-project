@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import { notFound } from '../lib/errors';
+import { triggerImmediateSync } from '../lib/sync-engine';
 import type { DbInvoice } from '../lib/types';
 
 /** GET /api/invoices — list all invoices (optional ?paid=true|false filter). */
@@ -120,5 +121,6 @@ export async function payInvoice(req: Request, res: Response) {
   }
 
   res.json({ data: data as unknown as DbInvoice });
+  triggerImmediateSync();
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { usePolling } from '../hooks/usePolling';
 import { Layout } from '../components/Layout';
 import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
@@ -54,6 +55,9 @@ export default function ExpensesPage() {
   useEffect(() => {
     fetchExpensesData();
   }, []);
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(fetchExpensesData, 15000);
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();

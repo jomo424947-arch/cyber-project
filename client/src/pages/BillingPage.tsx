@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { StatCard } from '../components/StatCard';
 import { InvoiceDetailsModal } from '../components/InvoiceDetailsModal';
 import { useAsync } from '../hooks/useAsync';
+import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -29,6 +30,9 @@ export default function BillingPage() {
   const { t, language, isRtl } = useLanguage();
 
   const { data, loading, refetch } = useAsync(() => dataService.listInvoices(), []);
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(refetch, 15000);
 
   const invoices = data ?? [];
   

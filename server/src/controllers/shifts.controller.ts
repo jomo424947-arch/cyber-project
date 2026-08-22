@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import { notFound, badRequest, conflict, forbidden } from '../lib/errors';
+import { triggerImmediateSync } from '../lib/sync-engine';
 import type { DbShift, DbShiftExpense } from '../lib/types';
 
 /** GET /api/shifts — List shifts with optional filters. */
@@ -113,6 +114,7 @@ export async function startShift(req: Request, res: Response) {
   if (error) throw error;
 
   res.status(201).json({ data: data as unknown as DbShift });
+  triggerImmediateSync();
 }
 
 /** POST /api/shifts/:id/close — Close a shift and calculate final cash & metrics. */
@@ -205,6 +207,7 @@ export async function closeShift(req: Request, res: Response) {
   if (error) throw error;
 
   res.json({ data: data as unknown as DbShift });
+  triggerImmediateSync();
 }
 
 /** GET /api/shifts/:id/summary — Get detailed breakdown and report of a shift. */

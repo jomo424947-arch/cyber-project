@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../lib/supabase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { triggerImmediateSync } from '../lib/sync-engine';
 import type { DbSession } from '../lib/types';
 import { calculateSessionCost, calculateInvoiceAdjustments } from '../lib/billing';
 import { getDb, saveDatabase, setSuppressSave } from '../lib/database';
@@ -260,6 +261,7 @@ export async function startSession(req: Request, res: Response) {
   if (updErr) throw updErr;
 
   res.status(201).json({ data: session as unknown as DbSession });
+  triggerImmediateSync();
 }
 
 /** PATCH /api/sessions/:id — edit an active session. */
@@ -951,6 +953,7 @@ export async function endSession(req: Request, res: Response) {
       overtime_cost: overtimeCost 
     },
   });
+  triggerImmediateSync();
 }
 
 /** POST /api/sessions/:id/pause — pause an active session (excludes idle time from billing). */

@@ -145,7 +145,7 @@ async function startServer() {
   // Initialize offline SQLite DB
   await initDatabase();
   startAutoSave(5000); // Save to disk every 5 seconds
-  startSyncEngine(30000); // Run background Sync Engine every 30 seconds
+  startSyncEngine(10000); // Run background Sync Engine every 10 seconds
 
   app.listen(PORT, () => {
     console.log(`\n  ⬡ CCMS Offline API running → http://localhost:${PORT}`);

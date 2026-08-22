@@ -9,6 +9,7 @@ import { Select } from '../components/ui/Select';
 import { AddCafeModal } from '../components/AddCafeModal';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
@@ -55,6 +56,9 @@ export default function RoomsPage() {
       sessions: Session[];
     };
   }, []);
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(refetch, 15000);
 
   const activeByDevice = useMemo(() => {
     const map = new Map<string, Session>();

@@ -3,6 +3,7 @@ import { getDb, saveDatabase } from './database';
 
 let _syncInterval: ReturnType<typeof setInterval> | null = null;
 let _isSyncing = false;
+let _immediateSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Check if we can connect to the Supabase cloud. */
 async function checkOnline(): Promise<boolean> {
@@ -62,6 +63,41 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
   console.log(`[sync] Pulling latest data from cloud for tenant: ${tenantId}...`);
 
   try {
+    // 0. Pull users / employees
+    try {
+      const { data: users } = await cloudSupabase
+        .from('users')
+        .select('id, email, full_name, role, tenant_id, created_at, updated_at')
+        .eq('tenant_id', tenantId);
+
+      if (users && users.length > 0) {
+        for (const u of users) {
+          db.run(
+            `INSERT INTO users (id, email, full_name, role, tenant_id, created_at, updated_at, synced)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+             ON CONFLICT(id) DO UPDATE SET
+               email = excluded.email,
+               full_name = excluded.full_name,
+               role = excluded.role,
+               tenant_id = excluded.tenant_id,
+               updated_at = excluded.updated_at,
+               synced = 1`,
+            [
+              u.id,
+              u.email,
+              u.full_name || null,
+              u.role || 'staff',
+              tenantId,
+              u.created_at || new Date().toISOString(),
+              u.updated_at || new Date().toISOString(),
+            ]
+          );
+        }
+      }
+    } catch (uErr: any) {
+      console.warn('[sync] Non-critical error pulling users:', uErr.message);
+    }
+
     // 1. Pull devices
     const { data: devices } = await cloudSupabase
       .from('devices')
@@ -176,10 +212,15 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
             s.created_at || new Date().toISOString(),
           ]
         );
+
+        // Update local device status to match active/ended session state
+        if (s.status === 'active' && s.device_id) {
+          db.run("UPDATE devices SET status = 'in_use' WHERE id = ? AND status != 'in_use'", [s.device_id]);
+        }
       }
     }
 
-    // 5. Pull invoices
+    // 5. Pull invoices (with shift_id, created_by, and pricing adjustments)
     const { data: invoices } = await cloudSupabase
       .from('invoices')
       .select('*')
@@ -188,14 +229,28 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
     if (invoices && invoices.length > 0) {
       for (const inv of invoices) {
         db.run(
-          `INSERT OR REPLACE INTO invoices (id, session_id, amount, paid, payment_method, issued_at, paid_at, tenant_id, synced)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          `INSERT OR REPLACE INTO invoices (
+            id, session_id, amount, subtotal, discount_amount, discount_type, discount_value,
+            service_fee, service_rate, rounding_delta, notes, paid, payment_method, shift_id,
+            created_by, issued_at, paid_at, tenant_id, synced
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           [
             inv.id,
             inv.session_id,
             Number(inv.amount) || 0,
+            Number(inv.subtotal) || 0,
+            Number(inv.discount_amount) || 0,
+            inv.discount_type || 'none',
+            Number(inv.discount_value) || 0,
+            Number(inv.service_fee) || 0,
+            Number(inv.service_rate) || 0,
+            Number(inv.rounding_delta) || 0,
+            inv.notes || null,
             inv.paid ? 1 : 0,
             inv.payment_method || 'cash',
+            inv.shift_id || null,
+            inv.created_by || null,
             inv.issued_at || new Date().toISOString(),
             inv.paid_at || null,
             tenantId,
@@ -620,7 +675,7 @@ function cleanForCloud(tableName: string, record: Record<string, any>): Record<s
   delete result.password_hash; // Security: do not push local password hashes to cloud
 
   // List of tables and their column type converters
-  const boolCols = ['paid', 'archived', 'is_overtime', 'edited_start_at'];
+  const boolCols = ['paid', 'archived', 'is_overtime', 'edited_start_at', 'is_paused'];
   const jsonCols = ['specs'];
   const realCols = [
     'hourly_rate',
@@ -665,6 +720,22 @@ function cleanForCloud(tableName: string, record: Record<string, any>): Record<s
   return result;
 }
 
+/**
+ * Trigger an immediate sync cycle after a critical operation
+ * (e.g. start/close shift, start/end session).
+ * Debounces rapid calls — waits 2 seconds after the last call before syncing.
+ */
+export function triggerImmediateSync(): void {
+  if (_immediateSyncTimer) {
+    clearTimeout(_immediateSyncTimer);
+  }
+  _immediateSyncTimer = setTimeout(() => {
+    _immediateSyncTimer = null;
+    console.log('[sync] Immediate sync triggered after critical operation...');
+    runSync().catch(err => console.error('[sync] Immediate sync failed:', err));
+  }, 2000);
+}
+
 /** Start the background sync worker. */
 export function startSyncEngine(intervalMs = 15000): void {
   if (_syncInterval) return;
@@ -687,5 +758,9 @@ export function stopSyncEngine(): void {
     clearInterval(_syncInterval);
     _syncInterval = null;
     console.log('[sync] Sync Engine stopped.');
+  }
+  if (_immediateSyncTimer) {
+    clearTimeout(_immediateSyncTimer);
+    _immediateSyncTimer = null;
   }
 }

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import { badRequest, forbidden, notFound } from '../lib/errors';
+import { triggerImmediateSync } from '../lib/sync-engine';
 
 /** GET /api/products — list all café products. */
 export async function listProducts(req: Request, res: Response) {
@@ -56,6 +57,7 @@ export async function createProduct(req: Request, res: Response) {
   }
 
   res.status(201).json({ data });
+  triggerImmediateSync();
 }
 
 /** PATCH /api/products/:id — update a café product. */
@@ -165,6 +167,7 @@ export async function adjustProductStock(req: Request, res: Response) {
   }
 
   res.json({ data: updatedProduct, log: stockLog });
+  triggerImmediateSync();
 }
 
 /** GET /api/products/:id/stock-logs — fetch stock adjustment logs for a product. */
@@ -291,6 +294,7 @@ export async function createStandaloneSale(req: Request, res: Response) {
   });
 
   res.status(201).json({ data: order });
+  triggerImmediateSync();
 }
 
 /** DELETE /api/products/:id — remove a café product. */
@@ -305,6 +309,7 @@ export async function deleteProduct(req: Request, res: Response) {
 
   if (error) throw error;
   res.json({ success: true });
+  triggerImmediateSync();
 }
 
 /** GET /api/products/sales-report — get café product sales breakdown and metrics (including cost & profit). */

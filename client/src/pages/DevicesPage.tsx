@@ -7,6 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
+import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -37,6 +38,9 @@ export default function DevicesPage() {
     ]);
     return { devices, sessions, rooms };
   }, []);
+
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  usePolling(refetch, 15000);
 
   // Map device_id → active session for the live timer.
   const activeByDevice = useMemo(() => {
