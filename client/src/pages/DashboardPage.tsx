@@ -96,8 +96,9 @@ export default function DashboardPage() {
       .filter((i) => i.paid && i.paid_at && new Date(i.paid_at) >= todayStart)
       .reduce((sum, i) => sum + i.amount, 0);
 
-    const cafeRevenue = data.revReport?.totals?.today_cafe ?? 0;
-    const deviceRevenue = data.revReport?.totals?.today_device ?? invoiceRevenue;
+    const salesReportCafe = data.salesReport?.summary?.total_revenue ?? 0;
+    const cafeRevenue = data.revReport?.totals?.today_cafe ?? salesReportCafe;
+    const deviceRevenue = data.revReport?.totals?.today_device ?? Math.max(0, invoiceRevenue - cafeRevenue);
     const revenue = data.revReport?.totals?.today ?? (deviceRevenue + cafeRevenue);
 
     const pending = data.reservations.filter((r) => r.status === 'pending').length;

@@ -255,6 +255,209 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       }
     }
 
+    // 8. Pull shifts (sync active and closed shifts)
+    const { data: shifts } = await cloudSupabase
+      .from('shifts')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (shifts && shifts.length > 0) {
+      for (const sh of shifts) {
+        // Guard: check if local shift has unsynced changes
+        const localStmt = db.prepare('SELECT status, synced FROM shifts WHERE id = ?');
+        localStmt.bind([sh.id]);
+        let localStatus: string | null = null;
+        let localSynced: number | null = null;
+        if (localStmt.step()) {
+          const row = localStmt.getAsObject();
+          localStatus = row.status as string;
+          localSynced = row.synced as number;
+        }
+        localStmt.free();
+
+        // If local is closed but cloud is active, and local is pending sync, don't revert
+        if (localStatus === 'closed' && sh.status === 'active' && localSynced === 0) {
+          continue;
+        }
+
+        db.run(
+          `INSERT OR REPLACE INTO shifts (id, user_id, tenant_id, started_at, ended_at, opening_cash, closing_cash, total_revenue, total_expenses, notes, status, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            sh.id,
+            sh.user_id,
+            tenantId,
+            sh.started_at || new Date().toISOString(),
+            sh.ended_at || null,
+            Number(sh.opening_cash) || 0,
+            sh.closing_cash !== null && sh.closing_cash !== undefined ? Number(sh.closing_cash) : null,
+            Number(sh.total_revenue) || 0,
+            Number(sh.total_expenses) || 0,
+            sh.notes || null,
+            sh.status || 'active',
+            sh.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // 9. Pull shift expenses
+    const { data: shiftExpenses } = await cloudSupabase
+      .from('shift_expenses')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (shiftExpenses && shiftExpenses.length > 0) {
+      for (const ex of shiftExpenses) {
+        db.run(
+          `INSERT OR REPLACE INTO shift_expenses (id, shift_id, tenant_id, amount, category, description, created_by, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            ex.id,
+            ex.shift_id,
+            tenantId,
+            Number(ex.amount) || 0,
+            ex.category || '',
+            ex.description || '',
+            ex.created_by || null,
+            ex.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // 10. Pull session orders (café orders tied to gaming sessions)
+    const { data: sessionOrders } = await cloudSupabase
+      .from('session_orders')
+      .select('*');
+
+    if (sessionOrders && sessionOrders.length > 0) {
+      for (const so of sessionOrders) {
+        db.run(
+          `INSERT OR REPLACE INTO session_orders (id, session_id, product_id, quantity, unit_price, total_price, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            so.id,
+            so.session_id,
+            so.product_id,
+            Number(so.quantity) || 1,
+            Number(so.unit_price) || 0,
+            Number(so.total_price) || 0,
+            so.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // 11. Pull standalone orders (walk-in café sales)
+    const { data: standaloneOrders } = await cloudSupabase
+      .from('standalone_orders')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (standaloneOrders && standaloneOrders.length > 0) {
+      for (const st of standaloneOrders) {
+        db.run(
+          `INSERT OR REPLACE INTO standalone_orders (id, tenant_id, product_id, quantity, unit_price, cost_price, total_price, payment_method, shift_id, created_by, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            st.id,
+            tenantId,
+            st.product_id,
+            Number(st.quantity) || 1,
+            Number(st.unit_price) || 0,
+            st.cost_price !== null && st.cost_price !== undefined ? Number(st.cost_price) : null,
+            Number(st.total_price) || 0,
+            st.payment_method || 'cash',
+            st.shift_id || null,
+            st.created_by || null,
+            st.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // 12. Pull session transfers
+    const { data: transfers } = await cloudSupabase
+      .from('session_transfers')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (transfers && transfers.length > 0) {
+      for (const tr of transfers) {
+        db.run(
+          `INSERT OR REPLACE INTO session_transfers (id, session_id, from_device_id, to_device_id, started_at, transferred_at, duration_minutes, hourly_rate, play_mode, cost, transferred_by, tenant_id, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            tr.id,
+            tr.session_id,
+            tr.from_device_id,
+            tr.to_device_id,
+            tr.started_at,
+            tr.transferred_at || new Date().toISOString(),
+            Number(tr.duration_minutes) || 0,
+            Number(tr.hourly_rate) || 0,
+            tr.play_mode || 'single',
+            Number(tr.cost) || 0,
+            tr.transferred_by || null,
+            tenantId,
+            tr.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // 13. Pull session pauses
+    const { data: pauses } = await cloudSupabase
+      .from('session_pauses')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (pauses && pauses.length > 0) {
+      for (const p of pauses) {
+        db.run(
+          `INSERT OR REPLACE INTO session_pauses (id, session_id, tenant_id, paused_at, resumed_at, paused_by, resumed_by, reason, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            p.id,
+            p.session_id,
+            tenantId,
+            p.paused_at,
+            p.resumed_at || null,
+            p.paused_by || null,
+            p.resumed_by || null,
+            p.reason || null,
+          ]
+        );
+      }
+    }
+
+    // 14. Pull stock logs
+    const { data: stockLogs } = await cloudSupabase
+      .from('product_stock_logs')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (stockLogs && stockLogs.length > 0) {
+      for (const sl of stockLogs) {
+        db.run(
+          `INSERT OR REPLACE INTO product_stock_logs (id, product_id, tenant_id, actor_id, change_type, delta, balance_after, reason, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            sl.id,
+            sl.product_id,
+            tenantId,
+            sl.actor_id || null,
+            sl.change_type || 'manual_adjustment',
+            Number(sl.delta) || 0,
+            Number(sl.balance_after) || 0,
+            sl.reason || null,
+            sl.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
     saveDatabase();
     console.log(`[sync] Successfully pulled and updated local database from cloud for tenant: ${tenantId}.`);
   } catch (err: any) {
@@ -299,13 +502,17 @@ export async function runSync(): Promise<void> {
       devices: 4,
       rooms: 5,
       products: 6,
-      sessions: 7,
-      session_orders: 8,
-      invoices: 9,
-      reservations: 10,
-      session_audit_log: 11,
-      shifts: 12,
-      shift_expenses: 13,
+      shifts: 7,
+      sessions: 8,
+      session_orders: 9,
+      session_transfers: 10,
+      session_pauses: 11,
+      invoices: 12,
+      standalone_orders: 13,
+      shift_expenses: 14,
+      product_stock_logs: 15,
+      reservations: 16,
+      session_audit_log: 17,
     };
 
     // Get unsynced queue items
@@ -430,6 +637,13 @@ function cleanForCloud(tableName: string, record: Record<string, any>): Record<s
     'closing_cash',
     'total_revenue',
     'total_expenses',
+    'cost',
+    'subtotal',
+    'discount_amount',
+    'discount_value',
+    'service_fee',
+    'service_rate',
+    'rounding_delta',
   ];
 
   for (const key of Object.keys(result)) {

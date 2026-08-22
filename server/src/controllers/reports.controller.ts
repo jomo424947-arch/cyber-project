@@ -3,6 +3,16 @@ import { supabase } from '../lib/supabase';
 import { toZonedTime, format } from 'date-fns-tz';
 import { startOfDay, startOfWeek, startOfMonth, subDays, addDays, getHours } from 'date-fns';
 
+function parseDateUtc(val: any): Date {
+  if (val instanceof Date) return val;
+  if (!val) return new Date(0);
+  let s = String(val).trim();
+  if (s.includes(' ') && !s.includes('T')) {
+    s = s.replace(' ', 'T') + 'Z';
+  }
+  return new Date(s);
+}
+
 /**
  * GET /api/reports/revenue — revenue summary.
  * Returns totals for today, this week, this month, plus a per-bucket breakdown.
@@ -38,7 +48,16 @@ export async function revenueReport(req: Request, res: Response) {
       .gte('created_at', sinceUtc.toISOString()),
   ]);
 
-  if (sessionsRes.error) throw sessionsRes.error;
+  if (sessionsRes.error) {
+    console.error('[reports] sessions query error:', sessionsRes.error);
+    throw sessionsRes.error;
+  }
+  if (sessionOrdersRes.error) {
+    console.warn('[reports] session_orders query warning:', sessionOrdersRes.error);
+  }
+  if (standaloneOrdersRes.error) {
+    console.warn('[reports] standalone_orders query warning:', standaloneOrdersRes.error);
+  }
 
   const sessions = sessionsRes.data ?? [];
   const sessionOrders = sessionOrdersRes.data ?? [];
@@ -60,7 +79,7 @@ export async function revenueReport(req: Request, res: Response) {
     return sessions
       .filter((s: any) => {
         if (!s.ended_at) return false;
-        const endedZoned = toZonedTime(new Date(s.ended_at), tz);
+        const endedZoned = toZonedTime(parseDateUtc(s.ended_at), tz);
         return endedZoned.getTime() >= boundaryZoned.getTime();
       })
       .reduce((acc: number, s: any) => {
@@ -70,18 +89,19 @@ export async function revenueReport(req: Request, res: Response) {
       }, 0);
   };
 
-  // Helper: compute total cafe revenue (session orders + standalone orders) created >= boundary
+  // Helper: compute total cafe revenue (session orders + standalone orders) created/ended >= boundary
   const calcCafeRevenue = (boundaryZoned: Date) => {
-    const sessionCafe = sessionOrders
-      .filter((ord: any) => {
-        const createdZoned = toZonedTime(new Date(ord.created_at), tz);
-        return createdZoned.getTime() >= boundaryZoned.getTime();
+    const sessionCafe = sessions
+      .filter((s: any) => {
+        if (!s.ended_at) return false;
+        const endedZoned = toZonedTime(parseDateUtc(s.ended_at), tz);
+        return endedZoned.getTime() >= boundaryZoned.getTime();
       })
-      .reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
+      .reduce((acc: number, s: any) => acc + (sessionOrdersMap.get(s.id) ?? 0), 0);
 
     const standaloneCafe = standaloneOrders
       .filter((ord: any) => {
-        const createdZoned = toZonedTime(new Date(ord.created_at), tz);
+        const createdZoned = toZonedTime(parseDateUtc(ord.created_at), tz);
         return createdZoned.getTime() >= boundaryZoned.getTime();
       })
       .reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
@@ -109,29 +129,25 @@ export async function revenueReport(req: Request, res: Response) {
     const dayEndBoundary = addDays(dayStartBoundary, 1);
 
     // Sessions ending in this day
-    const dayDevice = sessions
-      .filter((s: any) => {
-        if (!s.ended_at) return false;
-        const endedZoned = toZonedTime(new Date(s.ended_at), tz);
-        return endedZoned.getTime() >= dayStartBoundary.getTime() && endedZoned.getTime() < dayEndBoundary.getTime();
-      })
-      .reduce((acc: number, s: any) => {
-        const cafePortion = sessionOrdersMap.get(s.id) ?? 0;
-        return acc + Math.max(0, Number(s.total_cost ?? 0) - cafePortion);
-      }, 0);
+    const daySessions = sessions.filter((s: any) => {
+      if (!s.ended_at) return false;
+      const endedZoned = toZonedTime(parseDateUtc(s.ended_at), tz);
+      return endedZoned.getTime() >= dayStartBoundary.getTime() && endedZoned.getTime() < dayEndBoundary.getTime();
+    });
 
-    // Session orders in this day
-    const daySessionCafe = sessionOrders
-      .filter((ord: any) => {
-        const createdZoned = toZonedTime(new Date(ord.created_at), tz);
-        return createdZoned.getTime() >= dayStartBoundary.getTime() && createdZoned.getTime() < dayEndBoundary.getTime();
-      })
-      .reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
+    const dayDevice = daySessions.reduce((acc: number, s: any) => {
+      const cafePortion = sessionOrdersMap.get(s.id) ?? 0;
+      return acc + Math.max(0, Number(s.total_cost ?? 0) - cafePortion);
+    }, 0);
+
+    const daySessionCafe = daySessions.reduce((acc: number, s: any) => {
+      return acc + (sessionOrdersMap.get(s.id) ?? 0);
+    }, 0);
 
     // Standalone orders in this day
     const dayStandaloneCafe = standaloneOrders
       .filter((ord: any) => {
-        const createdZoned = toZonedTime(new Date(ord.created_at), tz);
+        const createdZoned = toZonedTime(parseDateUtc(ord.created_at), tz);
         return createdZoned.getTime() >= dayStartBoundary.getTime() && createdZoned.getTime() < dayEndBoundary.getTime();
       })
       .reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
