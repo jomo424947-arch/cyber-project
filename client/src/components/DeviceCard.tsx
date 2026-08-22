@@ -16,14 +16,11 @@ interface DeviceCardProps {
   onExtendSession?: (session: Session) => void;
   onPauseSession?: (session: Session) => void;
   onResumeSession?: (session: Session) => void;
-  onAddCafe?: (session: Session) => void;
   onDeleteDevice?: (device: Device) => void;
-  playMode?: 'single' | 'multiplayer';
-  onPlayModeChange?: (mode: 'single' | 'multiplayer') => void;
   index?: number;
 }
 
-function getDeviceBgImage(type: string, name?: string): string {
+function getDeviceBgImage(type: string, name?: string, specs?: Record<string, any> | null): string {
   const lowerName = (name || '').toLowerCase();
   const modelId = (specs?.model_id || '').toLowerCase();
   if (type === 'table' || lowerName.includes('billiards') || lowerName.includes('بلياردو')) {
@@ -42,7 +39,7 @@ function getDeviceBrandBadge(type: string, name?: string, specs?: Record<string,
   const lowerName = (name || '').toLowerCase();
   const model = String(specs?.model || specs?.model_id || '');
   const isBilliards = type === 'table' || lowerName.includes('billiards') || lowerName.includes('بلياردو');
-
+  
   if (isBilliards) {
     return (
       <div style={{
@@ -210,16 +207,17 @@ function getDeviceBrandBadge(type: string, name?: string, specs?: Record<string,
   );
 }
 
-export function DeviceCard({
-  device,
-  activeSession,
-  now,
-  onAction,
+export function DeviceCard({ 
+  device, 
+  activeSession, 
+  now, 
+  onAction, 
   onEditSession,
+  onTransferSession,
   onPauseSession,
   onResumeSession,
   onDeleteDevice,
-  index = 0
+  index = 0 
 }: DeviceCardProps) {
   const isActive = device.status === 'in_use';
   const [showAuditLogs, setShowAuditLogs] = useState(false);
@@ -489,7 +487,7 @@ export function DeviceCard({
                   cursor: 'pointer',
                 }}
               >
-                ✏️
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit</span>
               </button>
             )}
             {onDeleteDevice && (
@@ -540,8 +538,8 @@ export function DeviceCard({
                 boxShadow: isAvailable
                   ? '0 0 10px #22c55e'
                   : isActive
-                    ? '0 0 10px #f59e0b'
-                    : 'none',
+                  ? '0 0 10px #f59e0b'
+                  : 'none',
               }}
             />
             <span
@@ -581,55 +579,6 @@ export function DeviceCard({
           </div>
         )}
 
-        {/* Available device info: Rate and Play Mode toggle */}
-        {!isActive && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 12px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              borderRadius: '10px',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>schedule</span>
-              <span style={{ fontWeight: 800, color: '#FFFFFF', fontFamily: 'JetBrains Mono, monospace' }}>
-                {playMode === 'multiplayer' ? (device.hourly_rate_multi ?? device.hourly_rate) : device.hourly_rate}
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>ج/س</span>
-            </div>
-
-            {onPlayModeChange && (
-              <button
-                type="button"
-                onClick={() => onPlayModeChange(playMode === 'single' ? 'multiplayer' : 'single')}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: '14px',
-                  border: playMode === 'multiplayer' ? '1px solid var(--accent-purple)' : '1px solid var(--accent-cyan)',
-                  background: playMode === 'multiplayer' ? 'rgba(168, 85, 247, 0.18)' : 'rgba(0, 194, 255, 0.15)',
-                  color: playMode === 'multiplayer' ? 'var(--accent-purple)' : 'var(--accent-cyan)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
-                  {playMode === 'single' ? 'person' : 'group'}
-                </span>
-                <span>{playMode === 'single' ? 'فردي' : 'جماعي'}</span>
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Action Button: START SESSION > (Blue for PS/PC, Green for Billiards, Red for End) */}
         <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
           {onAction && (
@@ -644,8 +593,8 @@ export function DeviceCard({
                 background: isActive
                   ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
                   : isBilliards
-                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : 'linear-gradient(135deg, #0066FF 0%, #0044CC 100%)',
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : 'linear-gradient(135deg, #0066FF 0%, #0044CC 100%)',
                 color: '#FFFFFF',
                 fontSize: '13px',
                 fontWeight: 800,
@@ -655,8 +604,8 @@ export function DeviceCard({
                 boxShadow: isActive
                   ? '0 4px 16px rgba(239, 68, 68, 0.4)'
                   : isBilliards
-                    ? '0 4px 16px rgba(16, 185, 129, 0.4)'
-                    : '0 4px 16px rgba(0, 102, 255, 0.4)',
+                  ? '0 4px 16px rgba(16, 185, 129, 0.4)'
+                  : '0 4px 16px rgba(0, 102, 255, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -672,21 +621,21 @@ export function DeviceCard({
       </div>
 
       {showAuditLogs && activeSession && (
-        <AuditLogModal
-          session={activeSession}
-          onClose={() => setShowAuditLogs(false)}
+        <AuditLogModal 
+          session={activeSession} 
+          onClose={() => setShowAuditLogs(false)} 
         />
       )}
     </div>
   );
 }
 
-function AuditLogModal({
-  session,
-  onClose
-}: {
-  session: Session;
-  onClose: () => void
+function AuditLogModal({ 
+  session, 
+  onClose 
+}: { 
+  session: Session; 
+  onClose: () => void 
 }) {
   const [logs, setLogs] = useState<SessionAuditLog[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -714,8 +663,8 @@ function AuditLogModal({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '50vh', overflowY: 'auto', paddingRight: '4px' }}>
           {logs.map((log) => (
-            <div
-              key={log.id}
+            <div 
+              key={log.id} 
               style={{
                 padding: '10px 12px',
                 background: 'var(--bg-input)',

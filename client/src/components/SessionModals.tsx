@@ -32,23 +32,23 @@ export function StartSessionModal({
   const { t, language, isRtl } = useLanguage();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [mode, setMode] = useState<'existing' | 'new'>('new');
-
+  
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [customerId, setCustomerId] = useState('');
-
+  
   // Quick-create state
   const [name, setName] = useState('');
 
   // Session options
-  const [selectedPlayMode, setSelectedPlayMode] = useState<'single' | 'multiplayer'>(playMode);
   const [sessionType, setSessionType] = useState<'open' | 'fixed'>('open');
   const [startedAt, setStartedAt] = useState(toLocalISOString(new Date()));
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [gracePeriod, setGracePeriod] = useState('0');
-
+  
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [hasActiveShift, setHasActiveShift] = useState<boolean | null>(null);
 
   useEffect(() => {
     dataService.listCustomers().then(setCustomers).catch(() => setCustomers([]));
@@ -59,8 +59,8 @@ export function StartSessionModal({
     if (!customers) return [];
     const q = searchQuery.toLowerCase().trim();
     if (!q) return customers;
-    return customers.filter((c) =>
-      c.username.toLowerCase().includes(q) ||
+    return customers.filter((c) => 
+      c.username.toLowerCase().includes(q) || 
       c.name.toLowerCase().includes(q)
     );
   }, [customers, searchQuery]);
@@ -80,7 +80,7 @@ export function StartSessionModal({
       const payload: any = {
         device_id: device.id,
         session_type: sessionType,
-        play_mode: selectedPlayMode,
+        play_mode: playMode,
         grace_period_minutes: sessionType === 'fixed' ? (parseInt(gracePeriod, 10) || 0) : 0,
       };
 
@@ -156,50 +156,17 @@ export function StartSessionModal({
     );
   }
 
-  if (hasActiveShift === false) {
-    return (
-      <Modal
-        open
-        title={language === 'ar' ? 'تنبيه: لا توجد وردية مفتوحة' : 'Warning: No Active Shift'}
-        onClose={onClose}
-        footer={
-          <>
-            <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
-              {t('cancel')}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                onClose();
-                window.location.href = '/shifts';
-              }}
-              style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
-            >
-              {language === 'ar' ? 'الانتقال لصفحة الورديات لبدء الوردية' : 'Go to Shifts to Start'}
-            </Button>
-          </>
-        }
-      >
-        <p style={{ color: 'var(--accent-yellow)', fontSize: '14px', lineHeight: '1.6', margin: 0, textAlign: isRtl ? 'right' : 'left' }}>
-          {language === 'ar'
-            ? 'لا يمكنك بدء جلسة لعب جديدة لعدم وجود وردية نشطة مفتوحة باسمك. الرجاء فتح وردية جديدة أولاً لتسجيل الإيرادات بدقة.'
-            : 'You cannot start a new session because there is no active shift open for your account. Please open a shift first.'}
-        </p>
-      </Modal>
-    );
-  }
-
   return (
     <Modal
       open
-      title={language === 'ar' ? `بدء جلسة لعب جديدة · ${device.name}` : `Start Session · ${device.name}`}
+      title={language === 'ar' ? `بدء الجلسة · ${device.name}` : `Start Session · ${device.name}`}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
           <Button
-            variant="primary"
             loading={loading}
+            disabled={mode === 'existing' && !customerId}
             onClick={submit}
             style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}
           >
@@ -209,34 +176,7 @@ export function StartSessionModal({
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', textAlign: isRtl ? 'right' : 'left' }}>
-
-        {/* Play Mode Selection: Single vs Multiplayer */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span className="ccms-eyebrow" style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
-            {language === 'ar' ? 'نمط اللعب والتسعير' : 'Play Mode & Pricing'}
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              className={selectedPlayMode === 'single' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-              style={{ flex: 1, fontSize: '13px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              onClick={() => setSelectedPlayMode('single')}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>person</span>
-              <span>{language === 'ar' ? 'فردي' : 'Single'} ({device.hourly_rate ?? 20} ج/س)</span>
-            </button>
-            <button
-              type="button"
-              className={selectedPlayMode === 'multiplayer' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-              style={{ flex: 1, fontSize: '13px', fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              onClick={() => setSelectedPlayMode('multiplayer')}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>group</span>
-              <span>{language === 'ar' ? 'جماعي / متعدد' : 'Multi'} ({device.hourly_rate_multi ?? device.hourly_rate ?? 30} ج/س)</span>
-            </button>
-          </div>
-        </div>
-
+        
         {/* Toggle Mode: Existing vs New Customer */}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
@@ -283,11 +223,11 @@ export function StartSessionModal({
               disabled={!customers || customers.length === 0}
             >
               <option value="">
-                {customers === null
-                  ? (language === 'ar' ? 'جاري التحميل...' : 'Loading…')
-                  : filteredCustomers.length === 0
-                    ? (language === 'ar' ? 'لا توجد نتائج مطابقة' : 'No matching customers')
-                    : (language === 'ar' ? 'اختر عميلاً...' : 'Choose…')}
+                {customers === null 
+                  ? (language === 'ar' ? 'جاري التحميل...' : 'Loading…') 
+                  : filteredCustomers.length === 0 
+                  ? (language === 'ar' ? 'لا توجد نتائج مطابقة' : 'No matching customers') 
+                  : (language === 'ar' ? 'اختر عميلاً...' : 'Choose…')}
               </option>
               {filteredCustomers.map((c) => (
                 <option key={c.id} value={c.id}>@{c.username} — {c.name}</option>
@@ -405,7 +345,7 @@ export function EndSessionModal({
   // Discount state
   const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
   const [discountValue, setDiscountValue] = useState<string>('0');
-
+  
   // Service fee state
   const [serviceType, setServiceType] = useState<'none' | 'percentage' | 'fixed'>('none');
   const [serviceValue, setServiceValue] = useState<string>('0');
@@ -426,18 +366,18 @@ export function EndSessionModal({
 
   const startedTime = new Date(session.started_at).getTime();
   const endingTime = new Date(endedAt).getTime();
-
+  
   const pausedMinutes = session.total_paused_minutes || 0;
   const rawMinutes = Math.max(0, Math.ceil((endingTime - startedTime) / 60000));
   const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
-
+  
   // Previous transfers
   const transfersCost = transfers ? transfers.reduce((sum, t) => sum + Number(t.cost || 0), 0) : 0;
   const transfersMinutes = transfers ? transfers.reduce((sum, t) => sum + Number(t.duration_minutes || 0), 0) : 0;
-
+  
   const minBilling = transfersMinutes > 0 ? 0 : 30;
   const billedMinutes = Math.max(minBilling, effectiveMinutes);
-
+  
   const rate = Number(
     session.hourly_rate_override !== null
       ? session.hourly_rate_override
@@ -463,7 +403,7 @@ export function EndSessionModal({
 
   // Café orders cost
   const cafeCost = orders ? orders.reduce((sum, ord) => sum + Number(ord.total_price), 0) : 0;
-
+  
   // Subtotal before discounts and fees
   const subtotal = Math.round((totalDeviceCost + cafeCost) * 100) / 100;
 
@@ -562,11 +502,11 @@ export function EndSessionModal({
         footer={
           <>
             <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
-            <Button
-              variant="danger"
-              loading={loading}
+            <Button 
+              variant="danger" 
+              loading={loading} 
               disabled={session.is_paused}
-              onClick={submit}
+              onClick={submit} 
               style={{
                 fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
                 display: 'inline-flex',
@@ -583,7 +523,7 @@ export function EndSessionModal({
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left', maxHeight: '72vh', overflowY: 'auto', paddingRight: '4px' }}>
-
+          
           <Input
             type="datetime-local"
             label={language === 'ar' ? 'وقت الانتهاء' : 'End Time'}
@@ -597,12 +537,12 @@ export function EndSessionModal({
             <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={session.customer ? `@${session.customer.username} (${session.customer.name})` : (language === 'ar' ? 'مستغل خارجي' : 'Walk-in')} />
             <Row label={language === 'ar' ? 'الجهاز الحالي' : 'Current Device'} value={`${session.device?.name} (${formatCurrency(rate)}/س)`} />
             <Row label={language === 'ar' ? 'تاريخ البدء' : 'Started At'} value={new Date(session.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)} />
-            <Row
-              label={language === 'ar' ? 'الوقت المحسوب للجهاز الحالي' : 'Current Billed Time'}
-              value={language === 'ar'
+            <Row 
+              label={language === 'ar' ? 'الوقت المحسوب للجهاز الحالي' : 'Current Billed Time'} 
+              value={language === 'ar' 
                 ? `${billedMinutes} دقيقة (الفعلي: ${effectiveMinutes} د)`
                 : `${billedMinutes} minutes (effective: ${effectiveMinutes}m)`
-              }
+              } 
             />
             {pausedMinutes > 0 && (
               <Row
@@ -611,7 +551,7 @@ export function EndSessionModal({
                 valueColor="var(--accent-yellow)"
               />
             )}
-
+            
             <Row label={language === 'ar' ? 'تكلفة الجهاز الحالي' : 'Current Device Cost'} value={formatCurrency(currentSegmentCost)} />
 
             {/* Previous Transfers Breakdown */}
@@ -638,14 +578,14 @@ export function EndSessionModal({
             {session.session_type === 'fixed' && overtimeMinutes > 0 && (
               <>
                 <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-                <Row
-                  label={language === 'ar' ? 'دقائق الوقت الإضافي' : 'Overtime Minutes'}
-                  value={`${overtimeMinutes} دقيقة`}
+                <Row 
+                  label={language === 'ar' ? 'دقائق الوقت الإضافي' : 'Overtime Minutes'} 
+                  value={`${overtimeMinutes} دقيقة`} 
                   valueColor="var(--accent-red)"
                 />
-                <Row
-                  label={language === 'ar' ? 'تكلفة الوقت الإضافي' : 'Overtime Cost'}
-                  value={formatCurrency(overtimeCost)}
+                <Row 
+                  label={language === 'ar' ? 'تكلفة الوقت الإضافي' : 'Overtime Cost'} 
+                  value={formatCurrency(overtimeCost)} 
                   valueColor="var(--accent-red)"
                 />
               </>
@@ -671,13 +611,13 @@ export function EndSessionModal({
             )}
 
             <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-
+            
             {/* Subtotal */}
-            <Row
-              label={language === 'ar' ? 'المجموع الفرعي (قبل الخصم والخدمة)' : 'Subtotal'}
-              value={formatCurrency(subtotal)}
-              valueColor="#FFFFFF"
-              isBold
+            <Row 
+              label={language === 'ar' ? 'المجموع الفرعي (قبل الخصم والخدمة)' : 'Subtotal'} 
+              value={formatCurrency(subtotal)} 
+              valueColor="#FFFFFF" 
+              isBold 
             />
           </div>
 
@@ -828,8 +768,8 @@ export function EndSessionModal({
             </div>
 
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
-              {language === 'ar'
-                ? `المبلغ قبل التقريب: ${formatCurrency(beforeRounding)}. يمكنك تقريب المبلغ لتفادي مشاكل الفكة:`
+              {language === 'ar' 
+                ? `المبلغ قبل التقريب: ${formatCurrency(beforeRounding)}. يمكنك تقريب المبلغ لتفادي مشاكل الفكة:` 
                 : `Amount before rounding: ${formatCurrency(beforeRounding)}.`}
             </p>
 
@@ -970,14 +910,14 @@ export function EndSessionModal({
           {/* Payment Method & Shift Checkbox */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-              <input
-                type="checkbox"
-                checked={markPaid}
-                onChange={(e) => setMarkPaid(e.target.checked)}
+              <input 
+                type="checkbox" 
+                checked={markPaid} 
+                onChange={(e) => setMarkPaid(e.target.checked)} 
               />
               {language === 'ar' ? 'تسجيل كمدفوع فوراً' : 'Mark as Paid Immediately'}
             </label>
-
+            
             {markPaid && (
               <>
                 <Select
@@ -1000,9 +940,9 @@ export function EndSessionModal({
                         {language === 'ar' ? 'سداد عبر المحفظة الإلكترونية (فودافون كاش)' : 'Pay via E-Wallet (Vodafone Cash)'}
                       </span>
                       {walletQrUrl && (
-                        <button
-                          type="button"
-                          className="ccms-btn ccms-btn-ghost"
+                        <button 
+                          type="button" 
+                          className="ccms-btn ccms-btn-ghost" 
                           style={{ fontSize: '11px', padding: '2px 8px', color: 'var(--accent-green)' }}
                           onClick={() => setShowQrZoom(true)}
                         >
@@ -1013,10 +953,10 @@ export function EndSessionModal({
 
                     {walletQrUrl ? (
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#FFFFFF', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)' }}>
-                        <img
-                          src={walletQrUrl}
-                          alt="Vodafone Cash QR"
-                          style={{ width: '100px', height: '100px', objectFit: 'contain', cursor: 'pointer', borderRadius: '4px' }}
+                        <img 
+                          src={walletQrUrl} 
+                          alt="Vodafone Cash QR" 
+                          style={{ width: '100px', height: '100px', objectFit: 'contain', cursor: 'pointer', borderRadius: '4px' }} 
                           onClick={() => setShowQrZoom(true)}
                         />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#1E293B' }}>
@@ -1215,7 +1155,7 @@ export function EditSessionModal({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left' }}>
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-          {language === 'ar'
+          {language === 'ar' 
             ? 'تعديل خيارات الجلسة الحالية. سيتم تسجيل أي تغيير في سجل التدقيق لأمان النظام.'
             : 'Adjust active session parameters. Every change will be logged in the audit trail.'}
         </p>
@@ -1257,12 +1197,12 @@ export function EditSessionModal({
 }
 
 // ─── Local Sub-Modal to view Audit Logs ───────────────────────────────
-export function AuditLogModal({
-  session,
-  onClose
-}: {
-  session: Session;
-  onClose: () => void
+export function AuditLogModal({ 
+  session, 
+  onClose 
+}: { 
+  session: Session; 
+  onClose: () => void 
 }) {
   const { language, isRtl } = useLanguage();
   const [logs, setLogs] = useState<SessionAuditLog[] | null>(null);
@@ -1291,8 +1231,8 @@ export function AuditLogModal({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '50vh', overflowY: 'auto', paddingRight: '4px', textAlign: isRtl ? 'right' : 'left' }}>
           {logs.map((log) => (
-            <div
-              key={log.id}
+            <div 
+              key={log.id} 
               style={{
                 padding: '10px 12px',
                 background: 'var(--bg-input)',
@@ -1322,16 +1262,16 @@ export function AuditLogModal({
   );
 }
 
-function Row({
-  label,
-  value,
-  valueColor = 'var(--text-primary)',
-  isBold = false
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-  isBold?: boolean
+function Row({ 
+  label, 
+  value, 
+  valueColor = 'var(--text-primary)', 
+  isBold = false 
+}: { 
+  label: string; 
+  value: string; 
+  valueColor?: string; 
+  isBold?: boolean 
 }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
