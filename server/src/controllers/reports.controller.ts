@@ -29,18 +29,32 @@ export async function revenueReport(req: Request, res: Response) {
   // Load all ended sessions in the last 30 days for breakdown.
   const sinceUtc = subDays(now, 30);
 
-  const [sessionsRes, sessionOrdersRes, standaloneOrdersRes] = await Promise.all([
-    supabase
-      .from('sessions')
-      .select('id, started_at, ended_at, total_cost, duration_minutes')
-      .eq('status', 'ended')
-      .eq('tenant_id', req.user!.tenant_id)
-      .gte('ended_at', sinceUtc.toISOString())
-      .order('ended_at', { ascending: true }),
-    supabase
-      .from('session_orders')
-      .select('id, session_id, total_price, created_at')
-      .gte('created_at', sinceUtc.toISOString()),
+  // 1. Fetch tenant sessions for the period
+  const sessionsRes = await supabase
+    .from('sessions')
+    .select('id, started_at, ended_at, total_cost, duration_minutes')
+    .eq('status', 'ended')
+    .eq('tenant_id', req.user!.tenant_id)
+    .gte('ended_at', sinceUtc.toISOString())
+    .order('ended_at', { ascending: true });
+
+  if (sessionsRes.error) {
+    console.error('[reports] sessions query error:', sessionsRes.error);
+    throw sessionsRes.error;
+  }
+
+  const sessions = sessionsRes.data ?? [];
+  const sessionIds = sessions.map((s: any) => s.id);
+
+  // 2. Fetch session_orders (only for tenant's sessions) and standalone_orders in parallel
+  const [sessionOrdersRes, standaloneOrdersRes] = await Promise.all([
+    sessionIds.length > 0
+      ? supabase
+          .from('session_orders')
+          .select('id, session_id, total_price, created_at')
+          .in('session_id', sessionIds)
+          .gte('created_at', sinceUtc.toISOString())
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from('standalone_orders')
       .select('id, product_id, total_price, created_at')
@@ -48,10 +62,6 @@ export async function revenueReport(req: Request, res: Response) {
       .gte('created_at', sinceUtc.toISOString()),
   ]);
 
-  if (sessionsRes.error) {
-    console.error('[reports] sessions query error:', sessionsRes.error);
-    throw sessionsRes.error;
-  }
   if (sessionOrdersRes.error) {
     console.warn('[reports] session_orders query warning:', sessionOrdersRes.error);
   }
@@ -59,7 +69,6 @@ export async function revenueReport(req: Request, res: Response) {
     console.warn('[reports] standalone_orders query warning:', standaloneOrdersRes.error);
   }
 
-  const sessions = sessionsRes.data ?? [];
   const sessionOrders = sessionOrdersRes.data ?? [];
   const standaloneOrders = standaloneOrdersRes.data ?? [];
 

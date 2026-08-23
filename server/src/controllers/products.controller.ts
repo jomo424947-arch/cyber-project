@@ -351,6 +351,7 @@ export async function getProductSalesReport(req: Request, res: Response) {
     const { data: standalone, error: sErr } = await supabase
       .from('standalone_orders')
       .select('product_id, quantity, total_price')
+      .eq('tenant_id', req.user!.tenant_id)
       .in('product_id', productIds);
 
     if (!sErr && standalone) {

@@ -101,6 +101,28 @@ class LocalDb {
     });
   }
 
+  async clearStore(storeName: string): Promise<void> {
+    const db = await this.initDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const request = store.clear();
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async clearAllStores(): Promise<void> {
+    const stores = ['devices', 'sessions', 'invoices', 'customers', 'products'];
+    for (const store of stores) {
+      try {
+        await this.clearStore(store);
+      } catch (err) {
+        console.warn(`[localDb] Could not clear store ${store}:`, err);
+      }
+    }
+  }
+
   async enqueueSync(item: Omit<SyncQueueItem, 'id' | 'created_at' | 'status'>): Promise<SyncQueueItem> {
     const queueItem: SyncQueueItem = {
       ...item,
@@ -119,3 +141,4 @@ class LocalDb {
 }
 
 export const localDb = new LocalDb();
+

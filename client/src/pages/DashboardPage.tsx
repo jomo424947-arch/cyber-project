@@ -73,16 +73,15 @@ export default function DashboardPage() {
 
   // Fetch everything in parallel via a single async wrapper.
   const { data, loading, error, refetch } = useAsync(async () => {
-    const [devices, sessions, invoices, reservations, revReport, salesReport, activeShift] = await Promise.all([
+    const [devices, sessions, invoices, reservations, revReport, activeShift] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
       dataService.listInvoices(),
       dataService.listReservations(),
       dataService.revenueReport().catch(() => null),
-      dataService.getProductSalesReport().catch(() => null),
       dataService.getActiveShift().catch(() => null),
     ]);
-    return { devices, sessions, invoices, reservations, revReport, salesReport, activeShift };
+    return { devices, sessions, invoices, reservations, revReport, activeShift };
   }, []);
 
   // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
@@ -93,20 +92,37 @@ export default function DashboardPage() {
     const active = data.sessions.length;
     const available = data.devices.filter((d) => d.status === 'available').length;
     
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    let cafeRevenue = 0;
+    let deviceRevenue = 0;
+    let revenue = 0;
 
-    const invoiceRevenue = data.invoices
-      .filter((i) => i.paid && i.paid_at && new Date(i.paid_at) >= todayStart)
-      .reduce((sum, i) => sum + i.amount, 0);
+    if (data.revReport?.totals) {
+      cafeRevenue = Number(data.revReport.totals.today_cafe || 0);
+      deviceRevenue = Number(data.revReport.totals.today_device || 0);
+      revenue = Number(data.revReport.totals.today ?? (deviceRevenue + cafeRevenue));
+    } else {
+      // Fallback for offline/local if report endpoint fails: calculate strictly from today's paid invoices
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
 
-    const salesReportCafe = data.salesReport?.summary?.total_revenue ?? 0;
-    const cafeRevenue = data.revReport?.totals?.today_cafe ?? salesReportCafe;
-    const deviceRevenue = data.revReport?.totals?.today_device ?? Math.max(0, invoiceRevenue - cafeRevenue);
-    const revenue = data.revReport?.totals?.today ?? (deviceRevenue + cafeRevenue);
+      const invoiceRevenue = (data.invoices || [])
+        .filter((i) => i.paid && i.paid_at && new Date(i.paid_at) >= todayStart)
+        .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
-    const pending = data.reservations.filter((r) => r.status === 'pending').length;
-    return { active, available, revenue, deviceRevenue, cafeRevenue, pending };
+      deviceRevenue = invoiceRevenue;
+      cafeRevenue = 0;
+      revenue = invoiceRevenue;
+    }
+
+    const pending = (data.reservations || []).filter((r) => r.status === 'pending').length;
+    return {
+      active,
+      available,
+      revenue: Math.round(revenue * 100) / 100,
+      deviceRevenue: Math.round(deviceRevenue * 100) / 100,
+      cafeRevenue: Math.round(cafeRevenue * 100) / 100,
+      pending,
+    };
   }, [data]);
 
   if (loading) {
