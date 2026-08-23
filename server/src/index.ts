@@ -74,6 +74,7 @@ app.use(helmet({
   crossOriginOpenerPolicy: false, // Prevents untrustworthy origin errors on HTTP/IP deployments
   originAgentCluster: false, // Prevents origin-keyed agent cluster errors on IP deployments
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  hsts: false, // Disable HSTS for HTTP / direct IP deployments
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -82,6 +83,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:"],
       connectSrc: ["'self'", "http:", "https:", "ws:", "wss:", "*"],
+      upgradeInsecureRequests: null,
     },
   },
 }));
