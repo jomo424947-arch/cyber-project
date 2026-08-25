@@ -415,21 +415,40 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       console.log('[database] Migration completed successfully.');
     }
 
-    // Auto-assign any records with NULL tenant_id to the activated tenant_id
-    const tenantStmt = _db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
-    if (tenantStmt.step()) {
-      const activeTenantId = tenantStmt.getAsObject().tenant_id as string;
-      if (activeTenantId) {
-        _db.run('UPDATE users SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-        _db.run('UPDATE devices SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-        _db.run('UPDATE customers SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-        _db.run('UPDATE sessions SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-        _db.run('UPDATE invoices SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-        _db.run('UPDATE reservations SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-        _db.run('UPDATE products SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+    // Deduplicate and sanitize tenant_config if multiple rows exist from legacy bugs
+    try {
+      const checkRes = _db.exec('SELECT COUNT(*) FROM tenant_config');
+      const count = (checkRes[0]?.values[0]?.[0] as number) || 0;
+      if (count > 1) {
+        console.log(`[database] Detected ${count} rows in tenant_config. Resolving authoritative active tenant...`);
+        const authoritative = getActiveTenantConfig(_db);
+        if (authoritative) {
+          _db.run('DELETE FROM tenant_config WHERE tenant_id != ?', [authoritative.tenant_id]);
+          console.log(`[database] Sanitized tenant_config: active tenant retained (${authoritative.tenant_id}).`);
+        }
       }
+    } catch (cleanupErr: any) {
+      console.error('[database] tenant_config cleanup check failed:', cleanupErr.message);
     }
-    tenantStmt.free();
+
+    // Auto-assign any records with NULL tenant_id to the authoritative active tenant_id
+    const activeTenantId = getActiveTenantId(_db);
+    if (activeTenantId) {
+      _db.run('UPDATE users SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE devices SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE customers SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE sessions SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE invoices SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE reservations SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE products SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE rooms SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE shifts SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE shift_expenses SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE standalone_orders SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE session_transfers SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE session_pauses SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE product_stock_logs SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+    }
   } catch (err: any) {
     console.error('[database] Auto-migration check failed:', err.message);
   }
@@ -796,3 +815,128 @@ export function stopAutoSave(): void {
   }
   flushDatabaseSync();
 }
+
+// ─── Authoritative Tenant Configuration Helpers ──────────────────────────────
+
+export interface TenantConfig {
+  id: number;
+  tenant_id: string;
+  tenant_name: string;
+  owner_email: string;
+  status: string;
+  activated_at: string | null;
+  last_checked_at: string | null;
+}
+
+export interface TenantConfigInput {
+  tenant_id: string;
+  tenant_name: string;
+  owner_email: string;
+  status?: string;
+}
+
+/**
+ * Gets the authoritative active tenant configuration for this local installation.
+ * Resolves the single active tenant row. If multiple rows exist (from legacy versions),
+ * it resolves the tenant matching the local active admin user or the latest updated row.
+ */
+export function getActiveTenantConfig(database?: SqlJsDatabase): TenantConfig | null {
+  let db: SqlJsDatabase;
+  try {
+    db = database || getDb();
+  } catch {
+    return null;
+  }
+
+  try {
+    const check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='tenant_config'");
+    if (!check || !check[0] || !check[0].values || check[0].values.length === 0) {
+      return null;
+    }
+
+    const rowsRes = db.exec('SELECT * FROM tenant_config');
+    if (!rowsRes || !rowsRes[0] || !rowsRes[0].values || rowsRes[0].values.length === 0) {
+      return null;
+    }
+
+    const cols = rowsRes[0].columns;
+    const rows = rowsRes[0].values.map((v: any[]) => {
+      const obj: any = {};
+      cols.forEach((col: string, i: number) => {
+        obj[col] = v[i];
+      });
+      return obj as TenantConfig;
+    });
+
+    if (rows.length === 1) {
+      return rows[0];
+    }
+
+    // If multiple rows exist from legacy bugs, find the authoritative tenant
+    // 1. Look for matching local admin in `users` table
+    try {
+      const adminRes = db.exec("SELECT tenant_id FROM users WHERE role = 'admin' AND tenant_id IS NOT NULL ORDER BY updated_at DESC, created_at DESC LIMIT 1");
+      if (adminRes && adminRes[0] && adminRes[0].values && adminRes[0].values[0]) {
+        const adminTenantId = adminRes[0].values[0][0] as string;
+        const matchingRow = rows.find(r => r.tenant_id === adminTenantId);
+        if (matchingRow) {
+          return matchingRow;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Fallback to latest checked/activated row
+    const sorted = [...rows].sort((a, b) => {
+      const timeA = a.last_checked_at || a.activated_at || '';
+      const timeB = b.last_checked_at || b.activated_at || '';
+      return timeB.localeCompare(timeA);
+    });
+
+    return sorted[0] || null;
+  } catch (err: any) {
+    console.error('[database] Failed to getActiveTenantConfig:', err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Gets the authoritative active tenant ID for this local installation.
+ */
+export function getActiveTenantId(database?: SqlJsDatabase): string | null {
+  const config = getActiveTenantConfig(database);
+  return config ? config.tenant_id : null;
+}
+
+/**
+ * Sets or replaces the single active tenant configuration for this local installation.
+ * Ensures that tenant_config holds only one authoritative record.
+ */
+export function setActiveTenantConfig(config: TenantConfigInput, database?: SqlJsDatabase): void {
+  const db = database || getDb();
+  const status = config.status || 'active';
+
+  db.run('DELETE FROM tenant_config');
+  db.run(
+    `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at)
+     VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    [config.tenant_id, config.tenant_name, config.owner_email, status]
+  );
+  saveDatabase();
+}
+
+/**
+ * Updates status and last_checked_at timestamp for the active tenant.
+ */
+export function updateActiveTenantStatus(status: string, database?: SqlJsDatabase): void {
+  const db = database || getDb();
+  const activeTenantId = getActiveTenantId(db);
+  if (!activeTenantId) return;
+
+  db.run(
+    `UPDATE tenant_config SET status = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
+    [status, activeTenantId]
+  );
+  saveDatabase();
+}

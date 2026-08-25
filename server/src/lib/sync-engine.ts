@@ -1,5 +1,5 @@
 import { cloudSupabase } from './cloud-supabase';
-import { getDb, saveDatabase } from './database';
+import { getDb, saveDatabase, getActiveTenantId, updateActiveTenantStatus } from './database';
 
 let _syncInterval: ReturnType<typeof setInterval> | null = null;
 let _isSyncing = false;
@@ -22,18 +22,7 @@ async function verifySubscription(): Promise<void> {
   if (!cloudSupabase) return;
 
   const db = getDb();
-  let localTenantId: string | null = null;
-
-  try {
-    const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
-    if (stmt.step()) {
-      localTenantId = stmt.getAsObject().tenant_id as string;
-    }
-    stmt.free();
-  } catch (err) {
-    return;
-  }
-
+  const localTenantId = getActiveTenantId(db);
   if (!localTenantId) return;
 
   try {
@@ -44,8 +33,7 @@ async function verifySubscription(): Promise<void> {
       .maybeSingle();
 
     if (tenant) {
-      db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now")', [tenant.status]);
-      saveDatabase();
+      updateActiveTenantStatus(tenant.status, db);
       if (tenant.status !== 'active' && tenant.status !== 'trial') {
         console.warn(`[sync] Tenant subscription is ${tenant.status}. Application locked.`);
       }
@@ -702,16 +690,28 @@ export async function runSync(): Promise<void> {
   const db = getDb();
   try {
     // 2. Determine local tenant ID
-    let tenantId: string | null = null;
-    try {
-      const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
-      if (stmt.step()) {
-        tenantId = stmt.getAsObject().tenant_id as string;
-      }
-      stmt.free();
-    } catch (err: any) {
-      console.error('[sync] Error reading tenant_id from tenant_config:', err?.message || err);
+    const tenantId = getActiveTenantId(db);
+    if (!tenantId) {
+      console.log('[sync] No active tenant configured, skipping sync cycle.');
+      return;
     }
+
+    const TENANT_SCOPED_TABLES = new Set([
+      'users',
+      'devices',
+      'customers',
+      'sessions',
+      'invoices',
+      'reservations',
+      'products',
+      'rooms',
+      'shifts',
+      'shift_expenses',
+      'standalone_orders',
+      'session_transfers',
+      'session_pauses',
+      'product_stock_logs',
+    ]);
 
     // 3. Push local changes from SQLite up to Cloud FIRST
     const TABLE_RANK: Record<string, number> = {
@@ -753,17 +753,33 @@ export async function runSync(): Promise<void> {
       console.log(`[sync] Found ${items.length} item(s) to synchronize.`);
 
       for (const item of items) {
-        const { id: queueId, table_name: tableName, record_id: recordId, operation } = item;
+        const { id: queueId, table_name: tableName, record_id: recordId, operation, payload: rawPayload } = item;
         let success = false;
         let errorMsg = '';
+        let isQuarantined = false;
 
         try {
           if (operation === 'DELETE') {
-            const { error } = await cloudSupabase
-              .from(tableName)
-              .delete()
-              .eq('id', recordId);
+            // Check payload if available for tenant mismatch
+            if (rawPayload) {
+              try {
+                const parsed = JSON.parse(rawPayload);
+                if (parsed.tenant_id && parsed.tenant_id !== tenantId) {
+                  const mismatchMsg = `[quarantine:tenant_mismatch] payload tenant (${parsed.tenant_id}) !== active tenant (${tenantId})`;
+                  console.warn(`[sync] Tenant mismatch on DELETE: record tenant = ${parsed.tenant_id}, active tenant = ${tenantId}, table = ${tableName}, record_id = ${recordId}`);
+                  db.run('UPDATE sync_queue SET synced = 2, error = ? WHERE id = ?', [mismatchMsg, queueId]);
+                  isQuarantined = true;
+                  continue;
+                }
+              } catch {}
+            }
 
+            let deleteQuery = cloudSupabase.from(tableName).delete().eq('id', recordId);
+            if (TENANT_SCOPED_TABLES.has(tableName)) {
+              deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+            }
+
+            const { error } = await deleteQuery;
             if (error) throw error;
             success = true;
           } else {
@@ -772,8 +788,35 @@ export async function runSync(): Promise<void> {
 
             if (localStmt.step()) {
               const record = localStmt.getAsObject();
-              const cleanedRecord = cleanForCloud(tableName, record);
+              localStmt.free();
 
+              // Resolve record tenant ID
+              let recordTenantId: string | null = null;
+              if (record.tenant_id) {
+                recordTenantId = record.tenant_id as string;
+              } else if (tableName === 'session_orders' || tableName === 'session_audit_log') {
+                try {
+                  const sessStmt = db.prepare('SELECT tenant_id FROM sessions WHERE id = ?');
+                  sessStmt.bind([record.session_id]);
+                  if (sessStmt.step()) {
+                    recordTenantId = sessStmt.getAsObject().tenant_id as string;
+                  }
+                  sessStmt.free();
+                } catch {}
+              }
+
+              // SYNC SAFETY GUARD: Mismatched tenant records must never be pushed to cloud
+              if (recordTenantId && recordTenantId !== tenantId) {
+                const mismatchMsg = `[quarantine:tenant_mismatch] record tenant (${recordTenantId}) !== active tenant (${tenantId})`;
+                console.warn(
+                  `[sync] Tenant mismatch: record tenant = ${recordTenantId}, active tenant = ${tenantId}, table = ${tableName}, record_id = ${recordId}`
+                );
+                db.run('UPDATE sync_queue SET synced = 2, error = ? WHERE id = ?', [mismatchMsg, queueId]);
+                isQuarantined = true;
+                continue;
+              }
+
+              const cleanedRecord = cleanForCloud(tableName, record);
               const { error } = await cloudSupabase
                 .from(tableName)
                 .upsert(cleanedRecord);
@@ -786,13 +829,17 @@ export async function runSync(): Promise<void> {
                 [recordId]
               );
             } else {
+              localStmt.free();
               success = true;
             }
-            localStmt.free();
           }
         } catch (err: any) {
           errorMsg = err.message || 'Unknown sync error';
           console.error(`[sync] Failed item ${queueId} (${tableName}:${recordId}):`, errorMsg);
+        }
+
+        if (isQuarantined) {
+          continue;
         }
 
         if (success) {

@@ -102,9 +102,14 @@ export async function createReservation(req: Request, res: Response) {
       .from('devices')
       .select('status')
       .eq('id', device_id)
+      .eq('tenant_id', req.user!.tenant_id)
       .maybeSingle();
     if (device && device.status === 'available') {
-      await supabase.from('devices').update({ status: 'reserved' }).eq('id', device_id);
+      await supabase
+        .from('devices')
+        .update({ status: 'reserved' })
+        .eq('id', device_id)
+        .eq('tenant_id', req.user!.tenant_id);
     }
   }
 

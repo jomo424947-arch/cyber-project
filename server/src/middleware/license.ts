@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getDb } from '../lib/database';
+import { getActiveTenantConfig } from '../lib/database';
 
 /**
  * Middleware that restricts API access until the application is activated.
@@ -30,14 +30,8 @@ export function licenseCheck(req: Request, res: Response, next: NextFunction) {
   }
 
   try {
-    const db = getDb();
-    let status = 'unactivated';
-
-    const stmt = db.prepare('SELECT status FROM tenant_config LIMIT 1');
-    if (stmt.step()) {
-      status = stmt.getAsObject().status as string;
-    }
-    stmt.free();
+    const config = getActiveTenantConfig();
+    const status = config?.status || 'unactivated';
 
     if (status === 'unactivated') {
       return res.status(402).json({

@@ -3,7 +3,7 @@ import { supabase, localDb } from '../lib/supabase';
 import { badRequest, unauthorized, conflict } from '../lib/errors';
 import { hashPassword } from '../lib/local-auth';
 import { cloudSupabase } from '../lib/cloud-supabase';
-import { getDb, saveDatabase } from '../lib/database';
+import { getDb, saveDatabase, getActiveTenantId } from '../lib/database';
 import crypto from 'crypto';
 
 /**
@@ -65,7 +65,7 @@ export async function createEmployee(req: Request, res: Response) {
   }
 
   const passwordHash = hashPassword(password);
-  let userId = crypto.randomUUID();
+  let userId: string = crypto.randomUUID();
 
   // Try creating in Supabase Cloud if cloudSupabase is configured
   if (cloudSupabase) {
@@ -76,10 +76,23 @@ export async function createEmployee(req: Request, res: Response) {
         email_confirm: true,
       });
 
-      if (authErr && !authErr.message.includes('already registered')) {
-        console.warn('[employees] Cloud Auth createUser warning:', authErr.message);
-      } else if (authData?.user) {
+      if (authData?.user) {
         userId = authData.user.id as any;
+      } else if (authErr) {
+        // If user already exists in auth, look up their auth ID so the foreign key constraint succeeds
+        try {
+          const { data: listData } = await cloudSupabase.auth.admin.listUsers();
+          const existingAuthUser = listData?.users?.find(
+            (u) => u.email?.toLowerCase() === cleanEmail
+          );
+          if (existingAuthUser) {
+            userId = existingAuthUser.id;
+            // Update their password in auth
+            await cloudSupabase.auth.admin.updateUserById(userId, { password });
+          }
+        } catch (lookupErr: any) {
+          console.warn('[employees] Auth user lookup failed:', lookupErr.message);
+        }
       }
 
       // Upsert profile in Supabase Cloud users table
@@ -94,7 +107,7 @@ export async function createEmployee(req: Request, res: Response) {
       if (cloudDbErr) {
         console.warn('[employees] Cloud users upsert failed:', cloudDbErr.message);
       } else {
-        console.log(`[employees] Employee ${cleanEmail} created/synced successfully to Supabase Cloud.`);
+        console.log(`[employees] Employee ${cleanEmail} (${userId}) created/synced successfully to Supabase Cloud.`);
       }
     } catch (cloudErr: any) {
       console.warn('[employees] Cloud sync failed during creation, caching locally:', cloudErr.message);
@@ -196,18 +209,7 @@ export async function deleteEmployee(req: Request, res: Response) {
  */
 export async function listEmployeesPublic(req: Request, res: Response) {
   const db = getDb();
-  let tenantId: string | null = null;
-
-  // 1. Get active tenant_id from local configuration
-  try {
-    const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
-    if (stmt.step()) {
-      tenantId = stmt.getAsObject().tenant_id as string;
-    }
-    stmt.free();
-  } catch (err: any) {
-    console.error('[employees] Failed to read tenant_id from tenant_config:', err?.message || err);
-  }
+  const tenantId = getActiveTenantId(db);
 
   if (!tenantId) {
     res.json({ users: [] });
@@ -275,13 +277,7 @@ async function syncEmployeesFromCloud(db: ReturnType<typeof getDb>, tenantId: st
       return;
     }
 
-    // Safe to sync: cloud returned valid user data
-    const cloudIds = cloudUsers.map((u) => u.id);
-    const placeholders = cloudIds.map(() => '?').join(',');
-
-    // Remove local users that no longer exist in cloud
-    db.run(`DELETE FROM users WHERE tenant_id = ? AND id NOT IN (${placeholders})`, [tenantId, ...cloudIds]);
-
+    // Merge and upsert cloud users into local database without deleting local offline users
     for (const cu of cloudUsers) {
       // Preserve existing local password_hash so the user can still log in offline
       const stmtCheck = db.prepare('SELECT password_hash FROM users WHERE id = ?');

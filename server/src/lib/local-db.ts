@@ -8,7 +8,7 @@
  */
 
 import crypto from 'crypto';
-import { getDb, saveDatabase } from './database';
+import { getDb, saveDatabase, getActiveTenantId } from './database';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -656,14 +656,9 @@ class QueryBuilder {
       'product_stock_logs',
     ];
     if (multiTenantTables.includes(this._table) && !data.tenant_id) {
-      try {
-        const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
-        if (stmt.step()) {
-          data.tenant_id = stmt.getAsObject().tenant_id;
-        }
-        stmt.free();
-      } catch (err) {
-        // Table may not exist yet during initial migrations
+      const activeTenantId = getActiveTenantId(db);
+      if (activeTenantId) {
+        data.tenant_id = activeTenantId;
       }
     }
 

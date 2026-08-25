@@ -4,7 +4,7 @@ import { badRequest, unauthorized, conflict } from '../lib/errors';
 import { hashPassword, verifyPassword, signToken, signRefreshToken, verifyRefreshToken } from '../lib/local-auth';
 import crypto from 'crypto';
 import { cloudSupabase } from '../lib/cloud-supabase';
-import { getDb, saveDatabase } from '../lib/database';
+import { getDb, saveDatabase, setActiveTenantConfig, getActiveTenantConfig, updateActiveTenantStatus } from '../lib/database';
 
 // ─── Cookie helpers ────────────────────────────────────────────────────────
 
@@ -115,27 +115,12 @@ export async function login(req: Request, res: Response) {
 
           if (cloudTenant) {
             try {
-              const db = getDb();
-              const existing = db.prepare('SELECT tenant_id FROM tenant_config WHERE tenant_id = ? LIMIT 1');
-              let hasExisting = false;
-              if (existing.step()) {
-                hasExisting = true;
-              }
-              existing.free();
-
-              if (hasExisting) {
-                db.run(
-                  `UPDATE tenant_config SET status = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
-                  [cloudTenant.status, tenantId]
-                );
-              } else {
-                db.run(
-                  `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at)
-                   VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-                  [tenantId, cloudTenant.name || fullName, userEmail, cloudTenant.status]
-                );
-              }
-              saveDatabase();
+              setActiveTenantConfig({
+                tenant_id: tenantId,
+                tenant_name: cloudTenant.name || fullName,
+                owner_email: userEmail,
+                status: cloudTenant.status,
+              });
             } catch (e) {
               console.warn('[auth] Failed to update local tenant_config:', e);
             }
@@ -542,22 +527,19 @@ export async function googleCallback(req: Request, res: Response) {
 
 /** GET /api/auth/status — Check if app is activated locally. */
 export async function getActivationStatus(_req: Request, res: Response) {
-  const db = getDb();
   let status = 'unactivated';
   let tenant = null;
 
   try {
-    const stmt = db.prepare('SELECT * FROM tenant_config LIMIT 1');
-    if (stmt.step()) {
-      const config = stmt.getAsObject();
-      status = (config.status as string) || 'unactivated';
+    const config = getActiveTenantConfig();
+    if (config) {
+      status = config.status || 'unactivated';
       tenant = {
         tenant_id: config.tenant_id,
         name: config.tenant_name,
         owner_email: config.owner_email,
       };
     }
-    stmt.free();
   } catch (err) {
     // If table doesn't exist yet, it's considered unactivated
   }
@@ -624,14 +606,13 @@ export async function activateTenant(req: Request, res: Response) {
   // 4. Save to local SQLite database
   const db = getDb();
   
-  // Clear any existing configurations
-  db.run('DELETE FROM tenant_config');
-  
-  // Insert new configuration
-  db.run(
-    `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-    [tenant.id, tenant.name, email, tenant.status]
-  );
+  // Set single authoritative tenant configuration
+  setActiveTenantConfig({
+    tenant_id: tenant.id,
+    tenant_name: tenant.name,
+    owner_email: email,
+    status: tenant.status,
+  });
 
   // Hash password and store user locally so they can log in offline
   const localHash = hashPassword(password);
@@ -848,10 +829,8 @@ export async function updateTenantStatus(req: Request, res: Response) {
 
   // 2. Sync local SQLite database tenant_config status
   try {
-    const db = getDb();
-    db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now") WHERE tenant_id = ?', [status, cleanId]);
-    saveDatabase();
-    console.log(`[SuperAdmin] Local tenant_config for tenant ${cleanId} updated to status=${status}`);
+    updateActiveTenantStatus(status);
+    console.log(`[SuperAdmin] Local tenant_config updated to status=${status}`);
   } catch (err: any) {
     console.error('[SuperAdmin] Failed to update local tenant_config status:', err.message);
   }

@@ -110,6 +110,7 @@ export async function getCustomerProfile(req: Request, res: Response) {
     .from('sessions')
     .select('*, device:devices(id, name, type, hourly_rate)')
     .eq('customer_id', id)
+    .eq('tenant_id', req.user!.tenant_id)
     .order('started_at', { ascending: false });
 
   if (sErr) throw sErr;
