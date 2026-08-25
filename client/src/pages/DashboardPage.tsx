@@ -23,8 +23,8 @@ import type { Session } from '../types';
 
 export default function DashboardPage() {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
   const now = useNow(1000);
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { t, language, isRtl } = useLanguage();
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
@@ -84,8 +84,8 @@ export default function DashboardPage() {
     return { devices, sessions, invoices, reservations, revReport, activeShift };
   }, []);
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(refetch, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 60000);
 
   const stats = useMemo(() => {
     if (!data) return { active: 0, available: 0, revenue: 0, deviceRevenue: 0, cafeRevenue: 0, pending: 0 };

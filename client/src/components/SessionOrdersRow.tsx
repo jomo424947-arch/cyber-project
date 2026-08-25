@@ -22,13 +22,23 @@ export function SessionOrdersRow({ session, expanded, onEndSession }: Props) {
 
   useEffect(() => {
     if (!expanded) return;
+    let isMounted = true;
     setLoading(true);
     setError('');
     dataService
       .listSessionOrders(session.id)
-      .then(setOrders)
-      .catch(() => setError('Failed to load orders'))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (isMounted) setOrders(data);
+      })
+      .catch(() => {
+        if (isMounted) setError('Failed to load orders');
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [expanded, session.id]);
 
   const total = useMemo(() => {

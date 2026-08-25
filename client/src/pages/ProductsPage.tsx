@@ -29,11 +29,11 @@ export default function ProductsPage() {
     []
   );
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
   usePolling(() => {
     refetch();
     refetchReport();
-  }, 15000);
+  }, 60000);
 
   const [search, setSearch] = useState('');
   const [reportSearch, setReportSearch] = useState('');

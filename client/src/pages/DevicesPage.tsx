@@ -5,7 +5,6 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
-import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -25,7 +24,6 @@ import type { Device, DeviceType, Session } from '../types';
 
 export default function DevicesPage() {
   const isMobile = useIsMobile();
-  const now = useNow(1000);
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const { isAdmin } = useAuth();
@@ -39,8 +37,8 @@ export default function DevicesPage() {
     return { devices, sessions, rooms };
   }, []);
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(refetch, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 60000);
 
   // Map device_id → active session for the live timer.
   const activeByDevice = useMemo(() => {
@@ -225,7 +223,6 @@ export default function DevicesPage() {
                     device={device}
                     index={i}
                     activeSession={activeByDevice.get(device.id)}
-                    now={now}
                     onAction={handleAction}
                     onEditSession={(session) => setEditTarget(session)}
                     onTransferSession={(session) => setTransferTarget(session)}
@@ -277,7 +274,6 @@ export default function DevicesPage() {
                     device={device}
                     index={i}
                     activeSession={activeByDevice.get(device.id)}
-                    now={now}
                     onAction={handleAction}
                     onEditSession={(session) => setEditTarget(session)}
                     onTransferSession={(session) => setTransferTarget(session)}

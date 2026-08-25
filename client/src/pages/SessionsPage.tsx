@@ -6,9 +6,9 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { usePolling } from '../hooks/usePolling';
+import { useNow } from '../hooks/useNow';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
@@ -42,8 +42,8 @@ export default function SessionsPage() {
     []
   );
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(refetch, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 60000);
 
   const sessions = data ?? [];
 

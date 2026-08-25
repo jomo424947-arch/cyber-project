@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { triggerImmediateSync } from '../lib/sync-engine';
+import { getActiveShiftForUserOrTenant } from '../lib/shifts.helper';
 
 /** GET /api/products — list all café products. */
 export async function listProducts(req: Request, res: Response) {
@@ -231,36 +232,21 @@ export async function createStandaloneSale(req: Request, res: Response) {
   // 2. Link to active shift if present and update shift total_revenue
   let activeShiftId: string | null = null;
   try {
-    let { data: activeShift } = await supabase
-      .from('shifts')
-      .select('id, total_revenue')
-      .eq('user_id', req.user!.id)
-      .eq('status', 'active')
-      .eq('tenant_id', req.user!.tenant_id)
-      .maybeSingle();
-
-    if (!activeShift) {
-      const { data: tenantShift } = await supabase
-        .from('shifts')
-        .select('id, total_revenue')
-        .eq('status', 'active')
-        .eq('tenant_id', req.user!.tenant_id)
-        .order('started_at', { ascending: false })
-        .maybeSingle();
-      activeShift = tenantShift;
-    }
+    const activeShift = await getActiveShiftForUserOrTenant(supabase, req.user!.id, req.user!.tenant_id, 'id, total_revenue');
 
     if (activeShift) {
       activeShiftId = activeShift.id;
-      const newRev = Number(activeShift.total_revenue || 0) + totalPrice;
-      await supabase
-        .from('shifts')
-        .update({ total_revenue: newRev })
-        .eq('id', activeShift.id)
-        .eq('tenant_id', req.user!.tenant_id);
+      const { error: revErr } = await supabase.rpc('increment_shift_revenue', {
+        p_shift_id: activeShift.id,
+        p_amount: totalPrice,
+        p_tenant_id: req.user!.tenant_id,
+      });
+      if (revErr) {
+        console.error('[products] Failed to increment shift revenue atomically on sale:', revErr);
+      }
     }
   } catch (shiftErr) {
-    console.warn('[products] Could not link active shift to standalone sale:', shiftErr);
+    console.error('[products] Could not link active shift or increment revenue on standalone sale:', shiftErr);
   }
 
   // 3. Insert standalone order

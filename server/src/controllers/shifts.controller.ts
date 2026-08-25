@@ -67,7 +67,7 @@ export async function startShift(req: Request, res: Response) {
     throw badRequest('يرجى إدخال قيمة العهدة النقدية الافتتاحية بدقة.', 'OPENING_CASH_REQUIRED');
   }
 
-  // Check if user already has an active shift
+  // Check if current user already has an active shift
   let { data: existingActive } = await supabase
     .from('shifts')
     .select('*, user:users(id, email, full_name)')
@@ -75,18 +75,6 @@ export async function startShift(req: Request, res: Response) {
     .eq('status', 'active')
     .eq('tenant_id', req.user!.tenant_id)
     .maybeSingle();
-
-  // If no user shift, check if tenant already has an active shift
-  if (!existingActive) {
-    const { data: tenantActive } = await supabase
-      .from('shifts')
-      .select('*, user:users(id, email, full_name)')
-      .eq('status', 'active')
-      .eq('tenant_id', req.user!.tenant_id)
-      .order('started_at', { ascending: false })
-      .maybeSingle();
-    if (tenantActive) existingActive = tenantActive;
-  }
 
   if (existingActive) {
     res.json({ data: existingActive as unknown as DbShift, alreadyActive: true });
@@ -378,13 +366,15 @@ export async function createShiftExpense(req: Request, res: Response) {
 
   if (error) throw error;
 
-  // Update total_expenses in shift
-  const newExpensesTotal = Number(shift.total_expenses || 0) + expenseAmount;
-  await supabase
-    .from('shifts')
-    .update({ total_expenses: newExpensesTotal })
-    .eq('id', id)
-    .eq('tenant_id', req.user!.tenant_id);
+  // Update total_expenses in shift atomically
+  const { error: expRpcErr } = await supabase.rpc('increment_shift_expenses', {
+    p_shift_id: id,
+    p_amount: expenseAmount,
+    p_tenant_id: req.user!.tenant_id,
+  });
+  if (expRpcErr) {
+    console.error('[shifts] Failed to atomically increment shift expenses:', expRpcErr);
+  }
 
   res.status(201).json({ data: data as unknown as DbShiftExpense });
 }
@@ -446,13 +436,15 @@ export async function createQuickExpense(req: Request, res: Response) {
 
   if (error) throw error;
 
-  // Update total_expenses in shift
-  const newExpensesTotal = Number(activeShift.total_expenses || 0) + expenseAmount;
-  await supabase
-    .from('shifts')
-    .update({ total_expenses: newExpensesTotal })
-    .eq('id', activeShift.id)
-    .eq('tenant_id', req.user!.tenant_id);
+  // Update total_expenses in shift atomically
+  const { error: expRpcErr } = await supabase.rpc('increment_shift_expenses', {
+    p_shift_id: activeShift.id,
+    p_amount: expenseAmount,
+    p_tenant_id: req.user!.tenant_id,
+  });
+  if (expRpcErr) {
+    console.error('[shifts] Failed to atomically increment shift expenses:', expRpcErr);
+  }
 
   res.status(201).json({ data: data as unknown as DbShiftExpense });
 }

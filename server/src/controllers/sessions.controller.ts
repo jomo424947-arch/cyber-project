@@ -1,11 +1,13 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../lib/supabase';
+import { cloudSupabase } from '../lib/cloud-supabase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { triggerImmediateSync } from '../lib/sync-engine';
 import type { DbSession } from '../lib/types';
 import { calculateSessionCost, calculateInvoiceAdjustments } from '../lib/billing';
 import { getDb, saveDatabase, setSuppressSave } from '../lib/database';
+import { getActiveShiftForUserOrTenant } from '../lib/shifts.helper';
 
 
 /**
@@ -66,16 +68,9 @@ export async function startSession(req: Request, res: Response) {
     grace_period_minutes = 0
   } = req.body;
 
-  // 0. Verify staff has an active shift before starting any session
-  const { data: activeShift, error: shiftErr } = await supabase
-    .from('shifts')
-    .select('id')
-    .eq('user_id', req.user!.id)
-    .eq('status', 'active')
-    .eq('tenant_id', req.user!.tenant_id)
-    .maybeSingle();
+  // 0. Verify staff has an active shift before starting any session (user shift or tenant shift)
+  const activeShift = await getActiveShiftForUserOrTenant(supabase, req.user!.id, req.user!.tenant_id, 'id');
 
-  if (shiftErr) throw shiftErr;
   if (!activeShift) {
     throw badRequest('لا يمكنك بدء جلسة بدون وجود وردية مفتوحة. يرجى بدء الوردية أولاً من صفحة الورديات.', 'NO_ACTIVE_SHIFT');
   }
@@ -764,16 +759,22 @@ export async function endSession(req: Request, res: Response) {
   const finalTotalCost = adj.finalAmount;
 
   // FIX: Use SQLite transaction (offline mode) to keep all writes atomic.
-  const isOfflineMode = process.env.OFFLINE_MODE === 'true';
+  const isOfflineMode = process.env.OFFLINE_MODE === 'true' || !cloudSupabase;
   let rawDb: any = null;
   if (isOfflineMode) {
-    rawDb = getDb();
-    setSuppressSave(true); // suppress intermediate disk saves during transaction
-    rawDb.run('BEGIN');
+    try {
+      rawDb = getDb();
+      setSuppressSave(true); // suppress intermediate disk saves during transaction
+      rawDb.run('BEGIN');
+    } catch {
+      rawDb = null;
+    }
   }
 
   let ended: any = null;
   let invoice: any = null;
+  let activeShiftId: string | null = null;
+  let shiftRevenueIncremented = false;
 
   try {
     // 3. End the session atomically.
@@ -800,40 +801,27 @@ export async function endSession(req: Request, res: Response) {
     ended = endedData;
 
     // 4. Auto-generate an invoice linked to the staff's or branch's active shift if present.
-    let activeShiftId: string | null = null;
     try {
-      let { data: activeShift } = await supabase
-        .from('shifts')
-        .select('id, total_revenue')
-        .eq('user_id', req.user!.id)
-        .eq('status', 'active')
-        .eq('tenant_id', req.user!.tenant_id)
-        .maybeSingle();
-
-      if (!activeShift) {
-        const { data: tenantShift } = await supabase
-          .from('shifts')
-          .select('id, total_revenue')
-          .eq('status', 'active')
-          .eq('tenant_id', req.user!.tenant_id)
-          .order('started_at', { ascending: false })
-          .maybeSingle();
-        activeShift = tenantShift;
-      }
+      const activeShift = await getActiveShiftForUserOrTenant(supabase, req.user!.id, req.user!.tenant_id, 'id, total_revenue');
 
       if (activeShift) {
         activeShiftId = activeShift.id;
         if (mark_paid && finalTotalCost > 0) {
-          const newRev = Number(activeShift.total_revenue || 0) + finalTotalCost;
-          await supabase
-            .from('shifts')
-            .update({ total_revenue: newRev })
-            .eq('id', activeShift.id)
-            .eq('tenant_id', req.user!.tenant_id);
+          const { error: revErr } = await supabase.rpc('increment_shift_revenue', {
+            p_shift_id: activeShift.id,
+            p_amount: finalTotalCost,
+            p_tenant_id: req.user!.tenant_id,
+          });
+          if (revErr) {
+            console.error('[sessions] Failed to increment shift revenue atomically:', revErr);
+            throw revErr;
+          }
+          shiftRevenueIncremented = true;
         }
       }
     } catch (shiftErr) {
-      console.warn('[sessions] Could not link active shift to invoice:', shiftErr);
+      console.error('[sessions] Failed to link active shift or update shift revenue:', shiftErr);
+      throw shiftErr;
     }
 
     // Check if invoice already exists for this session to prevent UNIQUE constraint collisions
@@ -913,20 +901,46 @@ export async function endSession(req: Request, res: Response) {
       saveDatabase();
     }
   } catch (err) {
-    // Rollback on any failure — device and session stay consistent
+    // Rollback on any failure — device, shift, invoice and session stay consistent
     if (rawDb) {
-      try { rawDb.run('ROLLBACK'); } catch { /* ignore rollback errors */ }
+      try {
+        rawDb.run('ROLLBACK');
+      } catch (rbErr: any) {
+        console.error('[sessions] SQLite rollback failed:', rbErr?.message || rbErr);
+      }
       setSuppressSave(false);
     } else {
-      if (ended) {
-        supabase
-          .from('devices')
-          .update({ status: 'available' })
-          .eq('id', session.device_id)
-          .eq('tenant_id', req.user!.tenant_id)
-          .then(({ error: freeErr }: { error: any }) => {
-            if (freeErr) console.error('[session] Failed to free device after error:', freeErr.message);
+      // Cloud Mode Compensating Rollback:
+      // Revert shift revenue increment if applied
+      if (shiftRevenueIncremented && activeShiftId) {
+        try {
+          await supabase.rpc('increment_shift_revenue', {
+            p_shift_id: activeShiftId,
+            p_amount: -finalTotalCost,
+            p_tenant_id: req.user!.tenant_id,
           });
+        } catch (revRollbackErr: any) {
+          console.error('[sessions] Failed to rollback shift revenue in cloud mode:', revRollbackErr?.message || revRollbackErr);
+        }
+      }
+      // Revert session back to active
+      if (ended) {
+        try {
+          await supabase
+            .from('sessions')
+            .update({
+              ended_at: null,
+              duration_minutes: null,
+              total_cost: null,
+              status: 'active',
+              is_overtime: 0,
+              overtime_minutes: null,
+            })
+            .eq('id', id)
+            .eq('tenant_id', req.user!.tenant_id);
+        } catch (sessionRollbackErr: any) {
+          console.error('[sessions] Failed to rollback session status to active in cloud mode:', sessionRollbackErr?.message || sessionRollbackErr);
+        }
       }
     }
     throw err;
@@ -1208,20 +1222,21 @@ export async function voidSessionOrder(req: Request, res: Response) {
   const product = order.product;
   const restoredQty = Number(order.quantity || 0);
 
-  // 3. Restore product stock if product exists
+  // 3. Restore product stock atomically if product exists
   if (product && product.id) {
-    const currentStock = Number(product.stock ?? 0);
-    const newStock = currentStock + restoredQty;
-
-    const { error: stockErr } = await supabase
-      .from('products')
-      .update({ stock: newStock })
-      .eq('id', product.id)
-      .eq('tenant_id', req.user!.tenant_id);
+    const { data: rpcRows, error: stockErr } = await supabase.rpc('adjust_product_stock', {
+      p_product_id: product.id,
+      p_tenant_id: req.user!.tenant_id,
+      p_delta: restoredQty,
+    });
 
     if (stockErr) {
       console.error('[session] Failed to restore product stock on void:', stockErr.message);
+      throw stockErr;
     }
+
+    const updatedProduct = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+    const balanceAfter = updatedProduct?.stock ?? (Number(product.stock ?? 0) + restoredQty);
 
     // Log stock adjustment
     await supabase.from('product_stock_logs').insert({
@@ -1230,7 +1245,7 @@ export async function voidSessionOrder(req: Request, res: Response) {
       actor_id: req.user!.id,
       change_type: 'void_order',
       delta: restoredQty,
-      balance_after: newStock,
+      balance_after: balanceAfter,
       reason: `Voided order from session`,
     });
   }

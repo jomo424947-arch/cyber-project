@@ -205,7 +205,9 @@ export async function listEmployeesPublic(req: Request, res: Response) {
       tenantId = stmt.getAsObject().tenant_id as string;
     }
     stmt.free();
-  } catch (err) {}
+  } catch (err: any) {
+    console.error('[employees] Failed to read tenant_id from tenant_config:', err?.message || err);
+  }
 
   if (!tenantId) {
     res.json({ users: [] });

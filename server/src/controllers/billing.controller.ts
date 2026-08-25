@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { notFound } from '../lib/errors';
 import { triggerImmediateSync } from '../lib/sync-engine';
 import type { DbInvoice } from '../lib/types';
+import { getActiveShiftForUserOrTenant } from '../lib/shifts.helper';
 
 /** GET /api/invoices — list all invoices (optional ?paid=true|false filter). */
 export async function listInvoices(req: Request, res: Response) {
@@ -52,25 +53,7 @@ export async function payInvoice(req: Request, res: Response) {
 
   // If invoice had no shift or creator, we can link it to the payer's active shift or tenant active shift
   if (!existingInv.shift_id) {
-    let { data: activeShift } = await supabase
-      .from('shifts')
-      .select('id')
-      .eq('user_id', req.user!.id)
-      .eq('status', 'active')
-      .eq('tenant_id', req.user!.tenant_id)
-      .maybeSingle();
-
-    if (!activeShift) {
-      const { data: tenantShift } = await supabase
-        .from('shifts')
-        .select('id')
-        .eq('status', 'active')
-        .eq('tenant_id', req.user!.tenant_id)
-        .order('started_at', { ascending: false })
-        .maybeSingle();
-      activeShift = tenantShift;
-    }
-
+    const activeShift = await getActiveShiftForUserOrTenant(supabase, req.user!.id, req.user!.tenant_id, 'id');
     if (activeShift) {
       patch.shift_id = activeShift.id;
     }
@@ -96,26 +79,21 @@ export async function payInvoice(req: Request, res: Response) {
   if (error) throw error;
   if (!data) throw notFound('Invoice not found');
 
-  // If newly paid, update shift revenue
+  // If newly paid, update shift revenue atomically
   if (!existingInv.paid && Number(data.amount) > 0) {
     const targetShiftId = (patch.shift_id as string) || existingInv.shift_id;
     if (targetShiftId) {
       try {
-        const { data: shiftRow } = await supabase
-          .from('shifts')
-          .select('id, total_revenue')
-          .eq('id', targetShiftId)
-          .maybeSingle();
-
-        if (shiftRow) {
-          const updatedRev = Number(shiftRow.total_revenue || 0) + Number(data.amount);
-          await supabase
-            .from('shifts')
-            .update({ total_revenue: updatedRev })
-            .eq('id', targetShiftId);
+        const { error: revErr } = await supabase.rpc('increment_shift_revenue', {
+          p_shift_id: targetShiftId,
+          p_amount: Number(data.amount),
+          p_tenant_id: req.user!.tenant_id,
+        });
+        if (revErr) {
+          console.error('[billing] Failed to update shift revenue atomically on pay:', revErr);
         }
       } catch (err) {
-        console.warn('[billing] Failed to update shift revenue on pay:', err);
+        console.error('[billing] Failed to update shift revenue on pay:', err);
       }
     }
   }

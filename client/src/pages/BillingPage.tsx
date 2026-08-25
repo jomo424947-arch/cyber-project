@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -31,8 +31,8 @@ export default function BillingPage() {
 
   const { data, loading, refetch } = useAsync(() => dataService.listInvoices(), []);
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(refetch, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 60000);
 
   const invoices = data ?? [];
   
@@ -89,7 +89,7 @@ export default function BillingPage() {
   };
 
   // Reset page when filter or search changes
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [filter, search]);
 

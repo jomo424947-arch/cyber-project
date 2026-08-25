@@ -7,10 +7,10 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { AddCafeModal } from '../components/AddCafeModal';
-import { useNow } from '../hooks/useNow';
 import { useAsync } from '../hooks/useAsync';
 import { usePolling } from '../hooks/usePolling';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useNow } from '../hooks/useNow';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
@@ -57,8 +57,8 @@ export default function RoomsPage() {
     };
   }, []);
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(refetch, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 60000);
 
   const activeByDevice = useMemo(() => {
     const map = new Map<string, Session>();

@@ -366,6 +366,14 @@ CREATE TABLE IF NOT EXISTS sync_queue (
   synced      INTEGER NOT NULL DEFAULT 0,
   error       TEXT
 );
+
+-- sync_state for tracking incremental sync timestamps per table and tenant
+CREATE TABLE IF NOT EXISTS sync_state (
+  table_name     TEXT NOT NULL,
+  tenant_id      TEXT NOT NULL,
+  last_synced_at TEXT NOT NULL,
+  PRIMARY KEY (table_name, tenant_id)
+);
 `;
 
 // ─── Init ────────────────────────────────────────────────────────────────────
@@ -638,12 +646,24 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       console.log('[database] standalone_orders shift_id migration completed successfully.');
     }
     _db.run('CREATE INDEX IF NOT EXISTS idx_standalone_orders_shift ON standalone_orders(shift_id);');
+    // Auto-migration for sync_state table
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS sync_state (
+        table_name     TEXT NOT NULL,
+        tenant_id      TEXT NOT NULL,
+        last_synced_at TEXT NOT NULL,
+        PRIMARY KEY (table_name, tenant_id)
+      );
+    `);
   } catch (sErr: any) {
     console.error('[database] Shifts/expenses/transfers migration failed:', sErr.message);
   }
 
-  // Persist after schema creation and migrations
-  saveDatabase();
+  // Register process exit listeners for safe shutdown
+  registerLifecycleHandlers();
+
+  // Initial synchronous save after schema creation and migrations
+  saveDatabaseSync();
 
   console.log(`[database] SQLite initialized → ${dbPath}`);
   return _db;
@@ -655,24 +675,117 @@ export function getDb(): SqlJsDatabase {
   return _db;
 }
 
-/** Persist the in-memory database to disk. */
-export function saveDatabase(): void {
+// ─── Persistence & Auto-Save ──────────────────────────────────────────────────
+
+let _isDirty = false;
+let _isSaving = false;
+let _saveDebounceTimer: NodeJS.Timeout | null = null;
+let _lifecycleRegistered = false;
+
+function registerLifecycleHandlers(): void {
+  if (_lifecycleRegistered) return;
+  _lifecycleRegistered = true;
+
+  const onExit = () => {
+    try {
+      if (_isDirty && _db && !_suppressSave) {
+        saveDatabaseSync();
+      }
+    } catch {
+      // Ignore during exit
+    }
+  };
+
+  process.on('beforeExit', onExit);
+  process.on('exit', onExit);
+  process.on('SIGINT', () => {
+    onExit();
+    process.exit(0);
+  });
+  process.on('SIGTERM', () => {
+    onExit();
+    process.exit(0);
+  });
+}
+
+/** Synchronously persist the in-memory database to disk with atomic rename. */
+export function saveDatabaseSync(): void {
   if (_suppressSave || !_db) return;
-  const data = _db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(getDbPath(), buffer);
+  if (_saveDebounceTimer) {
+    clearTimeout(_saveDebounceTimer);
+    _saveDebounceTimer = null;
+  }
+  try {
+    const data = _db.export();
+    const buffer = Buffer.from(data);
+    const dbPath = getDbPath();
+    const tmpPath = `${dbPath}.tmp`;
+    fs.writeFileSync(tmpPath, buffer);
+    fs.renameSync(tmpPath, dbPath);
+    _isDirty = false;
+  } catch (err: any) {
+    console.error('[database] Synchronous save failed:', err?.message || err);
+  }
+}
+
+/** Flush any pending changes to disk immediately. */
+export function flushDatabaseSync(): void {
+  if (_isDirty) {
+    saveDatabaseSync();
+  }
 }
 
 /**
- * Auto-save interval — writes the DB to disk every N ms.
- * sql.js works in-memory, so we need periodic saves.
+ * Persist the in-memory database to disk.
+ * Non-blocking: debounces writes by default to prevent freezing the Node.js event loop.
+ * If immediate is true, performs a synchronous write.
+ */
+export function saveDatabase(immediate = false): void {
+  if (_suppressSave || !_db) return;
+  _isDirty = true;
+
+  if (immediate) {
+    saveDatabaseSync();
+    return;
+  }
+
+  if (_saveDebounceTimer) return;
+
+  _saveDebounceTimer = setTimeout(async () => {
+    _saveDebounceTimer = null;
+    if (!_isDirty || _suppressSave || !_db || _isSaving) return;
+
+    _isSaving = true;
+    try {
+      const data = _db.export();
+      const buffer = Buffer.from(data);
+      const dbPath = getDbPath();
+      const tmpPath = `${dbPath}.tmp.${Date.now()}`;
+      await fs.promises.writeFile(tmpPath, buffer);
+      await fs.promises.rename(tmpPath, dbPath);
+      _isDirty = false;
+    } catch (err: any) {
+      console.error('[database] Asynchronous debounced save failed:', err?.message || err);
+    } finally {
+      _isSaving = false;
+      if (_isDirty) {
+        saveDatabase();
+      }
+    }
+  }, 300);
+}
+
+/**
+ * Auto-save interval — ensures dirty data is persisted periodically.
  */
 let _saveInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startAutoSave(intervalMs = 5000): void {
   if (_saveInterval) return;
   _saveInterval = setInterval(() => {
-    saveDatabase();
+    if (_isDirty) {
+      saveDatabase();
+    }
   }, intervalMs);
 }
 
@@ -681,4 +794,5 @@ export function stopAutoSave(): void {
     clearInterval(_saveInterval);
     _saveInterval = null;
   }
+  flushDatabaseSync();
 }

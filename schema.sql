@@ -328,9 +328,6 @@ create policy "staff write session_transfers"
   on public.session_transfers for all to authenticated
   using ( public.is_staff() )
   with check ( public.is_staff() );
-  on public.invoices for all to authenticated
-  using ( public.is_staff() )
-  with check ( public.is_staff() );
 
 -- ----------------------------------------------------------------------------
 -- 7. reservations — future device bookings

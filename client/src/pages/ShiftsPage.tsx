@@ -73,8 +73,8 @@ export default function ShiftsPage() {
     fetchShiftsData();
   }, []);
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(fetchShiftsData, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(fetchShiftsData, 60000);
 
   // Live timer for active shift
   useEffect(() => {

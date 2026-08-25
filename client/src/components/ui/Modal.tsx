@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { Button } from './Button';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -13,16 +13,18 @@ interface ModalProps {
 
 export function Modal({ open, title, onClose, children, footer, width = 480 }: ModalProps) {
   const isMobile = useIsMobile();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Close on Escape.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

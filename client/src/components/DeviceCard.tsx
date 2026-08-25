@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNow } from '../hooks/useNow';
 import { formatElapsed } from '../utils/format';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
@@ -9,7 +10,7 @@ import type { Device, Session, SessionAuditLog } from '../types';
 interface DeviceCardProps {
   device: Device;
   activeSession?: Session; // present when status is in_use
-  now: number; // current ms, for the live timer
+  now?: number; // optional live timer override, defaults to internal useNow hook
   onAction?: (device: Device) => void;
   onEditSession?: (session: Session) => void;
   onTransferSession?: (session: Session) => void;
@@ -219,6 +220,8 @@ export function DeviceCard({
   onDeleteDevice,
   index = 0 
 }: DeviceCardProps) {
+  const liveNow = useNow(1000);
+  const currentNow = now ?? liveNow;
   const isActive = device.status === 'in_use';
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const isBilliards = device.type === 'table' || device.name.toLowerCase().includes('billiards') || device.name.toLowerCase().includes('بلياردو');
@@ -258,11 +261,11 @@ export function DeviceCard({
       const graceMins = activeSession.grace_period_minutes || 0;
       const graceTime = endTime + graceMins * 60000;
 
-      const isGrace = now >= endTime && now < graceTime;
-      const isOvertime = now >= graceTime;
+      const isGrace = currentNow >= endTime && currentNow < graceTime;
+      const isOvertime = currentNow >= graceTime;
 
       if (isGrace) {
-        const remainingGrace = Math.max(0, Math.floor((graceTime - now) / 1000));
+        const remainingGrace = Math.max(0, Math.floor((graceTime - currentNow) / 1000));
         const mins = Math.floor(remainingGrace / 60);
         const secs = remainingGrace % 60;
         return (
@@ -289,7 +292,7 @@ export function DeviceCard({
       }
 
       if (isOvertime) {
-        const overtimeElapsed = Math.floor((now - endTime) / 1000);
+        const overtimeElapsed = Math.floor((currentNow - endTime) / 1000);
         const hrs = Math.floor(overtimeElapsed / 3600);
         const mins = Math.floor((overtimeElapsed % 3600) / 60);
         const secs = overtimeElapsed % 60;
@@ -318,7 +321,7 @@ export function DeviceCard({
       }
 
       // Normal Countdown
-      const remainingSeconds = Math.max(0, Math.floor((endTime - now) / 1000));
+      const remainingSeconds = Math.max(0, Math.floor((endTime - currentNow) / 1000));
       const hrs = Math.floor(remainingSeconds / 3600);
       const mins = Math.floor((remainingSeconds % 3600) / 60);
       const secs = remainingSeconds % 60;
@@ -351,7 +354,7 @@ export function DeviceCard({
             fontWeight: 600,
           }}
         >
-          {formatElapsed(activeSession.started_at, now, activeSession.total_paused_minutes)}
+          {formatElapsed(activeSession.started_at, currentNow, activeSession.total_paused_minutes)}
         </span>
       </div>
     );
@@ -641,10 +644,20 @@ function AuditLogModal({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     dataService.getSessionAuditLogs(session.id)
-      .then(setLogs)
-      .catch(() => setLogs([]))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (isMounted) setLogs(data);
+      })
+      .catch(() => {
+        if (isMounted) setLogs([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [session.id]);
 
   return (

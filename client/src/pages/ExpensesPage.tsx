@@ -56,8 +56,8 @@ export default function ExpensesPage() {
     fetchExpensesData();
   }, []);
 
-  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web)
-  usePolling(fetchExpensesData, 15000);
+  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(fetchExpensesData, 60000);
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();

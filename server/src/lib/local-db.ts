@@ -721,13 +721,32 @@ class QueryBuilder {
       params.push(...whereParams);
     }
 
+    // Pre-fetch all affected record IDs before UPDATE to ensure complete sync_queue coverage
+    let affectedIds: string[] = [];
+    const idWhere = this._where.find(w => w.col === 'id' && w.op === '=');
+    if (idWhere && typeof idWhere.val === 'string') {
+      affectedIds = [idWhere.val];
+    } else {
+      try {
+        let selectSql = `SELECT "id" FROM "${this._table}"`;
+        if (whereClause) {
+          selectSql += ` WHERE ${whereClause}`;
+        }
+        const selectRes = db.exec(selectSql, whereParams);
+        if (selectRes && selectRes[0] && selectRes[0].values) {
+          affectedIds = selectRes[0].values.map((row: any[]) => String(row[0])).filter(Boolean);
+        }
+      } catch (err: any) {
+        console.warn(`[local-db] Could not pre-fetch IDs for sync_queue UPDATE on table "${this._table}":`, err?.message || err);
+      }
+    }
+
     try {
       db.run(sql, params);
 
-      // Queue for sync — find the id from where clause
-      const idWhere = this._where.find(w => w.col === 'id');
-      if (idWhere) {
-        this._queueSync('UPDATE', idWhere.val, data);
+      // Queue all affected IDs for sync
+      for (const recordId of affectedIds) {
+        this._queueSync('UPDATE', recordId, data);
       }
       saveDatabase();
 
@@ -764,16 +783,31 @@ class QueryBuilder {
       count = (res[0]?.values[0]?.[0] as number) ?? 0;
     }
 
-    // Queue for sync before deleting
-    const idWhere = this._where.find(w => w.col === 'id');
-    if (idWhere) {
-      this._queueSync('DELETE', idWhere.val, null);
+    const { whereClause, whereParams } = this._buildWhere();
+
+    // Pre-fetch all affected record IDs before DELETE to ensure complete sync_queue coverage
+    let affectedIds: string[] = [];
+    const idWhere = this._where.find(w => w.col === 'id' && w.op === '=');
+    if (idWhere && typeof idWhere.val === 'string') {
+      affectedIds = [idWhere.val];
+    } else {
+      try {
+        let selectSql = `SELECT "id" FROM "${this._table}"`;
+        if (whereClause) {
+          selectSql += ` WHERE ${whereClause}`;
+        }
+        const selectRes = db.exec(selectSql, whereParams);
+        if (selectRes && selectRes[0] && selectRes[0].values) {
+          affectedIds = selectRes[0].values.map((row: any[]) => String(row[0])).filter(Boolean);
+        }
+      } catch (err: any) {
+        console.warn(`[local-db] Could not pre-fetch IDs for sync_queue DELETE on table "${this._table}":`, err?.message || err);
+      }
     }
 
     let sql = `DELETE FROM "${this._table}"`;
     const params: any[] = [];
 
-    const { whereClause, whereParams } = this._buildWhere();
     if (whereClause) {
       sql += ` WHERE ${whereClause}`;
       params.push(...whereParams);
@@ -781,6 +815,12 @@ class QueryBuilder {
 
     try {
       db.run(sql, params);
+
+      // Queue all affected IDs for sync
+      for (const recordId of affectedIds) {
+        this._queueSync('DELETE', recordId, null);
+      }
+
       saveDatabase();
       return { data: null, error: null, count: count || undefined };
     } catch (e: any) {
@@ -806,16 +846,51 @@ class QueryBuilder {
   }
 
   private _queueSync(operation: string, recordId: string, payload: any): void {
+    if (!recordId) return;
     try {
       const db = getDb();
       db.run(
         `INSERT INTO sync_queue (table_name, record_id, operation, payload) VALUES (?, ?, ?, ?)`,
         [this._table, recordId, operation, payload ? JSON.stringify(payload) : null]
       );
-    } catch {
-      // Non-critical — sync will catch up on next online check
+    } catch (err: any) {
+      syncQueueHealth.hasUnrecordedSync = true;
+      syncQueueHealth.unrecordedCount++;
+      syncQueueHealth.lastError = err?.message || String(err);
+      syncQueueHealth.lastFailedAt = new Date().toISOString();
+      console.error(
+        `[local-db:sync_queue] CRITICAL: Failed to enqueue sync operation [${operation}] for table "${this._table}", recordId "${recordId}":`,
+        err?.message || err
+      );
     }
   }
+}
+
+// ─── Sync Queue Health Monitor ───────────────────────────────────────────────
+
+export interface SyncQueueHealth {
+  hasUnrecordedSync: boolean;
+  unrecordedCount: number;
+  lastError: string | null;
+  lastFailedAt: string | null;
+}
+
+const syncQueueHealth: SyncQueueHealth = {
+  hasUnrecordedSync: false,
+  unrecordedCount: 0,
+  lastError: null,
+  lastFailedAt: null,
+};
+
+export function getSyncQueueHealth(): Readonly<SyncQueueHealth> {
+  return { ...syncQueueHealth };
+}
+
+export function resetSyncQueueHealth(): void {
+  syncQueueHealth.hasUnrecordedSync = false;
+  syncQueueHealth.unrecordedCount = 0;
+  syncQueueHealth.lastError = null;
+  syncQueueHealth.lastFailedAt = null;
 }
 
 /**
@@ -859,6 +934,114 @@ export function decrementProductStockAtomic(
   return adjustProductStockAtomic(productId, tenantId, -qty);
 }
 
+/**
+ * Atomically increment a shift's total_revenue by `amount`.
+ * Prevents Read-Modify-Write race conditions when sessions end concurrently.
+ * Returns the updated row, or null if shift not found.
+ */
+export function incrementShiftRevenueAtomic(
+  shiftId: string,
+  tenantId: string | null | undefined,
+  amount: number
+): Record<string, any> | null {
+  const db = getDb();
+  if (tenantId) {
+    db.run(
+      `UPDATE shifts SET total_revenue = ROUND(MAX(0, COALESCE(total_revenue, 0) + ?), 2) WHERE id = ? AND tenant_id = ?`,
+      [amount, shiftId, tenantId]
+    );
+  } else {
+    db.run(
+      `UPDATE shifts SET total_revenue = ROUND(MAX(0, COALESCE(total_revenue, 0) + ?), 2) WHERE id = ?`,
+      [amount, shiftId]
+    );
+  }
+  const rowsModified = typeof (db as any).getRowsModified === 'function' ? (db as any).getRowsModified() : 0;
+  if (rowsModified === 0) {
+    return null;
+  }
+  const stmt = tenantId
+    ? db.prepare('SELECT * FROM shifts WHERE id = ? AND tenant_id = ?')
+    : db.prepare('SELECT * FROM shifts WHERE id = ?');
+  stmt.bind(tenantId ? [shiftId, tenantId] : [shiftId]);
+  let row: Record<string, any> | null = null;
+  if (stmt.step()) row = stmt.getAsObject();
+  stmt.free();
+
+  // Queue sync for the updated shift
+  if (row) {
+    try {
+      db.run(
+        `INSERT INTO sync_queue (table_name, record_id, operation, payload) VALUES (?, ?, ?, ?)`,
+        ['shifts', shiftId, 'UPDATE', JSON.stringify({ total_revenue: row.total_revenue })]
+      );
+    } catch (err: any) {
+      syncQueueHealth.hasUnrecordedSync = true;
+      syncQueueHealth.unrecordedCount++;
+      syncQueueHealth.lastError = err?.message || String(err);
+      syncQueueHealth.lastFailedAt = new Date().toISOString();
+      console.error(`[local-db:sync_queue] Failed to enqueue shift revenue update sync for shift ${shiftId}:`, err);
+    }
+  }
+
+  saveDatabase();
+  return row;
+}
+
+/**
+ * Atomically increment a shift's total_expenses by `amount`.
+ * Prevents Read-Modify-Write race conditions when expenses are logged concurrently.
+ * Returns the updated row, or null if shift not found.
+ */
+export function incrementShiftExpensesAtomic(
+  shiftId: string,
+  tenantId: string | null | undefined,
+  amount: number
+): Record<string, any> | null {
+  const db = getDb();
+  if (tenantId) {
+    db.run(
+      `UPDATE shifts SET total_expenses = ROUND(MAX(0, COALESCE(total_expenses, 0) + ?), 2) WHERE id = ? AND tenant_id = ?`,
+      [amount, shiftId, tenantId]
+    );
+  } else {
+    db.run(
+      `UPDATE shifts SET total_expenses = ROUND(MAX(0, COALESCE(total_expenses, 0) + ?), 2) WHERE id = ?`,
+      [amount, shiftId]
+    );
+  }
+  const rowsModified = typeof (db as any).getRowsModified === 'function' ? (db as any).getRowsModified() : 0;
+  if (rowsModified === 0) {
+    return null;
+  }
+  const stmt = tenantId
+    ? db.prepare('SELECT * FROM shifts WHERE id = ? AND tenant_id = ?')
+    : db.prepare('SELECT * FROM shifts WHERE id = ?');
+  stmt.bind(tenantId ? [shiftId, tenantId] : [shiftId]);
+  let row: Record<string, any> | null = null;
+  if (stmt.step()) row = stmt.getAsObject();
+  stmt.free();
+
+  // Queue sync for the updated shift
+  if (row) {
+    try {
+      db.run(
+        `INSERT INTO sync_queue (table_name, record_id, operation, payload) VALUES (?, ?, ?, ?)`,
+        ['shifts', shiftId, 'UPDATE', JSON.stringify({ total_expenses: row.total_expenses })]
+      );
+    } catch (err: any) {
+      syncQueueHealth.hasUnrecordedSync = true;
+      syncQueueHealth.unrecordedCount++;
+      syncQueueHealth.lastError = err?.message || String(err);
+      syncQueueHealth.lastFailedAt = new Date().toISOString();
+      console.error(`[local-db:sync_queue] Failed to enqueue shift expenses update sync for shift ${shiftId}:`, err);
+    }
+  }
+
+  saveDatabase();
+  return row;
+}
+
 // ─── Supabase-compatible wrapper ─────────────────────────────────────────────
 
 /**
@@ -881,6 +1064,14 @@ class LocalSupabase {
       }
       if (fnName === 'adjust_product_stock') {
         const updated = adjustProductStockAtomic(args.p_product_id, args.p_tenant_id, Number(args.p_delta));
+        return { data: updated ? [updated] : [], error: null };
+      }
+      if (fnName === 'increment_shift_revenue') {
+        const updated = incrementShiftRevenueAtomic(args.p_shift_id, args.p_tenant_id, Number(args.p_amount));
+        return { data: updated ? [updated] : [], error: null };
+      }
+      if (fnName === 'increment_shift_expenses') {
+        const updated = incrementShiftExpensesAtomic(args.p_shift_id, args.p_tenant_id, Number(args.p_amount));
         return { data: updated ? [updated] : [], error: null };
       }
       return { data: null, error: { message: `Unknown RPC function: ${fnName}` } };

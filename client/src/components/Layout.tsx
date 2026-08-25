@@ -54,7 +54,12 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
     fetchShift();
     window.addEventListener('shift-changed', fetchShift);
     window.addEventListener('focus', fetchShift);
-    const interval = setInterval(fetchShift, 5000);
+
+    const interval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+        fetchShift();
+      }
+    }, 60000);
 
     return () => {
       mounted = false;
