@@ -84,14 +84,14 @@ export default function DashboardPage() {
     return { devices, sessions, invoices, reservations, revReport, activeShift };
   }, []);
 
-  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
-  usePolling(refetch, 60000);
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 15000);
 
   const stats = useMemo(() => {
     if (!data) return { active: 0, available: 0, revenue: 0, deviceRevenue: 0, cafeRevenue: 0, pending: 0 };
     const active = data.sessions.length;
     const available = data.devices.filter((d) => d.status === 'available').length;
-    
+
     let cafeRevenue = 0;
     let deviceRevenue = 0;
     let revenue = 0;
@@ -279,8 +279,8 @@ export default function DashboardPage() {
             <span>{language === 'ar' ? 'تفاصيل الوردية' : 'Shift Details'}</span>
           </button>
 
-          <button 
-            className="ccms-btn ccms-btn-ghost" 
+          <button
+            className="ccms-btn ccms-btn-ghost"
             onClick={handleRefresh}
             disabled={syncing}
             style={{
@@ -409,8 +409,8 @@ export default function DashboardPage() {
                   s.customer?.name && s.customer.name !== 'Walk-in'
                     ? s.customer.name
                     : s.customer?.username && !s.customer.username.startsWith('walkin_')
-                    ? `@${s.customer.username}`
-                    : (language === 'ar' ? 'عميل بدون حساب' : 'Walk-in')
+                      ? `@${s.customer.username}`
+                      : (language === 'ar' ? 'عميل بدون حساب' : 'Walk-in')
                 ),
               },
               {
@@ -424,8 +424,9 @@ export default function DashboardPage() {
                 render: (s) => {
                   if (s.is_paused) {
                     return (
-                      <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold' }}>
-                        {language === 'ar' ? '⏸ معلّقة' : '⏸ Paused'}
+                      <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pause</span>
+                        <span>{language === 'ar' ? 'معلّقة' : 'Paused'}</span>
                       </span>
                     );
                   }
@@ -491,7 +492,8 @@ export default function DashboardPage() {
                         }}
                         title={language === 'ar' ? 'تعليق الجلسة' : 'Pause Session'}
                       >
-                        ⏸ {language === 'ar' ? 'تعليق' : 'Pause'}
+                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pause</span>
+                        <span>{language === 'ar' ? 'تعليق' : 'Pause'}</span>
                       </button>
                     ) : (
                       <button
@@ -514,7 +516,8 @@ export default function DashboardPage() {
                         }}
                         title={language === 'ar' ? 'استئناف الجلسة' : 'Resume Session'}
                       >
-                        ▶ {language === 'ar' ? 'استئناف' : 'Resume'}
+                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>play_arrow</span>
+                        <span>{language === 'ar' ? 'استئناف' : 'Resume'}</span>
                       </button>
                     )}
 

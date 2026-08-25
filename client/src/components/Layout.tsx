@@ -48,7 +48,7 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
         .then((s) => {
           if (mounted) setActiveShift(s);
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     fetchShift();
@@ -84,9 +84,9 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
   ];
 
   return (
-    <div 
-      style={{ 
-        minHeight: '100vh', 
+    <div
+      style={{
+        minHeight: '100vh',
         background: 'var(--bg-base)',
         display: 'flex',
         flexDirection: 'column'
@@ -158,12 +158,12 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
           {/* Right panel: User controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button 
+              <button
                 onClick={toggleTheme}
-                style={{ 
-                  color: theme === 'dark' ? '#F59E0B' : 'var(--accent-cyan)', 
-                  padding: '8px', 
-                  display: 'flex', 
+                style={{
+                  color: theme === 'dark' ? '#F59E0B' : 'var(--accent-cyan)',
+                  padding: '8px',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: theme === 'dark' ? 'rgba(245, 158, 11, 0.12)' : 'var(--accent-cyan-dim)',
@@ -179,17 +179,17 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                 </span>
               </button>
 
-              <button 
+              <button
                 onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-                style={{ 
-                  color: 'var(--accent-cyan)', 
-                  padding: '6px 10px', 
-                  display: 'flex', 
+                style={{
+                  color: 'var(--accent-cyan)',
+                  padding: '6px 10px',
+                  display: 'flex',
                   background: 'var(--accent-cyan-dim)',
                   border: '1px solid var(--border-glow)',
                   borderRadius: '6px',
-                  fontWeight: 700, 
-                  fontSize: '11px', 
+                  fontWeight: 700,
+                  fontSize: '11px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif'
@@ -199,16 +199,16 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                 {language === 'en' ? 'العربية' : 'English'}
               </button>
 
-              <button 
-                onClick={() => toast(t('no_notifications'), 'info')} 
+              <button
+                onClick={() => toast(t('no_notifications'), 'info')}
                 style={{ color: 'var(--text-secondary)', padding: '8px', display: 'flex', transition: 'color 0.2s' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-cyan)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>notifications</span>
               </button>
-              <button 
-                onClick={() => navigate('/settings')} 
+              <button
+                onClick={() => navigate('/settings')}
                 style={{ color: 'var(--text-secondary)', padding: '8px', display: 'flex', transition: 'color 0.2s' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-cyan)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
@@ -218,8 +218,8 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div 
-                style={{ 
+              <div
+                style={{
                   textAlign: isRtl ? 'left' : 'right',
                   padding: '6px 14px',
                   borderRadius: '8px',
@@ -227,12 +227,12 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                   border: '1px solid var(--border-default)',
                 }}
               >
-                <p 
-                  style={{ 
-                    fontSize: '13px', 
-                    fontWeight: 700, 
-                    color: 'var(--text-primary)', 
-                    lineHeight: '1.2', 
+                <p
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    lineHeight: '1.2',
                     margin: 0,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
@@ -240,12 +240,12 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                 >
                   {user?.full_name ? user.full_name : 'Admin'}
                 </p>
-                <p 
-                  style={{ 
-                    fontSize: '10px', 
-                    color: 'var(--accent-cyan)', 
-                    textTransform: 'uppercase', 
-                    letterSpacing: '0.08em', 
+                <p
+                  style={{
+                    fontSize: '10px',
+                    color: 'var(--accent-cyan)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
                     margin: 0,
                     fontWeight: 600,
                     marginTop: '2px',
@@ -415,7 +415,7 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
           </div>
         </header>
       )}
-      
+
       <main
         style={{
           marginLeft: isRtl ? 0 : (isMobile ? 0 : 'var(--sidebar-width)'),
@@ -539,7 +539,7 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                 <span style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'JetBrains Mono, monospace', fontSize: '9px' }}>{item.label}</span>
               </NavLink>
             ))}
-            
+
             <button
               onClick={() => setShowMoreMenu(!showMoreMenu)}
               style={{
@@ -647,16 +647,16 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
 
                 {/* Theme & Language Toggles */}
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
+                  <button
                     onClick={toggleTheme}
-                    style={{ 
+                    style={{
                       flex: 1,
-                      display: 'flex', 
+                      display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      padding: '10px 14px', 
-                      color: theme === 'dark' ? '#F59E0B' : 'var(--accent-cyan)', 
+                      padding: '10px 14px',
+                      color: theme === 'dark' ? '#F59E0B' : 'var(--accent-cyan)',
                       background: theme === 'dark' ? 'rgba(245, 158, 11, 0.12)' : 'var(--accent-cyan-dim)',
                       border: theme === 'dark' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-glow)',
                       borderRadius: '10px',
@@ -673,21 +673,21 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                     <span>{theme === 'dark' ? t('light_mode') : t('dark_mode')}</span>
                   </button>
 
-                  <button 
+                  <button
                     onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-                    style={{ 
+                    style={{
                       flex: 1,
-                      display: 'flex', 
+                      display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      padding: '10px 14px', 
-                      color: 'var(--accent-cyan)', 
+                      padding: '10px 14px',
+                      color: 'var(--accent-cyan)',
                       background: 'var(--accent-cyan-dim)',
                       border: '1px solid var(--border-glow)',
                       borderRadius: '10px',
-                      fontWeight: 700, 
-                      fontSize: '13px', 
+                      fontWeight: 700,
+                      fontSize: '13px',
                       minHeight: '44px',
                       cursor: 'pointer',
                       fontFamily: isRtl ? 'Cairo, sans-serif' : 'Space Grotesk, sans-serif'

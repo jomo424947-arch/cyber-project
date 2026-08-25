@@ -5,12 +5,12 @@ import { useEffect, useRef } from 'react';
  * Used to keep data in sync across Desktop, Mobile, and Web instances.
  *
  * @param refetch  The function to call periodically (typically from useAsync).
- * @param intervalMs  Polling interval in milliseconds (default: 60000 = 60s / 1 min).
+ * @param intervalMs  Polling interval in milliseconds (default: 15000 = 15s).
  * @param enabled  Whether polling is active (default: true). Set false to pause.
  */
 export function usePolling(
   refetch: () => void,
-  intervalMs: number = 60000,
+  intervalMs: number = 15000,
   enabled: boolean = true
 ): void {
   const refetchRef = useRef(refetch);
@@ -28,7 +28,6 @@ export function usePolling(
     const startInterval = () => {
       if (!id) {
         id = setInterval(() => {
-          // Only poll if window/tab is visible
           if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
             refetchRef.current();
           }
@@ -43,12 +42,16 @@ export function usePolling(
       }
     };
 
+    const triggerInstantRefresh = () => {
+      refetchRef.current();
+      stopInterval();
+      startInterval();
+    };
+
     const handleVisibilityChange = () => {
       if (typeof document !== 'undefined') {
         if (document.visibilityState === 'visible') {
-          // Refetch immediately when coming back to the tab/app
-          refetchRef.current();
-          startInterval();
+          triggerInstantRefresh();
         } else {
           stopInterval();
         }
@@ -60,11 +63,19 @@ export function usePolling(
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', triggerInstantRefresh);
+      window.addEventListener('online', triggerInstantRefresh);
+    }
 
     return () => {
       stopInterval();
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', triggerInstantRefresh);
+        window.removeEventListener('online', triggerInstantRefresh);
       }
     };
   }, [intervalMs, enabled]);

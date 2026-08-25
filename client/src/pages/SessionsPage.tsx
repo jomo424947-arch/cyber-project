@@ -14,9 +14,9 @@ import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatDuration, formatCurrency, formatDateTime } from '../utils/format';
-import { 
-  EndSessionModal, 
-  EditSessionModal, 
+import {
+  EndSessionModal,
+  EditSessionModal,
   AuditLogModal,
   TransferSessionModal,
 } from '../components/SessionModals';
@@ -42,8 +42,8 @@ export default function SessionsPage() {
     []
   );
 
-  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
-  usePolling(refetch, 60000);
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 15000);
 
   const sessions = data ?? [];
 
@@ -86,8 +86,8 @@ export default function SessionsPage() {
       title={t('active_sessions_title')}
       subtitle={language === 'ar' ? 'متابعة الجلسات النشطة حالياً ومراجعة سجل الجلسات السابقة' : 'Track active sessions and review history'}
       actions={
-        <button 
-          className="ccms-btn ccms-btn-ghost" 
+        <button
+          className="ccms-btn ccms-btn-ghost"
           onClick={refetch}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
@@ -113,8 +113,8 @@ export default function SessionsPage() {
           <EmptyState
             icon={tab === 'active' ? 'history_toggle_off' : 'receipt_long'}
             title={
-              tab === 'active' 
-                ? (language === 'ar' ? 'لا توجد جلسات نشطة' : 'No active sessions') 
+              tab === 'active'
+                ? (language === 'ar' ? 'لا توجد جلسات نشطة' : 'No active sessions')
                 : (language === 'ar' ? 'لا يوجد سجل للجلسات بعد' : 'No session history yet')
             }
             description={
@@ -130,315 +130,316 @@ export default function SessionsPage() {
             columns={
               tab === 'active'
                 ? [
-                    { 
-                      key: 'device', 
-                      header: language === 'ar' ? 'الجهاز' : 'Device', 
-                      render: (s: Session) => <strong>{s.device?.name ?? '—'}</strong> 
-                    },
-                    { 
-                      key: 'customer', 
-                      header: language === 'ar' ? 'العميل' : 'Customer', 
-                      render: (s: Session) => {
-                        const hasCustomName = s.customer?.name && s.customer.name !== 'Walk-in';
-                        const isRegistered = s.customer?.username && !s.customer.username.startsWith('walkin_');
-                        if (hasCustomName) {
-                          return <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.customer!.name}</span>;
-                        }
-                        if (isRegistered) {
-                          return (
-                            <Link 
-                              to={`/customers/${s.customer_id}`} 
-                              style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
-                            >
-                              @{s.customer!.username}
-                            </Link>
-                          );
-                        }
-                        return <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'عميل بدون حساب' : 'Walk-in'}</span>;
+                  {
+                    key: 'device',
+                    header: language === 'ar' ? 'الجهاز' : 'Device',
+                    render: (s: Session) => <strong>{s.device?.name ?? '—'}</strong>
+                  },
+                  {
+                    key: 'customer',
+                    header: language === 'ar' ? 'العميل' : 'Customer',
+                    render: (s: Session) => {
+                      const hasCustomName = s.customer?.name && s.customer.name !== 'Walk-in';
+                      const isRegistered = s.customer?.username && !s.customer.username.startsWith('walkin_');
+                      if (hasCustomName) {
+                        return <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.customer!.name}</span>;
                       }
-                    },
-                    { 
-                      key: 'started', 
-                      header: language === 'ar' ? 'البدء' : 'Started', 
-                      render: (s: Session) => formatDateTime(s.started_at) 
-                    },
-                    {
-                      key: 'elapsed',
-                      header: language === 'ar' ? 'حالة الوقت' : 'Time Status',
-                      render: (s: Session) => {
-                        if (s.is_paused) {
+                      if (isRegistered) {
+                        return (
+                          <Link
+                            to={`/customers/${s.customer_id}`}
+                            style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
+                          >
+                            @{s.customer!.username}
+                          </Link>
+                        );
+                      }
+                      return <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'عميل بدون حساب' : 'Walk-in'}</span>;
+                    }
+                  },
+                  {
+                    key: 'started',
+                    header: language === 'ar' ? 'البدء' : 'Started',
+                    render: (s: Session) => formatDateTime(s.started_at)
+                  },
+                  {
+                    key: 'elapsed',
+                    header: language === 'ar' ? 'حالة الوقت' : 'Time Status',
+                    render: (s: Session) => {
+                      if (s.is_paused) {
+                        return (
+                          <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pause</span>
+                            <span>{language === 'ar' ? 'معلّقة' : 'Paused'}</span>
+                          </span>
+                        );
+                      }
+
+                      if (s.session_type === 'fixed' && s.scheduled_end) {
+                        const endTime = new Date(s.scheduled_end).getTime();
+                        const graceMins = s.grace_period_minutes || 0;
+                        const graceTime = endTime + graceMins * 60000;
+                        const isGrace = now >= endTime && now < graceTime;
+                        const isOvertime = now >= graceTime;
+
+                        if (isGrace) {
+                          const remainingGrace = Math.max(0, Math.floor((graceTime - now) / 1000));
+                          const mins = Math.floor(remainingGrace / 60);
+                          const secs = remainingGrace % 60;
                           return (
-                            <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold' }}>
-                              {language === 'ar' ? '⏸ معلّقة' : '⏸ Paused'}
+                            <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
+                              {language === 'ar' ? 'فترة سماح' : 'Grace'} {mins}:{secs.toString().padStart(2, '0')}
                             </span>
                           );
                         }
 
-                        if (s.session_type === 'fixed' && s.scheduled_end) {
-                          const endTime = new Date(s.scheduled_end).getTime();
-                          const graceMins = s.grace_period_minutes || 0;
-                          const graceTime = endTime + graceMins * 60000;
-                          const isGrace = now >= endTime && now < graceTime;
-                          const isOvertime = now >= graceTime;
-
-                          if (isGrace) {
-                            const remainingGrace = Math.max(0, Math.floor((graceTime - now) / 1000));
-                            const mins = Math.floor(remainingGrace / 60);
-                            const secs = remainingGrace % 60;
-                            return (
-                              <span style={{ color: 'var(--accent-yellow)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
-                                {language === 'ar' ? 'فترة سماح' : 'Grace'} {mins}:{secs.toString().padStart(2, '0')}
-                              </span>
-                            );
-                          }
-
-                          if (isOvertime) {
-                            const overtimeElapsed = Math.floor((now - endTime) / 1000);
-                            const hrs = Math.floor(overtimeElapsed / 3600);
-                            const mins = Math.floor((overtimeElapsed % 3600) / 60);
-                            const secs = overtimeElapsed % 60;
-                            return (
-                              <span style={{ color: 'var(--accent-red)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
-                                {language === 'ar' ? 'وقت إضافي +' : 'Overtime +'}{hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
-                              </span>
-                            );
-                          }
-
-                          const remainingSeconds = Math.max(0, Math.floor((endTime - now) / 1000));
-                          const hrs = Math.floor(remainingSeconds / 3600);
-                          const mins = Math.floor((remainingSeconds % 3600) / 60);
-                          const secs = remainingSeconds % 60;
+                        if (isOvertime) {
+                          const overtimeElapsed = Math.floor((now - endTime) / 1000);
+                          const hrs = Math.floor(overtimeElapsed / 3600);
+                          const mins = Math.floor((overtimeElapsed % 3600) / 60);
+                          const secs = overtimeElapsed % 60;
                           return (
-                            <span style={{ color: 'var(--accent-cyan)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
-                              {hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+                            <span style={{ color: 'var(--accent-red)', fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace' }}>
+                              {language === 'ar' ? 'وقت إضافي +' : 'Overtime +'}{hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
                             </span>
                           );
                         }
 
-                        // Open (Pay-As-You-Go) Timer
+                        const remainingSeconds = Math.max(0, Math.floor((endTime - now) / 1000));
+                        const hrs = Math.floor(remainingSeconds / 3600);
+                        const mins = Math.floor((remainingSeconds % 3600) / 60);
+                        const secs = remainingSeconds % 60;
                         return (
-                          <span style={{ color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
-                            {formatElapsed(s.started_at, now, s.total_paused_minutes)}
-                          </span>
-                        );
-                      },
-                    },
-                    { 
-                      key: 'rate', 
-                      header: language === 'ar' ? 'السعر' : 'Rate', 
-                      align: 'right' as const, 
-                      render: (s: Session) => {
-                        const rate = Number(
-                          s.hourly_rate_override !== null
-                            ? s.hourly_rate_override
-                            : (s.play_mode === 'multiplayer' ? s.device?.hourly_rate_multi : s.device?.hourly_rate) ?? 0
-                        );
-                        return (
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                            {s.hourly_rate_override !== null && (
-                              <span style={{ fontSize: '10px', color: 'var(--accent-green)', marginRight: '4px', fontWeight: 'bold' }}>[تعديل]</span>
-                            )}
-                            {formatCurrency(rate)}/{language === 'ar' ? 'ساعة' : 'hr'}
+                          <span style={{ color: 'var(--accent-cyan)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
+                            {hrs > 0 ? hrs + ':' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
                           </span>
                         );
                       }
+
+                      // Open (Pay-As-You-Go) Timer
+                      return (
+                        <span style={{ color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
+                          {formatElapsed(s.started_at, now, s.total_paused_minutes)}
+                        </span>
+                      );
                     },
-                    {
-                      key: 'action',
-                      header: language === 'ar' ? 'التحكم' : 'Actions',
-                      align: 'right' as const,
-                      render: (s: Session) => (
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          {s.edited_start_at && (
-                            <button
-                              type="button"
-                              title={language === 'ar' ? 'سجلات المراجعة' : 'Audit Trail Logs'}
-                              className="ccms-btn ccms-btn-ghost"
-                              style={{ 
-                                padding: '6px 12px', 
-                                fontSize: '11px',
-                                minHeight: '32px',
-                              }}
-                              onClick={() => setAuditTarget(s)}
-                            >
-                              {language === 'ar' ? 'السجلات' : 'Logs'}
-                            </button>
+                  },
+                  {
+                    key: 'rate',
+                    header: language === 'ar' ? 'السعر' : 'Rate',
+                    align: 'right' as const,
+                    render: (s: Session) => {
+                      const rate = Number(
+                        s.hourly_rate_override !== null
+                          ? s.hourly_rate_override
+                          : (s.play_mode === 'multiplayer' ? s.device?.hourly_rate_multi : s.device?.hourly_rate) ?? 0
+                      );
+                      return (
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {s.hourly_rate_override !== null && (
+                            <span style={{ fontSize: '10px', color: 'var(--accent-green)', marginRight: '4px', fontWeight: 'bold' }}>[تعديل]</span>
                           )}
+                          {formatCurrency(rate)}/{language === 'ar' ? 'ساعة' : 'hr'}
+                        </span>
+                      );
+                    }
+                  },
+                  {
+                    key: 'action',
+                    header: language === 'ar' ? 'التحكم' : 'Actions',
+                    align: 'right' as const,
+                    render: (s: Session) => (
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        {s.edited_start_at && (
+                          <button
+                            type="button"
+                            title={language === 'ar' ? 'سجلات المراجعة' : 'Audit Trail Logs'}
+                            className="ccms-btn ccms-btn-ghost"
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '11px',
+                              minHeight: '32px',
+                            }}
+                            onClick={() => setAuditTarget(s)}
+                          >
+                            {language === 'ar' ? 'السجلات' : 'Logs'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="ccms-btn ccms-btn-ghost"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '11px',
+                            minHeight: '32px',
+                          }}
+                          onClick={() => setEditTarget(s)}
+                        >
+                          {t('edit')}
+                        </button>
+                        <button
+                          type="button"
+                          className="ccms-btn ccms-btn-ghost"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '11px',
+                            minHeight: '32px',
+                            color: 'var(--accent-purple)',
+                            borderColor: 'rgba(168, 85, 247, 0.4)',
+                            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          onClick={() => setTransferTarget(s)}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+                          {language === 'ar' ? 'تحويل' : 'Transfer'}
+                        </button>
+                        {s.session_type === 'fixed' && (
                           <button
                             type="button"
                             className="ccms-btn ccms-btn-ghost"
-                            style={{ 
-                              padding: '6px 12px', 
+                            style={{
+                              padding: '6px 12px',
                               fontSize: '11px',
                               minHeight: '32px',
                             }}
-                            onClick={() => setEditTarget(s)}
+                            onClick={() => handleExtend(s)}
                           >
-                            {t('edit')}
+                            {language === 'ar' ? '+30 دقيقة' : 'Extend 30m'}
                           </button>
+                        )}
+                        <button
+                          type="button"
+                          className="ccms-btn ccms-btn-ghost"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '11px',
+                            minHeight: '32px',
+                            color: 'var(--accent-cyan)',
+                            borderColor: 'rgba(0, 194, 255, 0.4)',
+                            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          onClick={() => setCafeTarget(s)}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
+                          {language === 'ar' ? 'مشروب +' : '+ Café'}
+                        </button>
+                        {!s.is_paused ? (
                           <button
                             type="button"
                             className="ccms-btn ccms-btn-ghost"
-                            style={{ 
-                              padding: '6px 12px', 
+                            style={{
+                              padding: '6px 12px',
                               fontSize: '11px',
                               minHeight: '32px',
-                              color: 'var(--accent-purple)',
-                              borderColor: 'rgba(168, 85, 247, 0.4)',
-                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
+                              color: 'var(--accent-yellow)',
+                              borderColor: 'rgba(245, 158, 11, 0.4)',
                             }}
-                            onClick={() => setTransferTarget(s)}
+                            onClick={() => handlePause(s)}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
-                            {language === 'ar' ? 'تحويل' : 'Transfer'}
+                            {language === 'ar' ? 'تعليق' : 'Pause'}
                           </button>
-                          {s.session_type === 'fixed' && (
-                            <button
-                              type="button"
-                              className="ccms-btn ccms-btn-ghost"
-                              style={{ 
-                                padding: '6px 12px', 
-                                fontSize: '11px',
-                                minHeight: '32px',
-                              }}
-                              onClick={() => handleExtend(s)}
-                            >
-                              {language === 'ar' ? '+30 دقيقة' : 'Extend 30m'}
-                            </button>
-                          )}
+                        ) : (
                           <button
                             type="button"
                             className="ccms-btn ccms-btn-ghost"
-                            style={{ 
-                              padding: '6px 12px', 
+                            style={{
+                              padding: '6px 12px',
                               fontSize: '11px',
                               minHeight: '32px',
-                              color: 'var(--accent-cyan)',
-                              borderColor: 'rgba(0, 194, 255, 0.4)',
-                              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
+                              color: 'var(--accent-green)',
+                              borderColor: 'rgba(34, 197, 94, 0.4)',
                             }}
-                            onClick={() => setCafeTarget(s)}
+                            onClick={() => handleResume(s)}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
-                            {language === 'ar' ? 'مشروب +' : '+ Café'}
+                            {language === 'ar' ? 'استئناف' : 'Resume'}
                           </button>
-                          {!s.is_paused ? (
-                            <button
-                              type="button"
-                              className="ccms-btn ccms-btn-ghost"
-                              style={{ 
-                                padding: '6px 12px', 
-                                fontSize: '11px',
-                                minHeight: '32px',
-                                color: 'var(--accent-yellow)',
-                                borderColor: 'rgba(245, 158, 11, 0.4)',
-                              }}
-                              onClick={() => handlePause(s)}
-                            >
-                              {language === 'ar' ? 'تعليق' : 'Pause'}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="ccms-btn ccms-btn-ghost"
-                              style={{ 
-                                padding: '6px 12px', 
-                                fontSize: '11px',
-                                minHeight: '32px',
-                                color: 'var(--accent-green)',
-                                borderColor: 'rgba(34, 197, 94, 0.4)',
-                              }}
-                              onClick={() => handleResume(s)}
-                            >
-                              {language === 'ar' ? 'استئناف' : 'Resume'}
-                            </button>
-                          )}
-                          <Button 
-                            variant="danger" 
-                            disabled={s.is_paused}
-                            title={s.is_paused ? (language === 'ar' ? 'استأنف الجلسة أولاً قبل الإنهاء' : 'Resume session before ending') : undefined}
-                            onClick={() => setEndTarget(s)} 
-                            style={{ 
-                              padding: '6px 14px', 
-                              fontSize: '11px',
-                              minHeight: '32px',
-                              opacity: s.is_paused ? 0.5 : 1,
-                            }}
-                          >
-                            {language === 'ar' ? 'إنهاء' : 'End'}
-                          </Button>
-                        </div>
-                      ),
-                    },
-                  ]
+                        )}
+                        <Button
+                          variant="danger"
+                          disabled={s.is_paused}
+                          title={s.is_paused ? (language === 'ar' ? 'استأنف الجلسة أولاً قبل الإنهاء' : 'Resume session before ending') : undefined}
+                          onClick={() => setEndTarget(s)}
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '11px',
+                            minHeight: '32px',
+                            opacity: s.is_paused ? 0.5 : 1,
+                          }}
+                        >
+                          {language === 'ar' ? 'إنهاء' : 'End'}
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ]
                 : [
-                    { 
-                      key: 'device', 
-                      header: language === 'ar' ? 'الجهاز' : 'Device', 
-                      render: (s: Session) => <strong>{s.device?.name ?? '—'}</strong> 
-                    },
-                    { 
-                      key: 'customer', 
-                      header: language === 'ar' ? 'العميل' : 'Customer', 
-                      render: (s: Session) => {
-                        const hasCustomName = s.customer?.name && s.customer.name !== 'Walk-in';
-                        const isRegistered = s.customer?.username && !s.customer.username.startsWith('walkin_');
-                        if (hasCustomName) {
-                          return <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.customer!.name}</span>;
-                        }
-                        if (isRegistered) {
-                          return (
-                            <Link 
-                              to={`/customers/${s.customer_id}`} 
-                              style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
-                            >
-                              @{s.customer!.username}
-                            </Link>
-                          );
-                        }
-                        return <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'عميل بدون حساب' : 'Walk-in'}</span>;
+                  {
+                    key: 'device',
+                    header: language === 'ar' ? 'الجهاز' : 'Device',
+                    render: (s: Session) => <strong>{s.device?.name ?? '—'}</strong>
+                  },
+                  {
+                    key: 'customer',
+                    header: language === 'ar' ? 'العميل' : 'Customer',
+                    render: (s: Session) => {
+                      const hasCustomName = s.customer?.name && s.customer.name !== 'Walk-in';
+                      const isRegistered = s.customer?.username && !s.customer.username.startsWith('walkin_');
+                      if (hasCustomName) {
+                        return <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.customer!.name}</span>;
                       }
-                    },
-                    { 
-                      key: 'ended', 
-                      header: language === 'ar' ? 'انتهت في' : 'Ended', 
-                      render: (s: Session) => formatDateTime(s.ended_at) 
-                    },
-                    { 
-                      key: 'duration', 
-                      header: language === 'ar' ? 'المدة' : 'Duration', 
-                      render: (s: Session) => formatDuration(s.duration_minutes) 
-                    },
-                    {
-                      key: 'cost',
-                      header: language === 'ar' ? 'التكلفة' : 'Cost',
-                      align: 'right' as const,
-                      render: (s: Session) => (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-green)', fontWeight: 600 }}>
-                            {formatCurrency(s.total_cost)}
+                      if (isRegistered) {
+                        return (
+                          <Link
+                            to={`/customers/${s.customer_id}`}
+                            style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
+                          >
+                            @{s.customer!.username}
+                          </Link>
+                        );
+                      }
+                      return <span style={{ color: 'var(--text-secondary)' }}>{language === 'ar' ? 'عميل بدون حساب' : 'Walk-in'}</span>;
+                    }
+                  },
+                  {
+                    key: 'ended',
+                    header: language === 'ar' ? 'انتهت في' : 'Ended',
+                    render: (s: Session) => formatDateTime(s.ended_at)
+                  },
+                  {
+                    key: 'duration',
+                    header: language === 'ar' ? 'المدة' : 'Duration',
+                    render: (s: Session) => formatDuration(s.duration_minutes)
+                  },
+                  {
+                    key: 'cost',
+                    header: language === 'ar' ? 'التكلفة' : 'Cost',
+                    align: 'right' as const,
+                    render: (s: Session) => (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-green)', fontWeight: 600 }}>
+                          {formatCurrency(s.total_cost)}
+                        </span>
+                        {s.is_overtime && s.overtime_minutes && (
+                          <span style={{ fontSize: '10px', color: 'var(--accent-red)', fontWeight: 'bold' }}>
+                            {language === 'ar' ? `وقت إضافي (${s.overtime_minutes} د)` : `Overtime (${s.overtime_minutes}m)`}
                           </span>
-                          {s.is_overtime && s.overtime_minutes && (
-                            <span style={{ fontSize: '10px', color: 'var(--accent-red)', fontWeight: 'bold' }}>
-                              {language === 'ar' ? `وقت إضافي (${s.overtime_minutes} د)` : `Overtime (${s.overtime_minutes}m)`}
-                            </span>
-                          )}
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'status',
-                      header: language === 'ar' ? 'الحالة' : 'Status',
-                      align: 'right' as const,
-                      render: () => <Badge label={language === 'ar' ? 'منتهية' : 'Ended'} color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />,
-                    },
-                  ]
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'status',
+                    header: language === 'ar' ? 'الحالة' : 'Status',
+                    align: 'right' as const,
+                    render: () => <Badge label={language === 'ar' ? 'منتهية' : 'Ended'} color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />,
+                  },
+                ]
             }
             data={visible}
             rowKey={(s) => s.id}

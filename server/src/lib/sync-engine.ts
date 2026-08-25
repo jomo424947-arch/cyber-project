@@ -20,10 +20,10 @@ async function checkOnline(): Promise<boolean> {
 /** Check local tenant status and update it in SQLite. */
 async function verifySubscription(): Promise<void> {
   if (!cloudSupabase) return;
-  
+
   const db = getDb();
   let localTenantId: string | null = null;
-  
+
   try {
     const stmt = db.prepare('SELECT tenant_id FROM tenant_config LIMIT 1');
     if (stmt.step()) {
@@ -33,16 +33,16 @@ async function verifySubscription(): Promise<void> {
   } catch (err) {
     return;
   }
-  
+
   if (!localTenantId) return;
-  
+
   try {
     const { data: tenant } = await cloudSupabase
       .from('tenants')
       .select('status')
       .eq('id', localTenantId)
       .maybeSingle();
-      
+
     if (tenant) {
       db.run('UPDATE tenant_config SET status = ?, last_checked_at = datetime("now")', [tenant.status]);
       saveDatabase();
@@ -105,74 +105,163 @@ export function isLocalRecordPendingSync(tableName: string, recordId: string): b
   }
 }
 
-/** Pull latest records from Supabase Cloud into local SQLite DB using Incremental Sync. */
+/** Pull latest records from Supabase Cloud into local SQLite DB using Parallel Incremental Sync. */
 export async function pullFromCloud(tenantId: string): Promise<void> {
   if (!cloudSupabase || !tenantId) return;
 
   const db = getDb();
-  console.log(`[sync] Incremental pull from cloud for tenant: ${tenantId}...`);
+  console.log(`[sync] Parallel pull from cloud for tenant: ${tenantId}...`);
 
   try {
-    // 0. Pull users / employees (incremental by updated_at)
-    try {
-      const lastSynced = getLastSyncedAt('users', tenantId);
-      let query = cloudSupabase
-        .from('users')
-        .select('id, email, full_name, role, tenant_id, created_at, updated_at')
-        .eq('tenant_id', tenantId);
-      if (lastSynced) query = query.gt('updated_at', lastSynced);
+    // Build all queries concurrently
+    const lastUsersSynced = getLastSyncedAt('users', tenantId);
+    let usersQuery = cloudSupabase
+      .from('users')
+      .select('id, email, full_name, role, tenant_id, created_at, updated_at')
+      .eq('tenant_id', tenantId);
+    if (lastUsersSynced) usersQuery = usersQuery.gt('updated_at', lastUsersSynced);
 
-      const { data: users } = await query;
-
-      if (users && users.length > 0) {
-        let maxUpdated = lastSynced || '';
-        for (const u of users) {
-          if (isLocalRecordPendingSync('users', u.id)) {
-            console.log(`[sync] Preserving unsynced local user modifications for id: ${u.id}`);
-            continue;
-          }
-          db.run(
-            `INSERT INTO users (id, email, full_name, role, tenant_id, created_at, updated_at, synced, synced_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
-             ON CONFLICT(id) DO UPDATE SET
-               email = excluded.email,
-               full_name = excluded.full_name,
-               role = excluded.role,
-               tenant_id = excluded.tenant_id,
-               updated_at = excluded.updated_at,
-               synced = 1,
-               synced_at = datetime('now')`,
-            [
-              u.id,
-              u.email,
-              u.full_name || null,
-              u.role || 'staff',
-              tenantId,
-              u.created_at || new Date().toISOString(),
-              u.updated_at || new Date().toISOString(),
-            ]
-          );
-          if (u.updated_at && u.updated_at > maxUpdated) maxUpdated = u.updated_at;
-        }
-        if (maxUpdated) setLastSyncedAt('users', tenantId, maxUpdated);
-      }
-    } catch (uErr: any) {
-      console.warn('[sync] Non-critical error pulling users:', uErr.message);
-    }
-
-    // 1. Pull devices (incremental by updated_at)
     const lastDevicesSynced = getLastSyncedAt('devices', tenantId);
     let devQuery = cloudSupabase.from('devices').select('*').eq('tenant_id', tenantId);
     if (lastDevicesSynced) devQuery = devQuery.gt('updated_at', lastDevicesSynced);
-    const { data: devices } = await devQuery;
 
+    const lastCustSynced = getLastSyncedAt('customers', tenantId);
+    let custQuery = cloudSupabase.from('customers').select('*').eq('tenant_id', tenantId);
+    if (lastCustSynced) custQuery = custQuery.gt('created_at', lastCustSynced);
+
+    // For products, always pull full catalogue for tenant so price/stock updates are instantly synced
+    const prodQuery = cloudSupabase.from('products').select('*').eq('tenant_id', tenantId);
+
+    const lastSessSynced = getLastSyncedAt('sessions', tenantId);
+    let sessQuery = cloudSupabase.from('sessions').select('*').eq('tenant_id', tenantId);
+    if (lastSessSynced) {
+      sessQuery = sessQuery.or(`status.eq.active,created_at.gt.${lastSessSynced},ended_at.gt.${lastSessSynced}`);
+    }
+
+    const lastInvSynced = getLastSyncedAt('invoices', tenantId);
+    let invQuery = cloudSupabase.from('invoices').select('*').eq('tenant_id', tenantId);
+    if (lastInvSynced) {
+      invQuery = invQuery.or(`issued_at.gt.${lastInvSynced},paid_at.gt.${lastInvSynced}`);
+    }
+
+    const lastResSynced = getLastSyncedAt('reservations', tenantId);
+    let resQuery = cloudSupabase.from('reservations').select('*').eq('tenant_id', tenantId);
+    if (lastResSynced) {
+      resQuery = resQuery.or(`status.in.(pending,active),created_at.gt.${lastResSynced}`);
+    }
+
+    const lastRoomSynced = getLastSyncedAt('rooms', tenantId);
+    let roomQuery = cloudSupabase.from('rooms').select('*').eq('tenant_id', tenantId);
+    if (lastRoomSynced) roomQuery = roomQuery.gt('updated_at', lastRoomSynced);
+
+    const lastShiftSynced = getLastSyncedAt('shifts', tenantId);
+    let shiftQuery = cloudSupabase.from('shifts').select('*').eq('tenant_id', tenantId);
+    if (lastShiftSynced) {
+      shiftQuery = shiftQuery.or(`status.eq.active,created_at.gt.${lastShiftSynced},ended_at.gt.${lastShiftSynced}`);
+    }
+
+    const lastExpSynced = getLastSyncedAt('shift_expenses', tenantId);
+    let expQuery = cloudSupabase.from('shift_expenses').select('*').eq('tenant_id', tenantId);
+    if (lastExpSynced) expQuery = expQuery.gt('created_at', lastExpSynced);
+
+    const lastOrderSynced = getLastSyncedAt('session_orders', tenantId);
+    let orderQuery = cloudSupabase
+      .from('session_orders')
+      .select('*, session:sessions!inner(tenant_id)')
+      .eq('session.tenant_id', tenantId);
+    if (lastOrderSynced) orderQuery = orderQuery.gt('created_at', lastOrderSynced);
+
+    const lastStSynced = getLastSyncedAt('standalone_orders', tenantId);
+    let stQuery = cloudSupabase.from('standalone_orders').select('*').eq('tenant_id', tenantId);
+    if (lastStSynced) stQuery = stQuery.gt('created_at', lastStSynced);
+
+    const lastTrSynced = getLastSyncedAt('session_transfers', tenantId);
+    let trQuery = cloudSupabase.from('session_transfers').select('*').eq('tenant_id', tenantId);
+    if (lastTrSynced) trQuery = trQuery.gt('created_at', lastTrSynced);
+
+    const lastPauseSynced = getLastSyncedAt('session_pauses', tenantId);
+    let pauseQuery = cloudSupabase.from('session_pauses').select('*').eq('tenant_id', tenantId);
+    if (lastPauseSynced) {
+      pauseQuery = pauseQuery.or(`paused_at.gt.${lastPauseSynced},resumed_at.gt.${lastPauseSynced}`);
+    }
+
+    const lastStockSynced = getLastSyncedAt('product_stock_logs', tenantId);
+    let stockQuery = cloudSupabase.from('product_stock_logs').select('*').eq('tenant_id', tenantId);
+    if (lastStockSynced) stockQuery = stockQuery.gt('created_at', lastStockSynced);
+
+    // Execute all 15 queries concurrently
+    const [
+      usersRes,
+      devicesRes,
+      customersRes,
+      productsRes,
+      sessionsRes,
+      invoicesRes,
+      reservationsRes,
+      roomsRes,
+      shiftsRes,
+      shiftExpensesRes,
+      sessionOrdersRes,
+      standaloneOrdersRes,
+      transfersRes,
+      pausesRes,
+      stockLogsRes,
+    ] = await Promise.all([
+      usersQuery,
+      devQuery,
+      custQuery,
+      prodQuery,
+      sessQuery,
+      invQuery,
+      resQuery,
+      roomQuery,
+      shiftQuery,
+      expQuery,
+      orderQuery,
+      stQuery,
+      trQuery,
+      pauseQuery,
+      stockQuery,
+    ]);
+
+    // 0. Process users
+    const users = usersRes.data;
+    if (users && users.length > 0) {
+      let maxUpdated = lastUsersSynced || '';
+      for (const u of users) {
+        if (isLocalRecordPendingSync('users', u.id)) continue;
+        db.run(
+          `INSERT INTO users (id, email, full_name, role, tenant_id, created_at, updated_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             email = excluded.email,
+             full_name = excluded.full_name,
+             role = excluded.role,
+             tenant_id = excluded.tenant_id,
+             updated_at = excluded.updated_at,
+             synced = 1,
+             synced_at = datetime('now')`,
+          [
+            u.id,
+            u.email,
+            u.full_name || null,
+            u.role || 'staff',
+            tenantId,
+            u.created_at || new Date().toISOString(),
+            u.updated_at || new Date().toISOString(),
+          ]
+        );
+        if (u.updated_at && u.updated_at > maxUpdated) maxUpdated = u.updated_at;
+      }
+      if (maxUpdated) setLastSyncedAt('users', tenantId, maxUpdated);
+    }
+
+    // 1. Process devices
+    const devices = devicesRes.data;
     if (devices && devices.length > 0) {
       let maxUpdated = lastDevicesSynced || '';
       for (const d of devices) {
-        if (isLocalRecordPendingSync('devices', d.id)) {
-          console.log(`[sync] Preserving unsynced local device modifications for id: ${d.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('devices', d.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO devices (id, name, type, status, specs, hourly_rate, hourly_rate_multi, archived, tenant_id, created_at, updated_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -195,19 +284,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxUpdated) setLastSyncedAt('devices', tenantId, maxUpdated);
     }
 
-    // 2. Pull customers (incremental by created_at)
-    const lastCustSynced = getLastSyncedAt('customers', tenantId);
-    let custQuery = cloudSupabase.from('customers').select('*').eq('tenant_id', tenantId);
-    if (lastCustSynced) custQuery = custQuery.gt('created_at', lastCustSynced);
-    const { data: customers } = await custQuery;
-
+    // 2. Process customers
+    const customers = customersRes.data;
     if (customers && customers.length > 0) {
       let maxCreated = lastCustSynced || '';
       for (const c of customers) {
-        if (isLocalRecordPendingSync('customers', c.id)) {
-          console.log(`[sync] Preserving unsynced local customer modifications for id: ${c.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('customers', c.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO customers (id, username, name, phone, email, tenant_id, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -218,46 +300,97 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxCreated) setLastSyncedAt('customers', tenantId, maxCreated);
     }
 
-    // 3. Pull products (incremental by created_at)
-    const lastProdSynced = getLastSyncedAt('products', tenantId);
-    let prodQuery = cloudSupabase.from('products').select('*').eq('tenant_id', tenantId);
-    if (lastProdSynced) prodQuery = prodQuery.gt('created_at', lastProdSynced);
-    const { data: products } = await prodQuery;
-
+    // 3. Process products
+    const products = productsRes.data;
     if (products && products.length > 0) {
-      let maxCreated = lastProdSynced || '';
       for (const p of products) {
-        if (isLocalRecordPendingSync('products', p.id)) {
-          console.log(`[sync] Preserving unsynced local product modifications for id: ${p.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('products', p.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO products (id, name, price, cost_price, stock, tenant_id, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
           [p.id, p.name, Number(p.price) || 0, Number(p.cost_price) || null, Number(p.stock) || 0, tenantId, p.created_at || new Date().toISOString()]
         );
-        if (p.created_at && p.created_at > maxCreated) maxCreated = p.created_at;
       }
-      if (maxCreated) setLastSyncedAt('products', tenantId, maxCreated);
+      setLastSyncedAt('products', tenantId, new Date().toISOString());
     }
 
-    // 4. Pull sessions (incremental: active sessions + newly created/ended sessions)
-    const lastSessSynced = getLastSyncedAt('sessions', tenantId);
-    let sessQuery = cloudSupabase.from('sessions').select('*').eq('tenant_id', tenantId);
-    if (lastSessSynced) {
-      sessQuery = sessQuery.or(`status.eq.active,created_at.gt.${lastSessSynced},ended_at.gt.${lastSessSynced}`);
+    // 4. Process rooms
+    const rooms = roomsRes.data;
+    if (rooms && rooms.length > 0) {
+      let maxUpdated = lastRoomSynced || '';
+      for (const rm of rooms) {
+        if (isLocalRecordPendingSync('rooms', rm.id)) continue;
+        db.run(
+          `INSERT OR REPLACE INTO rooms (id, name, icon, device_id, tenant_id, created_at, updated_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          [
+            rm.id,
+            rm.name,
+            rm.icon || 'sports_esports',
+            rm.device_id || null,
+            tenantId,
+            rm.created_at || new Date().toISOString(),
+            rm.updated_at || new Date().toISOString(),
+          ]
+        );
+        if (rm.updated_at && rm.updated_at > maxUpdated) maxUpdated = rm.updated_at;
+      }
+      if (maxUpdated) setLastSyncedAt('rooms', tenantId, maxUpdated);
     }
-    const { data: sessions } = await sessQuery;
 
-    if (sessions && sessions.length > 0) {
-      let maxTime = lastSessSynced || '';
-      for (const s of sessions) {
-        if (isLocalRecordPendingSync('sessions', s.id)) {
-          console.log(`[sync] Preserving unsynced local session modifications for id: ${s.id}`);
+    // 5. Process shifts
+    const shifts = shiftsRes.data;
+    if (shifts && shifts.length > 0) {
+      let maxTime = lastShiftSynced || '';
+      for (const sh of shifts) {
+        if (isLocalRecordPendingSync('shifts', sh.id)) continue;
+
+        const localStmt = db.prepare('SELECT status, synced FROM shifts WHERE id = ?');
+        localStmt.bind([sh.id]);
+        let localStatus: string | null = null;
+        let localSynced: number | null = null;
+        if (localStmt.step()) {
+          const row = localStmt.getAsObject();
+          localStatus = row.status as string;
+          localSynced = row.synced as number;
+        }
+        localStmt.free();
+
+        if (localStatus === 'closed' && sh.status === 'active' && localSynced === 0) {
           continue;
         }
 
-        // Guard: Do not overwrite locally ended sessions back to active
+        db.run(
+          `INSERT OR REPLACE INTO shifts (id, user_id, tenant_id, started_at, ended_at, opening_cash, closing_cash, total_revenue, total_expenses, notes, status, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          [
+            sh.id,
+            sh.user_id,
+            tenantId,
+            sh.started_at || new Date().toISOString(),
+            sh.ended_at || null,
+            Number(sh.opening_cash) || 0,
+            sh.closing_cash !== null && sh.closing_cash !== undefined ? Number(sh.closing_cash) : null,
+            Number(sh.total_revenue) || 0,
+            Number(sh.total_expenses) || 0,
+            sh.notes || null,
+            sh.status || 'active',
+            sh.created_at || new Date().toISOString(),
+          ]
+        );
+        const candidateTime = sh.ended_at || sh.created_at || sh.started_at;
+        if (candidateTime && candidateTime > maxTime) maxTime = candidateTime;
+      }
+      if (maxTime) setLastSyncedAt('shifts', tenantId, maxTime);
+    }
+
+    // 6. Process sessions
+    const sessions = sessionsRes.data;
+    if (sessions && sessions.length > 0) {
+      let maxTime = lastSessSynced || '';
+      for (const s of sessions) {
+        if (isLocalRecordPendingSync('sessions', s.id)) continue;
+
         const localStmt = db.prepare('SELECT status, synced FROM sessions WHERE id = ?');
         localStmt.bind([s.id]);
         let localStatus: string | null = null;
@@ -304,7 +437,6 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
           ]
         );
 
-        // Update local device status to match active/ended session state
         if (s.status === 'active' && s.device_id) {
           db.run("UPDATE devices SET status = 'in_use' WHERE id = ? AND status != 'in_use'", [s.device_id]);
         } else if (s.status === 'ended' && s.device_id) {
@@ -317,21 +449,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxTime) setLastSyncedAt('sessions', tenantId, maxTime);
     }
 
-    // 5. Pull invoices (incremental by issued_at / paid_at)
-    const lastInvSynced = getLastSyncedAt('invoices', tenantId);
-    let invQuery = cloudSupabase.from('invoices').select('*').eq('tenant_id', tenantId);
-    if (lastInvSynced) {
-      invQuery = invQuery.or(`issued_at.gt.${lastInvSynced},paid_at.gt.${lastInvSynced}`);
-    }
-    const { data: invoices } = await invQuery;
-
+    // 7. Process invoices
+    const invoices = invoicesRes.data;
     if (invoices && invoices.length > 0) {
       let maxTime = lastInvSynced || '';
       for (const inv of invoices) {
-        if (isLocalRecordPendingSync('invoices', inv.id)) {
-          console.log(`[sync] Preserving unsynced local invoice modifications for id: ${inv.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('invoices', inv.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO invoices (
             id, session_id, amount, subtotal, discount_amount, discount_type, discount_value,
@@ -366,21 +489,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxTime) setLastSyncedAt('invoices', tenantId, maxTime);
     }
 
-    // 6. Pull reservations (incremental: pending/active + created_at)
-    const lastResSynced = getLastSyncedAt('reservations', tenantId);
-    let resQuery = cloudSupabase.from('reservations').select('*').eq('tenant_id', tenantId);
-    if (lastResSynced) {
-      resQuery = resQuery.or(`status.in.(pending,active),created_at.gt.${lastResSynced}`);
-    }
-    const { data: reservations } = await resQuery;
-
+    // 8. Process reservations
+    const reservations = reservationsRes.data;
     if (reservations && reservations.length > 0) {
       let maxCreated = lastResSynced || '';
       for (const r of reservations) {
-        if (isLocalRecordPendingSync('reservations', r.id)) {
-          console.log(`[sync] Preserving unsynced local reservation modifications for id: ${r.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('reservations', r.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO reservations (id, device_id, customer_id, reserved_from, reserved_until, status, notes, created_by, tenant_id, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -402,107 +516,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxCreated) setLastSyncedAt('reservations', tenantId, maxCreated);
     }
 
-    // 7. Pull rooms (incremental by updated_at)
-    const lastRoomSynced = getLastSyncedAt('rooms', tenantId);
-    let roomQuery = cloudSupabase.from('rooms').select('*').eq('tenant_id', tenantId);
-    if (lastRoomSynced) roomQuery = roomQuery.gt('updated_at', lastRoomSynced);
-    const { data: rooms } = await roomQuery;
-
-    if (rooms && rooms.length > 0) {
-      let maxUpdated = lastRoomSynced || '';
-      for (const rm of rooms) {
-        if (isLocalRecordPendingSync('rooms', rm.id)) {
-          console.log(`[sync] Preserving unsynced local room modifications for id: ${rm.id}`);
-          continue;
-        }
-        db.run(
-          `INSERT OR REPLACE INTO rooms (id, name, icon, device_id, tenant_id, created_at, updated_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
-          [
-            rm.id,
-            rm.name,
-            rm.icon || 'sports_esports',
-            rm.device_id || null,
-            tenantId,
-            rm.created_at || new Date().toISOString(),
-            rm.updated_at || new Date().toISOString(),
-          ]
-        );
-        if (rm.updated_at && rm.updated_at > maxUpdated) maxUpdated = rm.updated_at;
-      }
-      if (maxUpdated) setLastSyncedAt('rooms', tenantId, maxUpdated);
-    }
-
-    // 8. Pull shifts (incremental: active shifts + newly created/ended shifts)
-    const lastShiftSynced = getLastSyncedAt('shifts', tenantId);
-    let shiftQuery = cloudSupabase.from('shifts').select('*').eq('tenant_id', tenantId);
-    if (lastShiftSynced) {
-      shiftQuery = shiftQuery.or(`status.eq.active,created_at.gt.${lastShiftSynced},ended_at.gt.${lastShiftSynced}`);
-    }
-    const { data: shifts } = await shiftQuery;
-
-    if (shifts && shifts.length > 0) {
-      let maxTime = lastShiftSynced || '';
-      for (const sh of shifts) {
-        if (isLocalRecordPendingSync('shifts', sh.id)) {
-          console.log(`[sync] Preserving unsynced local shift modifications for id: ${sh.id}`);
-          continue;
-        }
-
-        // Guard: check if local shift has unsynced changes
-        const localStmt = db.prepare('SELECT status, synced FROM shifts WHERE id = ?');
-        localStmt.bind([sh.id]);
-        let localStatus: string | null = null;
-        let localSynced: number | null = null;
-        if (localStmt.step()) {
-          const row = localStmt.getAsObject();
-          localStatus = row.status as string;
-          localSynced = row.synced as number;
-        }
-        localStmt.free();
-
-        // If local is closed but cloud is active, and local is pending sync, don't revert
-        if (localStatus === 'closed' && sh.status === 'active' && localSynced === 0) {
-          continue;
-        }
-
-        db.run(
-          `INSERT OR REPLACE INTO shifts (id, user_id, tenant_id, started_at, ended_at, opening_cash, closing_cash, total_revenue, total_expenses, notes, status, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
-          [
-            sh.id,
-            sh.user_id,
-            tenantId,
-            sh.started_at || new Date().toISOString(),
-            sh.ended_at || null,
-            Number(sh.opening_cash) || 0,
-            sh.closing_cash !== null && sh.closing_cash !== undefined ? Number(sh.closing_cash) : null,
-            Number(sh.total_revenue) || 0,
-            Number(sh.total_expenses) || 0,
-            sh.notes || null,
-            sh.status || 'active',
-            sh.created_at || new Date().toISOString(),
-          ]
-        );
-        const candidateTime = sh.ended_at || sh.created_at || sh.started_at;
-        if (candidateTime && candidateTime > maxTime) maxTime = candidateTime;
-      }
-      if (maxTime) setLastSyncedAt('shifts', tenantId, maxTime);
-    }
-
-    // 9. Pull shift expenses (incremental by created_at)
-    const lastExpSynced = getLastSyncedAt('shift_expenses', tenantId);
-    let expQuery = cloudSupabase.from('shift_expenses').select('*').eq('tenant_id', tenantId);
-    if (lastExpSynced) expQuery = expQuery.gt('created_at', lastExpSynced);
-    const { data: shiftExpenses } = await expQuery;
-
+    // 9. Process shift expenses
+    const shiftExpenses = shiftExpensesRes.data;
     if (shiftExpenses && shiftExpenses.length > 0) {
       let maxCreated = lastExpSynced || '';
       for (const ex of shiftExpenses) {
-        if (isLocalRecordPendingSync('shift_expenses', ex.id)) {
-          console.log(`[sync] Preserving unsynced local shift expense modifications for id: ${ex.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('shift_expenses', ex.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO shift_expenses (id, shift_id, tenant_id, amount, category, description, created_by, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -522,22 +541,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxCreated) setLastSyncedAt('shift_expenses', tenantId, maxCreated);
     }
 
-    // 10. Pull session orders (incremental by created_at)
-    const lastOrderSynced = getLastSyncedAt('session_orders', tenantId);
-    let orderQuery = cloudSupabase
-      .from('session_orders')
-      .select('*, session:sessions!inner(tenant_id)')
-      .eq('session.tenant_id', tenantId);
-    if (lastOrderSynced) orderQuery = orderQuery.gt('created_at', lastOrderSynced);
-    const { data: sessionOrders } = await orderQuery;
-
+    // 10. Process session orders
+    const sessionOrders = sessionOrdersRes.data;
     if (sessionOrders && sessionOrders.length > 0) {
       let maxCreated = lastOrderSynced || '';
       for (const so of sessionOrders) {
-        if (isLocalRecordPendingSync('session_orders', so.id)) {
-          console.log(`[sync] Preserving unsynced local session order modifications for id: ${so.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('session_orders', so.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO session_orders (id, session_id, product_id, quantity, unit_price, total_price, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -556,19 +565,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxCreated) setLastSyncedAt('session_orders', tenantId, maxCreated);
     }
 
-    // 11. Pull standalone orders (incremental by created_at)
-    const lastStSynced = getLastSyncedAt('standalone_orders', tenantId);
-    let stQuery = cloudSupabase.from('standalone_orders').select('*').eq('tenant_id', tenantId);
-    if (lastStSynced) stQuery = stQuery.gt('created_at', lastStSynced);
-    const { data: standaloneOrders } = await stQuery;
-
+    // 11. Process standalone orders
+    const standaloneOrders = standaloneOrdersRes.data;
     if (standaloneOrders && standaloneOrders.length > 0) {
       let maxCreated = lastStSynced || '';
       for (const st of standaloneOrders) {
-        if (isLocalRecordPendingSync('standalone_orders', st.id)) {
-          console.log(`[sync] Preserving unsynced local standalone order modifications for id: ${st.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('standalone_orders', st.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO standalone_orders (id, tenant_id, product_id, quantity, unit_price, cost_price, total_price, payment_method, shift_id, created_by, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -591,19 +593,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxCreated) setLastSyncedAt('standalone_orders', tenantId, maxCreated);
     }
 
-    // 12. Pull session transfers (incremental by created_at)
-    const lastTrSynced = getLastSyncedAt('session_transfers', tenantId);
-    let trQuery = cloudSupabase.from('session_transfers').select('*').eq('tenant_id', tenantId);
-    if (lastTrSynced) trQuery = trQuery.gt('created_at', lastTrSynced);
-    const { data: transfers } = await trQuery;
-
+    // 12. Process transfers
+    const transfers = transfersRes.data;
     if (transfers && transfers.length > 0) {
       let maxCreated = lastTrSynced || '';
       for (const tr of transfers) {
-        if (isLocalRecordPendingSync('session_transfers', tr.id)) {
-          console.log(`[sync] Preserving unsynced local session transfer modifications for id: ${tr.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('session_transfers', tr.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO session_transfers (id, session_id, from_device_id, to_device_id, started_at, transferred_at, duration_minutes, hourly_rate, play_mode, cost, transferred_by, tenant_id, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -628,21 +623,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxCreated) setLastSyncedAt('session_transfers', tenantId, maxCreated);
     }
 
-    // 13. Pull session pauses (incremental by paused_at / resumed_at)
-    const lastPauseSynced = getLastSyncedAt('session_pauses', tenantId);
-    let pauseQuery = cloudSupabase.from('session_pauses').select('*').eq('tenant_id', tenantId);
-    if (lastPauseSynced) {
-      pauseQuery = pauseQuery.or(`paused_at.gt.${lastPauseSynced},resumed_at.gt.${lastPauseSynced}`);
-    }
-    const { data: pauses } = await pauseQuery;
-
+    // 13. Process pauses
+    const pauses = pausesRes.data;
     if (pauses && pauses.length > 0) {
       let maxTime = lastPauseSynced || '';
       for (const p of pauses) {
-        if (isLocalRecordPendingSync('session_pauses', p.id)) {
-          console.log(`[sync] Preserving unsynced local session pause modifications for id: ${p.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('session_pauses', p.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO session_pauses (id, session_id, tenant_id, paused_at, resumed_at, paused_by, resumed_by, reason, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -663,19 +649,12 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       if (maxTime) setLastSyncedAt('session_pauses', tenantId, maxTime);
     }
 
-    // 14. Pull stock logs (incremental by created_at)
-    const lastStockSynced = getLastSyncedAt('product_stock_logs', tenantId);
-    let stockQuery = cloudSupabase.from('product_stock_logs').select('*').eq('tenant_id', tenantId);
-    if (lastStockSynced) stockQuery = stockQuery.gt('created_at', lastStockSynced);
-    const { data: stockLogs } = await stockQuery;
-
+    // 14. Process stock logs
+    const stockLogs = stockLogsRes.data;
     if (stockLogs && stockLogs.length > 0) {
       let maxCreated = lastStockSynced || '';
       for (const sl of stockLogs) {
-        if (isLocalRecordPendingSync('product_stock_logs', sl.id)) {
-          console.log(`[sync] Preserving unsynced local stock log modifications for id: ${sl.id}`);
-          continue;
-        }
+        if (isLocalRecordPendingSync('product_stock_logs', sl.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO product_stock_logs (id, product_id, tenant_id, actor_id, change_type, delta, balance_after, reason, created_at, synced, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
@@ -697,7 +676,7 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
     }
 
     saveDatabase();
-    console.log(`[sync] Successfully pulled incremental updates from cloud for tenant: ${tenantId}.`);
+    console.log(`[sync] Successfully pulled parallel updates from cloud for tenant: ${tenantId}.`);
   } catch (err: any) {
     console.error('[sync] Error pulling from cloud:', err.message);
   }
@@ -780,7 +759,6 @@ export async function runSync(): Promise<void> {
 
         try {
           if (operation === 'DELETE') {
-            // Delete from Supabase cloud
             const { error } = await cloudSupabase
               .from(tableName)
               .delete()
@@ -789,14 +767,13 @@ export async function runSync(): Promise<void> {
             if (error) throw error;
             success = true;
           } else {
-            // INSERT or UPDATE: fetch the latest state from SQLite
             const localStmt = db.prepare(`SELECT * FROM "${tableName}" WHERE "id" = ?`);
             localStmt.bind([recordId]);
-            
+
             if (localStmt.step()) {
               const record = localStmt.getAsObject();
               const cleanedRecord = cleanForCloud(tableName, record);
-              
+
               const { error } = await cloudSupabase
                 .from(tableName)
                 .upsert(cleanedRecord);
@@ -804,14 +781,12 @@ export async function runSync(): Promise<void> {
               if (error) throw error;
               success = true;
 
-              // Mark local record as synced
               db.run(
                 `UPDATE "${tableName}" SET synced = 1, synced_at = datetime('now') WHERE "id" = ?`,
                 [recordId]
               );
             } else {
-              // Local record deleted/not found. Mark synced.
-              success = true; 
+              success = true;
             }
             localStmt.free();
           }
@@ -821,16 +796,20 @@ export async function runSync(): Promise<void> {
         }
 
         if (success) {
-          // Mark sync_queue item as synced
           db.run('UPDATE sync_queue SET synced = 1, error = NULL WHERE id = ?', [queueId]);
           console.log(`[sync] Synced ${operation} for ${tableName}:${recordId}`);
         } else {
-          // Log error and increment failure status if FK/schema mismatch so it doesn't loop infinitely
-          const isFkOrSchemaError = errorMsg.includes('foreign key') || errorMsg.includes('unique constraint') || errorMsg.includes('duplicate key') || errorMsg.includes('schema cache') || errorMsg.includes('column');
-          if (isFkOrSchemaError) {
-            db.run('UPDATE sync_queue SET synced = 2, error = ? WHERE id = ?', [`Skipped: ${errorMsg}`, queueId]);
+          // Track retry attempts instead of immediately permanently skipping
+          const currentAttempts = (item.error && item.error.match(/\[attempt (\d+)\]/))
+            ? parseInt(item.error.match(/\[attempt (\d+)\]/)![1], 10)
+            : 0;
+          const nextAttempt = currentAttempts + 1;
+          
+          if (nextAttempt >= 5) {
+            db.run('UPDATE sync_queue SET synced = 2, error = ? WHERE id = ?', [`Skipped after ${nextAttempt} attempts: ${errorMsg}`, queueId]);
+            console.warn(`[sync] Item ${queueId} (${tableName}:${recordId}) permanently skipped after ${nextAttempt} attempts.`);
           } else {
-            db.run('UPDATE sync_queue SET error = ? WHERE id = ?', [errorMsg, queueId]);
+            db.run('UPDATE sync_queue SET error = ? WHERE id = ?', [`[attempt ${nextAttempt}] ${errorMsg}`, queueId]);
           }
         }
       }
@@ -924,7 +903,7 @@ export function triggerImmediateSync(): void {
 /** Start the background sync worker. */
 export function startSyncEngine(intervalMs = 60000): void {
   if (_syncInterval) return;
-  
+
   // Run immediately on start, then periodically
   setTimeout(() => {
     runSync().catch(err => console.error('[sync] Startup sync failed:', err));

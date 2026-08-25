@@ -57,8 +57,8 @@ export default function RoomsPage() {
     };
   }, []);
 
-  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
-  usePolling(refetch, 60000);
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 15000);
 
   const activeByDevice = useMemo(() => {
     const map = new Map<string, Session>();
@@ -292,10 +292,10 @@ export default function RoomsPage() {
             const deviceType = device?.type || 'console';
             const isConsole = deviceType === 'console';
             const bgImage = deviceType === 'table'
-              ? '/assets/billiards_card_bg.jpg'
+              ? './assets/billiards_card_bg.jpg'
               : isConsole
-              ? (i % 2 === 0 ? '/assets/ps4_card_bg.jpg' : '/assets/ps5_card_bg.jpg')
-              : '/assets/pc_card_bg.jpg';
+                ? (i % 2 === 0 ? './assets/ps4_card_bg.jpg' : './assets/ps5_card_bg.jpg')
+                : './assets/pc_card_bg.jpg';
 
             const hourlyRate = playMode === 'multiplayer'
               ? (device?.hourly_rate_multi || 30)
@@ -602,10 +602,11 @@ export default function RoomsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                         {/* End Session Button */}
                         <button
-                          onClick={() => handleAction(device)}
                           disabled={session.is_paused}
+                          onClick={() => setEndTarget(session)}
                           style={{
-                            padding: '10px 16px',
+                            flex: 1,
+                            padding: '8px 12px',
                             borderRadius: '8px',
                             border: '1px solid rgba(239, 68, 68, 0.4)',
                             background: 'rgba(239, 68, 68, 0.12)',
@@ -615,10 +616,11 @@ export default function RoomsPage() {
                             cursor: session.is_paused ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '6px',
                           }}
                         >
-                          <span style={{ fontSize: '10px' }}>⏹</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>stop_circle</span>
                           <span>{language === 'ar' ? 'إنهاء الجلسة' : 'End Session'}</span>
                         </button>
 
@@ -636,7 +638,10 @@ export default function RoomsPage() {
                             }}
                           >
                             {session.is_paused ? (
-                              <span style={{ color: 'var(--accent-yellow)' }}>⏸ معلّقة</span>
+                              <span style={{ color: 'var(--accent-yellow)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pause</span>
+                                <span>{language === 'ar' ? 'معلّقة' : 'Paused'}</span>
+                              </span>
                             ) : session.session_type === 'fixed' && session.scheduled_end ? (
                               (() => {
                                 const endTime = new Date(session.scheduled_end).getTime();
@@ -665,13 +670,15 @@ export default function RoomsPage() {
                               background: 'rgba(245, 158, 11, 0.1)',
                               color: 'var(--accent-yellow)',
                               fontSize: '11px',
+                              fontWeight: 600,
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               gap: '4px',
                             }}
                           >
-                            ⏸ {language === 'ar' ? 'تعليق' : 'Pause'}
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pause</span>
+                            <span>{language === 'ar' ? 'تعليق' : 'Pause'}</span>
                           </button>
                         ) : (
                           <button
@@ -683,13 +690,15 @@ export default function RoomsPage() {
                               background: 'rgba(34, 197, 94, 0.1)',
                               color: 'var(--accent-green)',
                               fontSize: '11px',
+                              fontWeight: 600,
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               gap: '4px',
                             }}
                           >
-                            ▶ {language === 'ar' ? 'استئناف' : 'Resume'}
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>play_arrow</span>
+                            <span>{language === 'ar' ? 'استئناف' : 'Resume'}</span>
                           </button>
                         )}
 

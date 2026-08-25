@@ -73,8 +73,8 @@ export default function ShiftsPage() {
     fetchShiftsData();
   }, []);
 
-  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
-  usePolling(fetchShiftsData, 60000);
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(fetchShiftsData, 15000);
 
   // Live timer for active shift
   useEffect(() => {
@@ -1314,15 +1314,14 @@ export default function ShiftsPage() {
                     summaryData.cash_difference === 0
                       ? 'rgba(34, 197, 94, 0.1)'
                       : summaryData.cash_difference! > 0
-                      ? 'rgba(234, 179, 8, 0.1)'
-                      : 'rgba(239, 68, 68, 0.1)',
-                  border: `1px solid ${
-                    summaryData.cash_difference === 0
+                        ? 'rgba(234, 179, 8, 0.1)'
+                        : 'rgba(239, 68, 68, 0.1)',
+                  border: `1px solid ${summaryData.cash_difference === 0
                       ? 'rgba(34, 197, 94, 0.3)'
                       : summaryData.cash_difference! > 0
-                      ? 'rgba(234, 179, 8, 0.3)'
-                      : 'rgba(239, 68, 68, 0.3)'
-                  }`,
+                        ? 'rgba(234, 179, 8, 0.3)'
+                        : 'rgba(239, 68, 68, 0.3)'
+                    }`,
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',

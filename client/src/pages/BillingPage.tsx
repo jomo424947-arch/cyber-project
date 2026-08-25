@@ -31,17 +31,17 @@ export default function BillingPage() {
 
   const { data, loading, refetch } = useAsync(() => dataService.listInvoices(), []);
 
-  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
-  usePolling(refetch, 60000);
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 15000);
 
   const invoices = data ?? [];
-  
+
   // Filter & Search logic
   const filtered = useMemo(() => {
     let result = invoices;
     if (filter === 'paid') result = result.filter((i) => i.paid);
     if (filter === 'unpaid') result = result.filter((i) => !i.paid);
-    
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((i) => {
@@ -94,8 +94,8 @@ export default function BillingPage() {
   }, [filter, search]);
 
   return (
-    <Layout 
-      title={t('billing')} 
+    <Layout
+      title={t('billing')}
       subtitle={
         language === 'ar'
           ? 'متابعة شاملة للحسابات والمدفوعات، وإحصائيات استخدام الأجهزة وبث الفواتير بشكل مباشر.'
@@ -103,8 +103,8 @@ export default function BillingPage() {
       }
       actions={
         <>
-          <button 
-            className="ccms-btn ccms-btn-ghost" 
+          <button
+            className="ccms-btn ccms-btn-ghost"
             onClick={() => toast(language === 'ar' ? 'تم تصدير كشف الحساب بنجاح' : 'Excel summary sheet exported.', 'success')}
             style={{
               display: 'inline-flex',
@@ -119,8 +119,8 @@ export default function BillingPage() {
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
             <span>{language === 'ar' ? 'كشف حساب' : 'Generate Receipt'}</span>
           </button>
-          <button 
-            className="ccms-btn ccms-btn-primary" 
+          <button
+            className="ccms-btn ccms-btn-primary"
             onClick={() => toast(language === 'ar' ? 'جاري انتظار تأكيد الدفع الإلكتروني...' : 'Gateway scanner listening for payments...', 'info')}
             style={{
               display: 'inline-flex',
@@ -175,26 +175,26 @@ export default function BillingPage() {
                 cursor: 'pointer',
               }}
             >
-              {f === 'all' 
-                ? (language === 'ar' ? 'كل الفواتير' : 'All Invoices') 
-                : f === 'paid' 
-                ? (language === 'ar' ? 'الفواتير المدفوعة' : 'Paid Invoices') 
-                : (language === 'ar' ? 'غير المدفوعة' : 'Unpaid Invoices')}
+              {f === 'all'
+                ? (language === 'ar' ? 'كل الفواتير' : 'All Invoices')
+                : f === 'paid'
+                  ? (language === 'ar' ? 'الفواتير المدفوعة' : 'Paid Invoices')
+                  : (language === 'ar' ? 'غير المدفوعة' : 'Unpaid Invoices')}
             </button>
           ))}
         </div>
-        
+
         <div style={{ marginLeft: isRtl ? 'auto' : undefined, marginRight: isRtl ? undefined : 'auto', position: 'relative', minWidth: '260px' }}>
-          <span 
-            className="material-symbols-outlined" 
-            style={{ 
-              position: 'absolute', 
-              left: isRtl ? 'auto' : '12px', 
+          <span
+            className="material-symbols-outlined"
+            style={{
+              position: 'absolute',
+              left: isRtl ? 'auto' : '12px',
               right: isRtl ? '12px' : 'auto',
-              top: '50%', 
-              transform: 'translateY(-50%)', 
-              color: 'var(--text-muted)', 
-              fontSize: '16px' 
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+              fontSize: '16px'
             }}
           >
             search
@@ -227,8 +227,8 @@ export default function BillingPage() {
           <EmptyState
             icon="credit_card"
             title={
-              filter === 'all' 
-                ? (language === 'ar' ? 'لا توجد فواتير بعد' : 'No invoices yet') 
+              filter === 'all'
+                ? (language === 'ar' ? 'لا توجد فواتير بعد' : 'No invoices yet')
                 : (language === 'ar' ? `لا توجد فواتير ${filter}` : `No ${filter} invoices`)
             }
             description={language === 'ar' ? 'تُنشأ الفواتير تلقائياً عند إنهاء الجلسات.' : 'Invoices are generated automatically when a session ends.'}
@@ -251,15 +251,15 @@ export default function BillingPage() {
                   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div 
-                        style={{ 
-                          width: '32px', 
-                          height: '32px', 
-                          borderRadius: '50%', 
-                          background: 'var(--accent-cyan-dim)', 
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'var(--accent-cyan-dim)',
                           border: '1px solid var(--border-glow)',
-                          display: 'flex', 
-                          alignItems: 'center', 
+                          display: 'flex',
+                          alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: '11px',
                           fontWeight: 'bold',
@@ -394,7 +394,7 @@ export default function BillingPage() {
 
                     {/* More Actions Menu */}
                     <div style={{ position: 'relative', display: 'inline-block' }}>
-                      <button 
+                      <button
                         style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -407,21 +407,21 @@ export default function BillingPage() {
                       </button>
                       {activeMenuId === i.id && (
                         <>
-                          <div 
-                            style={{ position: 'fixed', inset: 0, zIndex: 90 }} 
+                          <div
+                            style={{ position: 'fixed', inset: 0, zIndex: 90 }}
                             onClick={() => setActiveMenuId(null)}
                           />
-                          <div 
-                            style={{ 
-                              position: 'absolute', 
-                              right: isRtl ? 'auto' : 0, 
-                              left: isRtl ? 0 : 'auto', 
-                              top: '24px', 
-                              background: 'var(--bg-elevated)', 
-                              border: '1px solid var(--border-default)', 
-                              borderRadius: '8px', 
-                              boxShadow: 'var(--shadow-glow-strong)', 
-                              zIndex: 100, 
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: isRtl ? 'auto' : 0,
+                              left: isRtl ? 0 : 'auto',
+                              top: '24px',
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border-default)',
+                              borderRadius: '8px',
+                              boxShadow: 'var(--shadow-glow-strong)',
+                              zIndex: 100,
                               minWidth: '150px',
                               overflow: 'hidden'
                             }}
@@ -432,11 +432,11 @@ export default function BillingPage() {
                                 setActiveMenuId(null);
                                 setDetailInvoice(i);
                               }}
-                              style={{ 
-                                width: '100%', 
-                                padding: '10px 16px', 
-                                textAlign: isRtl ? 'right' : 'left', 
-                                color: 'var(--accent-cyan)', 
+                              style={{
+                                width: '100%',
+                                padding: '10px 16px',
+                                textAlign: isRtl ? 'right' : 'left',
+                                color: 'var(--accent-cyan)',
                                 fontFamily: isRtl ? 'Cairo, sans-serif' : 'Inter, sans-serif',
                                 fontSize: '13px',
                                 fontWeight: 500,
@@ -457,11 +457,11 @@ export default function BillingPage() {
                               <button
                                 onClick={() => handlePay(i.id)}
                                 disabled={payingId === i.id}
-                                style={{ 
-                                  width: '100%', 
-                                  padding: '10px 16px', 
-                                  textAlign: isRtl ? 'right' : 'left', 
-                                  color: 'var(--accent-green)', 
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 16px',
+                                  textAlign: isRtl ? 'right' : 'left',
+                                  color: 'var(--accent-green)',
                                   fontFamily: isRtl ? 'Cairo, sans-serif' : 'Inter, sans-serif',
                                   fontSize: '13px',
                                   fontWeight: 500,
@@ -476,8 +476,8 @@ export default function BillingPage() {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                                {payingId === i.id 
-                                  ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...') 
+                                {payingId === i.id
+                                  ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...')
                                   : (language === 'ar' ? 'تأكيد السداد' : 'Mark as Paid')}
                               </button>
                             ) : null}
@@ -492,39 +492,39 @@ export default function BillingPage() {
             data={paginatedInvoices}
             rowKey={(i) => i.id}
           />
-          
+
           {/* Table pagination footer */}
-          <div 
-            style={{ 
-              padding: '16px 24px', 
-              borderTop: '1px solid var(--border-default)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between' 
+          <div
+            style={{
+              padding: '16px 24px',
+              borderTop: '1px solid var(--border-default)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
             }}
           >
-            <p 
-              style={{ 
-                fontFamily: 'JetBrains Mono, monospace', 
-                fontSize: '10px', 
-                fontWeight: 600, 
-                textTransform: 'uppercase', 
+            <p
+              style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '10px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
                 letterSpacing: '0.1em',
                 color: 'var(--text-muted)',
                 margin: 0
               }}
             >
-              {language === 'ar' 
+              {language === 'ar'
                 ? `عرض ${paginatedInvoices.length} من أصل ${filtered.length} معاملة مالية`
                 : `Displaying ${paginatedInvoices.length} of ${filtered.length} transactions`}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <button 
+              <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                style={{ 
-                  padding: '8px', 
-                  border: '1px solid var(--border-default)', 
+                style={{
+                  padding: '8px',
+                  border: '1px solid var(--border-default)',
                   borderRadius: '8px',
                   color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
                   opacity: currentPage === 1 ? 0.5 : 1,
@@ -539,12 +539,12 @@ export default function BillingPage() {
               <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-primary)', fontSize: '14px', fontWeight: 500 }}>
                 {currentPage} / {totalPages}
               </span>
-              <button 
+              <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                style={{ 
-                  padding: '8px', 
-                  border: '1px solid var(--border-default)', 
+                style={{
+                  padding: '8px',
+                  border: '1px solid var(--border-default)',
                   borderRadius: '8px',
                   color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
                   opacity: currentPage === totalPages ? 0.5 : 1,
@@ -574,12 +574,12 @@ export default function BillingPage() {
       )}
 
       {/* Bottom Visualization Section */}
-      <div 
-        style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))', 
-          gap: '24px', 
-          marginTop: '32px' 
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))',
+          gap: '24px',
+          marginTop: '32px'
         }}
       >
         {/* Peak utilization card */}
@@ -595,24 +595,24 @@ export default function BillingPage() {
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '40%' }} />
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '60%' }} />
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '85%' }} />
-            <div 
-              style={{ 
-                flexGrow: 1, 
-                background: 'rgba(0, 194, 255, 0.4)', 
-                borderRadius: '4px 4px 0 0', 
+            <div
+              style={{
+                flexGrow: 1,
+                background: 'rgba(0, 194, 255, 0.4)',
+                borderRadius: '4px 4px 0 0',
                 height: '95%',
                 boxShadow: '0 0 15px rgba(0, 194, 255, 0.2)',
                 position: 'relative'
               }}
             >
-              <div 
-                style={{ 
-                  position: 'absolute', 
-                  bottom: '100%', 
-                  left: '50%', 
-                  transform: 'translateX(-50%)', 
-                  background: 'var(--accent-cyan)', 
-                  padding: '4px 8px', 
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'var(--accent-cyan)',
+                  padding: '4px 8px',
                   borderRadius: '4px',
                   fontSize: '9px',
                   fontWeight: 'bold',
@@ -630,13 +630,13 @@ export default function BillingPage() {
             <div style={{ flexGrow: 1, background: 'rgba(0, 194, 255, 0.1)', borderRadius: '4px 4px 0 0', height: '30%' }} />
           </div>
 
-          <div 
-            style={{ 
-              marginTop: '16px', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              color: 'var(--text-muted)', 
-              fontFamily: 'JetBrains Mono, monospace', 
+          <div
+            style={{
+              marginTop: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              color: 'var(--text-muted)',
+              fontFamily: 'JetBrains Mono, monospace',
               fontSize: '10px',
               direction: 'ltr'
             }}
@@ -652,43 +652,43 @@ export default function BillingPage() {
         {/* Sync ledger card */}
         <div className="ccms-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div 
-              style={{ 
-                width: '64px', 
-                height: '64px', 
-                borderRadius: '50%', 
-                border: '4px solid var(--accent-cyan)', 
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                border: '4px solid var(--accent-cyan)',
                 borderTopColor: 'transparent',
                 animation: 'spin 1s linear infinite'
-              }} 
+              }}
             />
             <div>
               <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
                 {language === 'ar' ? 'المزامنة الحية نشطة...' : 'Real-time Syncing...'}
               </h3>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                {language === 'ar' 
+                {language === 'ar'
                   ? 'تم ربط بوابة الدفع المركزية. المعاملات مسجلة ومؤمنة بالكامل.'
                   : 'Connected to central payment gateway. All transactions are verifiable via blockchain hash.'}
               </p>
             </div>
           </div>
 
-          <div 
-            style={{ 
-              marginTop: '32px', 
-              padding: '16px', 
-              background: '#0e0e0e', 
-              borderRadius: '8px', 
-              border: '1px solid rgba(255, 255, 255, 0.05)' 
+          <div
+            style={{
+              marginTop: '32px',
+              padding: '16px',
+              background: '#0e0e0e',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
             }}
           >
-            <code 
-              style={{ 
-                fontFamily: 'JetBrains Mono, monospace', 
-                fontSize: '11px', 
-                color: 'rgba(0, 194, 255, 0.7)', 
-                display: 'block', 
+            <code
+              style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '11px',
+                color: 'rgba(0, 194, 255, 0.7)',
+                display: 'block',
                 lineHeight: '1.6',
                 direction: 'ltr',
                 textAlign: 'left',

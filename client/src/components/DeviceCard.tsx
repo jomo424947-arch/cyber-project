@@ -25,15 +25,15 @@ function getDeviceBgImage(type: string, name?: string, specs?: Record<string, an
   const lowerName = (name || '').toLowerCase();
   const modelId = (specs?.model_id || '').toLowerCase();
   if (type === 'table' || lowerName.includes('billiards') || lowerName.includes('بلياردو')) {
-    return '/assets/billiards_card_bg.jpg';
+    return './assets/billiards_card_bg.jpg';
   }
   if (modelId === 'ps4' || lowerName.includes('ps4') || (lowerName.includes('4') && !lowerName.includes('40'))) {
-    return '/assets/ps4_card_bg.jpg';
+    return './assets/ps4_card_bg.jpg';
   }
   if (type === 'pc' || lowerName.includes('pc')) {
-    return '/assets/pc_card_bg.jpg';
+    return './assets/pc_card_bg.jpg';
   }
-  return '/assets/ps5_card_bg.jpg';
+  return './assets/ps5_card_bg.jpg';
 }
 
 function getDeviceBrandBadge(type: string, name?: string, specs?: Record<string, any> | null) {
@@ -249,8 +249,12 @@ export function DeviceCard({
             fontSize: '13px',
             color: 'var(--accent-yellow)',
             fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
           }}>
-            ⏸ Session on hold
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>pause</span>
+            <span>Session on hold</span>
           </span>
         </div>
       );
@@ -427,9 +431,12 @@ export function DeviceCard({
                   fontSize: '11px',
                   cursor: 'pointer',
                   fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                ⏸
+                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pause</span>
               </button>
             )}
             {isActive && activeSession && activeSession.is_paused && onResumeSession && (
@@ -447,9 +454,12 @@ export function DeviceCard({
                   fontSize: '11px',
                   cursor: 'pointer',
                   fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                ▶
+                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>play_arrow</span>
               </button>
             )}
             {isActive && activeSession && onTransferSession && (

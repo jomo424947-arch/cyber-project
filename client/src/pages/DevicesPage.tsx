@@ -37,8 +37,8 @@ export default function DevicesPage() {
     return { devices, sessions, rooms };
   }, []);
 
-  // Auto-poll every 60 seconds (1 minute) for cross-instance sync (Desktop ↔ Web ↔ Mobile)
-  usePolling(refetch, 60000);
+  // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
+  usePolling(refetch, 15000);
 
   // Map device_id → active session for the live timer.
   const activeByDevice = useMemo(() => {

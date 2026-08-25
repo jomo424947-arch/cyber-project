@@ -609,9 +609,9 @@ class QueryBuilder {
     const boolCols = ['paid', 'archived', 'is_overtime', 'is_paused', 'edited_start_at', 'synced'];
     const jsonCols = ['specs'];
     const numericCols = [
-      'hourly_rate', 'hourly_rate_multi', 'hourly_rate_override', 'amount', 'total_cost', 
-      'price', 'cost_price', 'unit_price', 'total_price', 'opening_cash', 'closing_cash', 
-      'total_revenue', 'total_expenses', 'cost', 'duration_minutes', 'subtotal', 
+      'hourly_rate', 'hourly_rate_multi', 'hourly_rate_override', 'amount', 'total_cost',
+      'price', 'cost_price', 'unit_price', 'total_price', 'opening_cash', 'closing_cash',
+      'total_revenue', 'total_expenses', 'cost', 'duration_minutes', 'subtotal',
       'discount_amount', 'discount_value', 'service_fee', 'service_rate', 'rounding_delta'
     ];
 
