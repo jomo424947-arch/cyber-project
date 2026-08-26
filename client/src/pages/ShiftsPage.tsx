@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { StatCard } from '../components/StatCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ShiftLedgerTableReport } from '../components/ShiftLedgerTableReport';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
@@ -39,6 +40,7 @@ export default function ShiftsPage() {
   const [summaryShiftId, setSummaryShiftId] = useState<string | null>(null);
   const [summaryData, setSummaryData] = useState<ShiftSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryViewMode, setSummaryViewMode] = useState<'ledger' | 'overview'>('ledger');
 
   // Form states
   const [openingCash, setOpeningCash] = useState<number>(0);
@@ -1208,16 +1210,64 @@ export default function ShiftsPage() {
       {/* MODAL 4: DETAILED SHIFT BREAKDOWN SUMMARY */}
       <Modal
         open={Boolean(summaryShiftId)}
+        width={summaryViewMode === 'ledger' ? 880 : 620}
         onClose={() => {
           setSummaryShiftId(null);
           setSummaryData(null);
         }}
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '22px' }}>
-              analytics
-            </span>
-            <span>{language === 'ar' ? 'تقرير وملخص الوردية الشامل' : 'Comprehensive Shift Report'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', paddingRight: isRtl ? '0' : '20px', paddingLeft: isRtl ? '20px' : '0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '22px' }}>
+                analytics
+              </span>
+              <span>{language === 'ar' ? 'تقرير وملخص الوردية الشامل' : 'Comprehensive Shift Report'}</span>
+            </div>
+
+            {summaryData && (
+              <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border-default)' }}>
+                <button
+                  type="button"
+                  onClick={() => setSummaryViewMode('ledger')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: summaryViewMode === 'ledger' ? 'var(--accent-cyan)' : 'transparent',
+                    color: summaryViewMode === 'ledger' ? '#000' : 'var(--text-secondary)',
+                    fontWeight: summaryViewMode === 'ledger' ? 700 : 500,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>table_chart</span>
+                  {language === 'ar' ? 'جدول العمليات (المحاسبي)' : 'Ledger Table'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSummaryViewMode('overview')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: summaryViewMode === 'overview' ? 'var(--accent-cyan)' : 'transparent',
+                    color: summaryViewMode === 'overview' ? '#000' : 'var(--text-secondary)',
+                    fontWeight: summaryViewMode === 'overview' ? 700 : 500,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>dashboard</span>
+                  {language === 'ar' ? 'الملخص' : 'Overview'}
+                </button>
+              </div>
+            )}
           </div>
         }
       >
@@ -1225,6 +1275,14 @@ export default function ShiftsPage() {
           <div style={{ padding: '40px', display: 'flex', justifyContent: 'center' }}>
             <LoadingSpinner />
           </div>
+        ) : summaryViewMode === 'ledger' ? (
+          <ShiftLedgerTableReport
+            summaryData={summaryData}
+            onClose={() => {
+              setSummaryShiftId(null);
+              setSummaryData(null);
+            }}
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', maxHeight: '75vh', overflowY: 'auto' }}>
             {/* Header info */}
@@ -1317,10 +1375,10 @@ export default function ShiftsPage() {
                         ? 'rgba(234, 179, 8, 0.1)'
                         : 'rgba(239, 68, 68, 0.1)',
                   border: `1px solid ${summaryData.cash_difference === 0
-                      ? 'rgba(34, 197, 94, 0.3)'
-                      : summaryData.cash_difference! > 0
-                        ? 'rgba(234, 179, 8, 0.3)'
-                        : 'rgba(239, 68, 68, 0.3)'
+                    ? 'rgba(34, 197, 94, 0.3)'
+                    : summaryData.cash_difference! > 0
+                      ? 'rgba(234, 179, 8, 0.3)'
+                      : 'rgba(239, 68, 68, 0.3)'
                     }`,
                   display: 'flex',
                   justifyContent: 'space-between',

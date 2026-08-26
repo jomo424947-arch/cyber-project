@@ -241,7 +241,7 @@ export async function getShiftSummary(req: Request, res: Response) {
   // Get standalone café sales linked to this shift
   const { data: standaloneOrders } = await supabase
     .from('standalone_orders')
-    .select('*, product:products(id, name, price), creator:users(id, full_name, email)')
+    .select('*, product:products(id, name, price, category), creator:users(id, full_name, email)')
     .eq('shift_id', id)
     .eq('tenant_id', req.user!.tenant_id)
     .order('created_at', { ascending: false });
@@ -249,6 +249,30 @@ export async function getShiftSummary(req: Request, res: Response) {
   const invoiceList = invoices || [];
   const expenseList = expenses || [];
   const standaloneList = standaloneOrders || [];
+
+  // Get session café orders (orders attached to rooms and devices during this shift)
+  const invoiceSessionIds = invoiceList.map((inv: any) => inv.session_id || inv.session?.id).filter(Boolean);
+
+  const { data: activeSessions } = await supabase
+    .from('sessions')
+    .select('id, started_at, device:devices(id, name, type), customer:customers(id, name)')
+    .eq('tenant_id', req.user!.tenant_id)
+    .eq('status', 'active');
+
+  const activeSessionIds = (activeSessions || []).map((s: any) => s.id);
+  const allShiftSessionIds = Array.from(new Set([...invoiceSessionIds, ...activeSessionIds]));
+
+  let sessionOrdersList: any[] = [];
+  if (allShiftSessionIds.length > 0) {
+    const { data: sOrders, error: soErr } = await supabase
+      .from('session_orders')
+      .select('*, product:products(id, name, price, category), session:sessions(id, started_at, device:devices(id, name, type), customer:customers(id, name))')
+      .in('session_id', allShiftSessionIds);
+
+    if (!soErr && sOrders) {
+      sessionOrdersList = sOrders;
+    }
+  }
 
   const paidInvoices = invoiceList.filter((inv: any) => inv.paid);
   const paidInvoicesRevenue = paidInvoices.reduce((acc: number, inv: any) => acc + Number(inv.amount || 0), 0);
@@ -276,9 +300,11 @@ export async function getShiftSummary(req: Request, res: Response) {
       invoice_count: invoiceList.length,
       paid_invoice_count: paidInvoices.length,
       standalone_orders_count: standaloneList.length,
+      session_orders_count: sessionOrdersList.length,
       expense_count: expenseList.length,
       invoices: invoiceList,
       standalone_orders: standaloneList,
+      session_orders: sessionOrdersList,
       expenses: expenseList,
     },
   });

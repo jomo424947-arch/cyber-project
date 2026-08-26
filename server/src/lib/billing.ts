@@ -23,7 +23,7 @@ export interface BillingResult {
   totalCost: number;
 }
 
-const MIN_BILLING_MINUTES = 30;
+const MIN_BILLING_MINUTES = 0;
 
 /** Utility for consistent monetary rounding to 2 decimal places */
 function roundCurrency(amount: number): number {
@@ -34,11 +34,10 @@ function roundCurrency(amount: number): number {
  * Standalone, pure billing logic function that computes CCMS session costs.
  * 
  * Rules:
- *  - Minimum billed duration is 30 minutes (applied to effectiveMinutes), unless minBillingMinutes is overridden.
- *  - Ceiling-to-minute rounding for partial minutes.
+ *  - Time is calculated by actual minutes played (minBillingMinutes defaults to 0).
+ *  - Monetary amounts are rounded consistently to 2 decimal places.
  *  - hourlyRateOverride takes precedence over deviceHourlyRate.
  *  - Overtime applies to fixed-type sessions using effectiveMinutes (not raw).
- *  - Monetary amounts are rounded consistently to 2 decimal places.
  *  - pausedMinutes defaults to 0; all existing behaviour is backward compatible.
  */
 export function calculateSessionCost(params: BillingParams): BillingResult {
@@ -89,7 +88,8 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
     }
   }
 
-  const rawMinutes = Math.max(0, Math.ceil((endMs - startMs) / 60000));
+  const elapsedSec = Math.max(0, Math.floor((endMs - startMs) / 1000));
+  const rawMinutes = elapsedSec > 0 ? Math.max(1, Math.round(elapsedSec / 60)) : 0;
 
   // Paused time is excluded from billing
   const pausedMinutes = Math.max(0, Math.round(params.pausedMinutes || 0));

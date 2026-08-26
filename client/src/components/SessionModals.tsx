@@ -342,13 +342,15 @@ export function EndSessionModal({
   const [orders, setOrders] = useState<SessionOrder[] | null>(null);
   const [transfers, setTransfers] = useState<any[] | null>(null);
 
-  // Discount state
+  // Discount state (percentage & fixed amount inputs)
   const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
-  const [discountValue, setDiscountValue] = useState<string>('0');
+  const [discountPercentVal, setDiscountPercentVal] = useState<string>('');
+  const [discountFixedVal, setDiscountFixedVal] = useState<string>('');
   
-  // Service fee state
+  // Service fee state (percentage & fixed amount inputs)
   const [serviceType, setServiceType] = useState<'none' | 'percentage' | 'fixed'>('none');
-  const [serviceValue, setServiceValue] = useState<string>('0');
+  const [servicePercentVal, setServicePercentVal] = useState<string>('');
+  const [serviceFixedVal, setServiceFixedVal] = useState<string>('');
 
   // Rounding mode state
   const [roundingMode, setRoundingMode] = useState<'none' | 'floor_5' | 'nearest_5' | 'nearest_10'>('none');
@@ -368,14 +370,14 @@ export function EndSessionModal({
   const endingTime = new Date(endedAt).getTime();
   
   const pausedMinutes = session.total_paused_minutes || 0;
-  const rawMinutes = Math.max(0, Math.ceil((endingTime - startedTime) / 60000));
+  const elapsedSec = Math.max(0, Math.floor((endingTime - startedTime) / 1000));
+  const rawMinutes = elapsedSec > 0 ? Math.max(1, Math.round(elapsedSec / 60)) : 0;
   const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
   
   // Previous transfers
   const transfersCost = transfers ? transfers.reduce((sum, t) => sum + Number(t.cost || 0), 0) : 0;
-  const transfersMinutes = transfers ? transfers.reduce((sum, t) => sum + Number(t.duration_minutes || 0), 0) : 0;
   
-  const minBilling = transfersMinutes > 0 ? 0 : 30;
+  const minBilling = 0;
   const billedMinutes = Math.max(minBilling, effectiveMinutes);
   
   const rate = Number(
@@ -408,22 +410,34 @@ export function EndSessionModal({
   const subtotal = Math.round((totalDeviceCost + cafeCost) * 100) / 100;
 
   // 1. Discount calculation
-  const parsedDiscountVal = parseFloat(discountValue) || 0;
+  let parsedDiscountVal = 0;
   let discountAmount = 0;
-  if (discountType === 'percentage' && parsedDiscountVal > 0) {
-    discountAmount = Math.round(subtotal * (Math.min(100, parsedDiscountVal) / 100) * 100) / 100;
-  } else if (discountType === 'fixed' && parsedDiscountVal > 0) {
-    discountAmount = Math.min(subtotal, Math.round(parsedDiscountVal * 100) / 100);
+  if (discountType === 'percentage') {
+    parsedDiscountVal = parseFloat(discountPercentVal) || 0;
+    if (parsedDiscountVal > 0) {
+      discountAmount = Math.round(subtotal * (Math.min(100, parsedDiscountVal) / 100) * 100) / 100;
+    }
+  } else if (discountType === 'fixed') {
+    parsedDiscountVal = parseFloat(discountFixedVal) || 0;
+    if (parsedDiscountVal > 0) {
+      discountAmount = Math.min(subtotal, Math.round(parsedDiscountVal * 100) / 100);
+    }
   }
   const afterDiscount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
   // 2. Service fee calculation
-  const parsedServiceVal = parseFloat(serviceValue) || 0;
+  let parsedServiceVal = 0;
   let serviceFee = 0;
-  if (serviceType === 'percentage' && parsedServiceVal > 0) {
-    serviceFee = Math.round(afterDiscount * (parsedServiceVal / 100) * 100) / 100;
-  } else if (serviceType === 'fixed' && parsedServiceVal > 0) {
-    serviceFee = Math.round(parsedServiceVal * 100) / 100;
+  if (serviceType === 'percentage') {
+    parsedServiceVal = parseFloat(servicePercentVal) || 0;
+    if (parsedServiceVal > 0) {
+      serviceFee = Math.round(afterDiscount * (parsedServiceVal / 100) * 100) / 100;
+    }
+  } else if (serviceType === 'fixed') {
+    parsedServiceVal = parseFloat(serviceFixedVal) || 0;
+    if (parsedServiceVal > 0) {
+      serviceFee = Math.round(parsedServiceVal * 100) / 100;
+    }
   }
   const beforeRounding = Math.round((afterDiscount + serviceFee) * 100) / 100;
 
@@ -540,8 +554,8 @@ export function EndSessionModal({
             <Row 
               label={language === 'ar' ? 'الوقت المحسوب للجهاز الحالي' : 'Current Billed Time'} 
               value={language === 'ar' 
-                ? `${billedMinutes} دقيقة (الفعلي: ${effectiveMinutes} د)`
-                : `${billedMinutes} minutes (effective: ${effectiveMinutes}m)`
+                ? `${effectiveMinutes} دقيقة`
+                : `${effectiveMinutes} minutes`
               } 
             />
             {pausedMinutes > 0 && (
@@ -629,64 +643,95 @@ export function EndSessionModal({
                 {language === 'ar' ? 'الخصم / التخفيض' : 'Discount'}
               </span>
               {discountAmount > 0 && (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
                   - {formatCurrency(discountAmount)}
                 </span>
               )}
             </div>
 
-            {/* Quick Discount Presets */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {[
-                { id: 'none', label: language === 'ar' ? 'بدون' : 'None', type: 'none', val: '0' },
-                { id: '5%', label: '5%', type: 'percentage', val: '5' },
-                { id: '10%', label: '10%', type: 'percentage', val: '10' },
-                { id: '15%', label: '15%', type: 'percentage', val: '15' },
-                { id: '20%', label: '20%', type: 'percentage', val: '20' },
-                { id: 'fixed', label: language === 'ar' ? 'مبلغ ثابت' : 'Fixed', type: 'fixed', val: discountType === 'fixed' ? discountValue : '10' },
-              ].map((p) => {
-                const isActive = discountType === p.type && (p.type === 'fixed' || discountValue === p.val);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setDiscountType(p.type as any);
-                      if (p.type === 'none') {
-                        setDiscountValue('0');
-                      } else {
-                        setDiscountValue(p.val);
+            {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {/* Field 1: Discount Percentage */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'percentage' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
+                  {language === 'ar' ? 'نسبة مئوية (%)' : 'Percentage (%)'}
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="0"
+                    value={discountPercentVal}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDiscountPercentVal(v);
+                      if (v && parseFloat(v) > 0) {
+                        setDiscountType('percentage');
+                        setDiscountFixedVal('');
+                      } else if (!discountFixedVal) {
+                        setDiscountType('none');
                       }
                     }}
                     style={{
-                      padding: '4px 10px',
-                      borderRadius: '16px',
-                      border: isActive ? '1px solid var(--accent-cyan)' : '1px solid var(--border-default)',
-                      background: isActive ? 'rgba(0, 194, 255, 0.2)' : 'var(--bg-input)',
-                      color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
+                      width: '100%',
+                      padding: '8px 24px 8px 10px',
+                      background: discountType === 'percentage' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
+                      border: discountType === 'percentage' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                      borderRadius: '6px',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      outline: 'none',
                     }}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {discountType !== 'none' && (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <Input
-                  type="number"
-                  min="0"
-                  label={discountType === 'percentage' ? (language === 'ar' ? 'نسبة الخصم (%)' : 'Discount (%)') : (language === 'ar' ? 'مبلغ الخصم (ج)' : 'Discount Amount (EGP)')}
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  style={{ flex: 1 }}
-                />
+                  />
+                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700 }}>
+                    %
+                  </span>
+                </div>
               </div>
-            )}
+
+              {/* Field 2: Fixed Amount */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'fixed' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
+                  {language === 'ar' ? 'مبلغ ثابت بالعملة (ج)' : 'Fixed Amount (EGP)'}
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0.00"
+                    value={discountFixedVal}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDiscountFixedVal(v);
+                      if (v && parseFloat(v) > 0) {
+                        setDiscountType('fixed');
+                        setDiscountPercentVal('');
+                      } else if (!discountPercentVal) {
+                        setDiscountType('none');
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 28px 8px 10px',
+                      background: discountType === 'fixed' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
+                      border: discountType === 'fixed' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                      borderRadius: '6px',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                    {language === 'ar' ? 'ج' : 'EGP'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* ─── SECTION 2: SERVICE FEE / خدمة الصالة ─── */}
@@ -697,60 +742,95 @@ export function EndSessionModal({
                 {language === 'ar' ? 'رسوم الخدمة / خدمة الصالة' : 'Service Fee'}
               </span>
               {serviceFee > 0 && (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)', fontFamily: 'JetBrains Mono, monospace' }}>
                   + {formatCurrency(serviceFee)}
                 </span>
               )}
             </div>
 
-            {/* Quick Service Presets */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {[
-                { id: 'none', label: language === 'ar' ? 'بدون خدمة' : 'None', type: 'none', val: '0' },
-                { id: '5%', label: '5%', type: 'percentage', val: '5' },
-                { id: '10%', label: '10%', type: 'percentage', val: '10' },
-                { id: '12%', label: '12%', type: 'percentage', val: '12' },
-                { id: 'fixed', label: language === 'ar' ? 'قيمة ثابتة' : 'Fixed', type: 'fixed', val: serviceType === 'fixed' ? serviceValue : '10' },
-              ].map((p) => {
-                const isActive = serviceType === p.type && (p.type === 'fixed' || serviceValue === p.val);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setServiceType(p.type as any);
-                      if (p.type === 'none') {
-                        setServiceValue('0');
-                      } else {
-                        setServiceValue(p.val);
+            {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {/* Field 1: Service Percentage */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'percentage' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
+                  {language === 'ar' ? 'نسبة مئوية (%)' : 'Percentage (%)'}
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="0"
+                    value={servicePercentVal}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setServicePercentVal(v);
+                      if (v && parseFloat(v) > 0) {
+                        setServiceType('percentage');
+                        setServiceFixedVal('');
+                      } else if (!serviceFixedVal) {
+                        setServiceType('none');
                       }
                     }}
                     style={{
-                      padding: '4px 10px',
-                      borderRadius: '16px',
-                      border: isActive ? '1px solid var(--accent-yellow)' : '1px solid var(--border-default)',
-                      background: isActive ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-input)',
-                      color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
+                      width: '100%',
+                      padding: '8px 24px 8px 10px',
+                      background: serviceType === 'percentage' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
+                      border: serviceType === 'percentage' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
+                      borderRadius: '6px',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      outline: 'none',
                     }}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
+                  />
+                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700 }}>
+                    %
+                  </span>
+                </div>
+              </div>
 
-            {serviceType !== 'none' && (
-              <Input
-                type="number"
-                min="0"
-                label={serviceType === 'percentage' ? (language === 'ar' ? 'نسبة الخدمة (%)' : 'Service Rate (%)') : (language === 'ar' ? 'مبلغ الخدمة (ج)' : 'Service Amount (EGP)')}
-                value={serviceValue}
-                onChange={(e) => setServiceValue(e.target.value)}
-              />
-            )}
+              {/* Field 2: Fixed Service Amount */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'fixed' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
+                  {language === 'ar' ? 'مبلغ ثابت بالعملة (ج)' : 'Fixed Amount (EGP)'}
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0.00"
+                    value={serviceFixedVal}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setServiceFixedVal(v);
+                      if (v && parseFloat(v) > 0) {
+                        setServiceType('fixed');
+                        setServicePercentVal('');
+                      } else if (!servicePercentVal) {
+                        setServiceType('none');
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 28px 8px 10px',
+                      background: serviceType === 'fixed' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
+                      border: serviceType === 'fixed' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
+                      borderRadius: '6px',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                    {language === 'ar' ? 'ج' : 'EGP'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* ─── SECTION 3: CASH ROUNDING / تسوية الفكة ─── */}

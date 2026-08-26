@@ -139,6 +139,14 @@ export const offlineFirstService: DataService = {
     return { session: endedSession, invoice };
   },
 
+  async transferSession(id, payload) {
+    const res = await realService.transferSession(id, payload);
+    if (res?.session) {
+      await localDb.setItem('sessions', res.session);
+    }
+    return res;
+  },
+
   async pauseSession(id, reason) {
     return realService.pauseSession(id, reason);
   },

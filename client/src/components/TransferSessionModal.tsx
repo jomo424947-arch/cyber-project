@@ -70,7 +70,8 @@ export function TransferSessionModal({
 
   // Current segment calculation
   const currentElapsedMs = Date.now() - new Date(session.started_at).getTime();
-  const currentElapsedMins = Math.max(0, Math.ceil(currentElapsedMs / 60000));
+  const currentElapsedSec = Math.max(0, Math.floor(currentElapsedMs / 1000));
+  const currentElapsedMins = currentElapsedSec > 0 ? Math.max(1, Math.round(currentElapsedSec / 60)) : 0;
   const currentRate = session.play_mode === 'multiplayer'
     ? Number(session.device?.hourly_rate_multi ?? 0)
     : Number(session.device?.hourly_rate ?? 0);
@@ -79,9 +80,13 @@ export function TransferSessionModal({
     : currentRate;
   const currentSegmentCost = Math.round((currentElapsedMins / 60) * effectiveCurrentRate * 100) / 100;
 
+  const isChangingPlayModeOnly = !selectedDeviceId && playMode !== (session.play_mode || 'single');
+  const isTransferringDevice = Boolean(selectedDeviceId && selectedDeviceId !== session.device_id);
+  const canSubmit = isChangingPlayModeOnly || isTransferringDevice;
+
   const handleTransfer = async () => {
-    if (!selectedDeviceId) {
-      setErrorMsg(language === 'ar' ? 'يرجى اختيار الجهاز أو الغرفة الهدف أولاً' : 'Please select target device');
+    if (!canSubmit) {
+      setErrorMsg(language === 'ar' ? 'يرجى اختيار جهاز هدف أو تغيير نمط اللعب للجلسة' : 'Please select target device or change play mode');
       return;
     }
 
@@ -89,7 +94,7 @@ export function TransferSessionModal({
     setErrorMsg('');
     try {
       await dataService.transferSession(session.id, {
-        target_device_id: selectedDeviceId,
+        target_device_id: selectedDeviceId || session.device_id,
         play_mode: playMode,
       });
       onDone();
@@ -125,7 +130,7 @@ export function TransferSessionModal({
           <Button
             variant="primary"
             loading={submitting}
-            disabled={!selectedDeviceId || submitting}
+            disabled={!canSubmit || submitting}
             onClick={handleTransfer}
             style={{
               fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
@@ -134,8 +139,12 @@ export function TransferSessionModal({
               gap: '6px',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>swap_horiz</span>
-            {language === 'ar' ? 'تأكيد التحويل الآن' : 'Confirm Transfer'}
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+              {isChangingPlayModeOnly ? 'published_with_changes' : 'swap_horiz'}
+            </span>
+            {isChangingPlayModeOnly
+              ? (language === 'ar' ? `تحويل النمط إلى (${playMode === 'multiplayer' ? 'جماعي' : 'فردي'}) على نفس الجهاز` : `Switch Mode to ${playMode} on same device`)
+              : (language === 'ar' ? 'تأكيد التحويل الآن' : 'Confirm Transfer')}
           </Button>
         </>
       }
@@ -175,7 +184,7 @@ export function TransferSessionModal({
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'سعر الساعة الحالي: ' : 'Current Rate: '}</span>
-              <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(effectiveCurrentRate)}/{language === 'ar' ? 'س' : 'hr'}</strong>
+              <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(effectiveCurrentRate)}/{language === 'ar' ? 'س' : 'hr'} ({session.play_mode === 'multiplayer' ? (language === 'ar' ? 'جماعي' : 'Multi') : (language === 'ar' ? 'فردي' : 'Single')})</strong>
             </div>
             <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
               <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'تكلفة المرحلة: ' : 'Segment Cost: '}</span>
@@ -187,17 +196,116 @@ export function TransferSessionModal({
             <span className="material-symbols-outlined" style={{ fontSize: '15px', color: 'var(--accent-cyan)', flexShrink: 0 }}>info</span>
             <span>
               {language === 'ar'
-                ? 'سيتم حفظ تكلفة الوقت المنقضي على هذا الجهاز كشريحة أولى، ثم يبدأ العداد على الجهاز الجديد بالتسعيرة الجديدة.'
-                : 'Time elapsed on the current device will be billed as segment 1, then a new segment starts on the selected station.'}
+                ? 'سيتم حفظ تكلفة الوقت المنقضي كشريحة أولى بالتسعيرة الحالية، ثم يبدأ العداد بالنمط أو الجهاز الجديد بالتسعيرة الجديدة.'
+                : 'Time elapsed will be billed as segment 1 with current rate, then a new segment starts with the new mode/station.'}
             </span>
+          </div>
+        </div>
+
+        {/* 3. Play Mode Switcher (Positioned right here as requested in Image 3) */}
+        <div
+          style={{
+            padding: '12px 14px',
+            background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
+            border: '1px solid rgba(0, 194, 255, 0.28)',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
+                group
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'ar' ? 'نمط اللعب (فردي / جماعي):' : 'Play Mode (Single / Multi):'}
+              </span>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '3px', display: 'block' }}>
+              {selectedDevice
+                ? (playMode === 'single'
+                    ? `${language === 'ar' ? 'تسعيرة الفردي للجهاز المختار:' : 'Single Rate:'} ${formatCurrency(selectedDevice.hourly_rate)}/س`
+                    : `${language === 'ar' ? 'تسعيرة الجماعي للجهاز المختار:' : 'Multi Rate:'} ${formatCurrency(selectedDevice.hourly_rate_multi || selectedDevice.hourly_rate)}/س`)
+                : (playMode === 'single'
+                    ? `${language === 'ar' ? 'تسعيرة الفردي:' : 'Single Rate:'} ${formatCurrency(session.device?.hourly_rate)}/س`
+                    : `${language === 'ar' ? 'تسعيرة الجماعي:' : 'Multi Rate:'} ${formatCurrency(session.device?.hourly_rate_multi || session.device?.hourly_rate)}/س`)}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setPlayMode('single')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: playMode === 'single' ? '2px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                background: playMode === 'single' ? 'rgba(0, 194, 255, 0.25)' : 'var(--bg-input)',
+                color: playMode === 'single' ? '#FFFFFF' : 'var(--text-secondary)',
+                fontWeight: playMode === 'single' ? 700 : 500,
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: playMode === 'single' ? 'var(--accent-cyan)' : 'inherit' }}>person</span>
+              {language === 'ar' ? 'فردي' : 'Single'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlayMode('multiplayer')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: playMode === 'multiplayer' ? '2px solid var(--accent-purple)' : '1px solid var(--border-default)',
+                background: playMode === 'multiplayer' ? 'rgba(168, 85, 247, 0.3)' : 'var(--bg-input)',
+                color: playMode === 'multiplayer' ? '#FFFFFF' : 'var(--text-secondary)',
+                fontWeight: playMode === 'multiplayer' ? 700 : 500,
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: playMode === 'multiplayer' ? 'var(--accent-purple)' : 'inherit' }}>groups</span>
+              {language === 'ar' ? 'جماعي' : 'Multi'}
+            </button>
           </div>
         </div>
 
         {/* Filter Chips & Search Bar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span className="ccms-eyebrow" style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
-            {language === 'ar' ? 'اختر الجهاز أو الغرفة الهدف المتاحة:' : 'Select Target Available Device/Room:'}
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="ccms-eyebrow" style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+              {language === 'ar' ? 'أو اختر جهازاً أو غرفة هدف للتحويل إليها:' : 'Or Select Target Device/Room:'}
+            </span>
+            {selectedDeviceId && (
+              <button
+                type="button"
+                onClick={() => setSelectedDeviceId('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-cyan)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                {language === 'ar' ? 'إلغاء تحديد الجهاز' : 'Deselect station'}
+              </button>
+            )}
+          </div>
 
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {[
@@ -245,7 +353,7 @@ export function TransferSessionModal({
         ) : availableDevices.length === 0 ? (
           <div
             style={{
-              padding: '24px',
+              padding: '20px',
               textAlign: 'center',
               background: 'var(--bg-input)',
               borderRadius: '8px',
@@ -254,12 +362,14 @@ export function TransferSessionModal({
               fontSize: '13px',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '32px', color: 'var(--accent-yellow)', marginBottom: '6px', display: 'block' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '28px', color: 'var(--accent-yellow)', marginBottom: '4px', display: 'block' }}>
               desktop_access_disabled
             </span>
-            {language === 'ar'
-              ? 'لا توجد أجهزة أو غرف أخرى متاحة حالياً للتحويل إليها.'
-              : 'No available devices or rooms found for transfer.'}
+            <span>
+              {language === 'ar'
+                ? 'لا توجد أجهزة أخرى متاحة حالياً. يمكنك تغيير نمط اللعب (فردي/جماعي) على نفس الجهاز من الأعلى مباشرة.'
+                : 'No other stations available. You can switch play mode (Single/Multi) on the same device above.'}
+            </span>
           </div>
         ) : (
           <div
@@ -267,7 +377,7 @@ export function TransferSessionModal({
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
               gap: '8px',
-              maxHeight: '220px',
+              maxHeight: '200px',
               overflowY: 'auto',
               padding: '4px',
             }}
@@ -322,51 +432,6 @@ export function TransferSessionModal({
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Play mode selection for destination device */}
-        {selectedDevice && (
-          <div
-            style={{
-              padding: '12px',
-              background: 'var(--bg-elevated)',
-              borderRadius: '8px',
-              border: '1px solid var(--border-default)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
-                {language === 'ar' ? 'نمط اللعب على الجهاز الجديد:' : 'Play Mode on New Device:'}
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                {playMode === 'single'
-                  ? `${formatCurrency(selectedDevice.hourly_rate)} / ساعة`
-                  : `${formatCurrency(selectedDevice.hourly_rate_multi || selectedDevice.hourly_rate)} / ساعة`}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                type="button"
-                className={playMode === 'single' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-                style={{ fontSize: '12px', padding: '6px 12px' }}
-                onClick={() => setPlayMode('single')}
-              >
-                {language === 'ar' ? 'فردي' : 'Single'}
-              </button>
-              <button
-                type="button"
-                className={playMode === 'multiplayer' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
-                style={{ fontSize: '12px', padding: '6px 12px' }}
-                onClick={() => setPlayMode('multiplayer')}
-              >
-                {language === 'ar' ? 'جماعي' : 'Multi'}
-              </button>
-            </div>
           </div>
         )}
 

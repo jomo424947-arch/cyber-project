@@ -11,10 +11,9 @@ import { getActiveShiftForUserOrTenant } from '../lib/shifts.helper';
 
 
 /**
- * Business rule: minimum billed duration is 30 minutes, and time is rounded
- * UP to the nearest whole minute.
+ * Business rule: actual minute billing (minBillingMinutes defaults to 0).
  */
-const MIN_BILLING_MINUTES = 30;
+const MIN_BILLING_MINUTES = 0;
 
 /** GET /api/sessions — list all sessions (filter: active, ended). */
 export async function listSessions(req: Request, res: Response) {
@@ -459,7 +458,7 @@ export async function extendSession(req: Request, res: Response) {
   res.json({ data: updated as unknown as DbSession });
 }
 
-/** POST /api/sessions/:id/transfer — transfer an active session from one device/room to another. */
+/** POST /api/sessions/:id/transfer — transfer an active session from one device/room to another, or switch play mode. */
 export async function transferSession(req: Request, res: Response) {
   const { id } = req.params;
   const { target_device_id, play_mode, hourly_rate_override } = req.body;
@@ -479,41 +478,49 @@ export async function transferSession(req: Request, res: Response) {
     throw badRequest('لا يمكن تحويل الجلسة وهي معلّقة (Paused). يرجى استئناف الجلسة أولاً قبل تحويلها.', 'SESSION_PAUSED');
   }
 
-  if (session.device_id === target_device_id) {
-    throw badRequest('الجهاز أو الغرفة الهدف هي نفس الجهاز الحالي للجلسة');
+  const isSameDevice = !target_device_id || target_device_id === session.device_id;
+  const newPlayMode = play_mode || session.play_mode;
+
+  if (isSameDevice && newPlayMode === session.play_mode && hourly_rate_override === undefined) {
+    throw badRequest('لم يتم تغيير الجهاز أو نمط اللعب للجلسة');
   }
 
-  // 2. Fetch target device
-  const { data: targetDevice, error: tdErr } = await supabase
-    .from('devices')
-    .select('id, name, type, status, hourly_rate, hourly_rate_multi, archived')
-    .eq('id', target_device_id)
-    .eq('tenant_id', req.user!.tenant_id)
-    .maybeSingle();
+  let targetDevice = session.device;
 
-  if (tdErr) throw tdErr;
-  if (!targetDevice) throw notFound('Target device not found');
-  if (targetDevice.archived || targetDevice.status === 'offline') {
-    throw badRequest('الجهاز أو الغرفة الهدف غير متاحة (Offline)');
+  // 2. Fetch target device if transferring to a different device
+  if (!isSameDevice) {
+    const { data: fetchedTargetDevice, error: tdErr } = await supabase
+      .from('devices')
+      .select('id, name, type, status, hourly_rate, hourly_rate_multi, archived')
+      .eq('id', target_device_id)
+      .eq('tenant_id', req.user!.tenant_id)
+      .maybeSingle();
+
+    if (tdErr) throw tdErr;
+    if (!fetchedTargetDevice) throw notFound('Target device not found');
+    if (fetchedTargetDevice.archived || fetchedTargetDevice.status === 'offline') {
+      throw badRequest('الجهاز أو الغرفة الهدف غير متاحة (Offline)');
+    }
+    if (fetchedTargetDevice.status === 'in_use') {
+      throw conflict('الجهاز أو الغرفة الهدف مشغولة حالياً بجلسة أخرى', 'DEVICE_BUSY');
+    }
+
+    // Guard against an already-active session for target device
+    const { data: existingTargetSession } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('device_id', target_device_id)
+      .eq('status', 'active')
+      .eq('tenant_id', req.user!.tenant_id)
+      .maybeSingle();
+
+    if (existingTargetSession) {
+      throw conflict('الجهاز الهدف لديه جلسة نشطة بالفعل', 'SESSION_ACTIVE');
+    }
+    targetDevice = fetchedTargetDevice;
   }
-  if (targetDevice.status === 'in_use') {
-    throw conflict('الجهاز أو الغرفة الهدف مشغولة حالياً بجلسة أخرى', 'DEVICE_BUSY');
-  }
 
-  // Guard against an already-active session for target device
-  const { data: existingTargetSession } = await supabase
-    .from('sessions')
-    .select('id')
-    .eq('device_id', target_device_id)
-    .eq('status', 'active')
-    .eq('tenant_id', req.user!.tenant_id)
-    .maybeSingle();
-
-  if (existingTargetSession) {
-    throw conflict('الجهاز الهدف لديه جلسة نشطة بالفعل', 'SESSION_ACTIVE');
-  }
-
-  // 3. Compute cost and duration for the segment on the current device
+  // 3. Compute cost and duration for the segment on the current device / previous mode
   const now = new Date();
   const startedAt = new Date(session.started_at);
   const currentRate = session.play_mode === 'multiplayer'
@@ -526,10 +533,13 @@ export async function transferSession(req: Request, res: Response) {
       : currentRate
   );
 
-  const rawMinutes = Math.max(0, Math.ceil((now.getTime() - startedAt.getTime()) / 60000));
+  const elapsedSec = Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000));
+  const rawMinutes = elapsedSec > 0 ? Math.max(1, Math.round(elapsedSec / 60)) : 0;
   const pausedMinutes = Number(session.total_paused_minutes || 0);
   const effectiveMinutes = Math.max(0, rawMinutes - pausedMinutes);
   const segmentCost = Math.round((effectiveMinutes / 60) * effectiveRate * 100) / 100;
+
+  const destinationDeviceId = isSameDevice ? session.device_id : target_device_id;
 
   // 4. Save transfer segment record
   const { data: transferRecord, error: trErr } = await supabase
@@ -537,7 +547,7 @@ export async function transferSession(req: Request, res: Response) {
     .insert({
       session_id: id,
       from_device_id: session.device_id,
-      to_device_id: target_device_id,
+      to_device_id: destinationDeviceId,
       started_at: session.started_at,
       transferred_at: now.toISOString(),
       duration_minutes: effectiveMinutes,
@@ -552,29 +562,30 @@ export async function transferSession(req: Request, res: Response) {
 
   if (trErr) throw trErr;
 
-  // 5. Update devices statuses
-  // Free old device
-  await supabase
-    .from('devices')
-    .update({ status: 'available' })
-    .eq('id', session.device_id)
-    .eq('tenant_id', req.user!.tenant_id);
+  // 5. Update devices statuses if device changed
+  if (!isSameDevice) {
+    // Free old device
+    await supabase
+      .from('devices')
+      .update({ status: 'available' })
+      .eq('id', session.device_id)
+      .eq('tenant_id', req.user!.tenant_id);
 
-  // Mark target device in_use
-  await supabase
-    .from('devices')
-    .update({ status: 'in_use' })
-    .eq('id', target_device_id)
-    .eq('tenant_id', req.user!.tenant_id);
+    // Mark target device in_use
+    await supabase
+      .from('devices')
+      .update({ status: 'in_use' })
+      .eq('id', destinationDeviceId)
+      .eq('tenant_id', req.user!.tenant_id);
+  }
 
-  // 6. Update session: switch device_id, set started_at to now for new segment, update play_mode if provided
-  const newPlayMode = play_mode || session.play_mode;
+  // 6. Update session: switch device_id, set started_at to now for new segment, update play_mode
   const newOverride = hourly_rate_override !== undefined ? hourly_rate_override : null;
 
   const { data: updatedSession, error: updErr } = await supabase
     .from('sessions')
     .update({
-      device_id: target_device_id,
+      device_id: destinationDeviceId,
       started_at: now.toISOString(),
       play_mode: newPlayMode,
       hourly_rate_override: newOverride,
@@ -588,12 +599,20 @@ export async function transferSession(req: Request, res: Response) {
   if (updErr) throw updErr;
 
   // 7. Audit log
+  const auditField = isSameDevice ? 'switch_play_mode' : 'transfer_device';
+  const auditOldVal = isSameDevice 
+    ? `نمط ${session.play_mode === 'multiplayer' ? 'جماعي' : 'فردي'} (${rawMinutes} دقيقة - ${segmentCost} ج)`
+    : `${session.device?.name ?? 'Device'} (${rawMinutes} دقيقة - ${segmentCost} ج)`;
+  const auditNewVal = isSameDevice
+    ? `نمط ${newPlayMode === 'multiplayer' ? 'جماعي' : 'فردي'}`
+    : targetDevice?.name ?? 'Device';
+
   await supabase.from('session_audit_log').insert({
     session_id: id,
     edited_by: req.user!.id,
-    field_changed: 'transfer_device',
-    old_value: `${session.device?.name ?? 'Device'} (${rawMinutes} دقيقة - ${segmentCost} ج)`,
-    new_value: targetDevice.name,
+    field_changed: auditField,
+    old_value: auditOldVal,
+    new_value: auditNewVal,
   });
 
   res.json({
@@ -720,7 +739,7 @@ export async function endSession(req: Request, res: Response) {
     gracePeriodMinutes: session.grace_period_minutes,
     overtimeRateMultiplier: Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0),
     pausedMinutes: Number(session.total_paused_minutes || 0),
-    minBillingMinutes: previousTransfersMinutes > 0 ? 0 : 30,
+    minBillingMinutes: 0,
   });
 
   const totalDeviceCost = Math.round((currentSegmentCost + previousTransfersCost) * 100) / 100;

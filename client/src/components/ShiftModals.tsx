@@ -517,6 +517,8 @@ export function ExpenseModal({
   );
 }
 
+import { ShiftLedgerTableReport } from './ShiftLedgerTableReport';
+
 // ============================================================================
 // 4. SHIFT DETAILS & BREAKDOWN POPUP MODAL
 // ============================================================================
@@ -533,6 +535,7 @@ export function ShiftDetailsModal({
   const { language, isRtl } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [summaryData, setSummaryData] = useState<ShiftSummary | null>(null);
+  const [viewMode, setViewMode] = useState<'ledger' | 'overview'>('ledger');
 
   useEffect(() => {
     if (open && shift?.id) {
@@ -548,12 +551,60 @@ export function ShiftDetailsModal({
     <Modal
       open={open}
       onClose={onClose}
+      width={viewMode === 'ledger' ? 880 : 620}
       title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '24px' }}>
-            analytics
-          </span>
-          <span>{language === 'ar' ? 'تفاصيل وكشف حساب الوردية' : 'Shift Details & Ledger'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', paddingRight: isRtl ? '0' : '20px', paddingLeft: isRtl ? '20px' : '0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '24px' }}>
+              analytics
+            </span>
+            <span>{language === 'ar' ? 'تقرير وكشف حساب الوردية الشامل' : 'Shift Details & Ledger'}</span>
+          </div>
+
+          {summaryData && (
+            <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border-default)' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('ledger')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: viewMode === 'ledger' ? 'var(--accent-cyan)' : 'transparent',
+                  color: viewMode === 'ledger' ? '#000' : 'var(--text-secondary)',
+                  fontWeight: viewMode === 'ledger' ? 700 : 500,
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>table_chart</span>
+                {language === 'ar' ? 'جدول العمليات (المحاسبي)' : 'Ledger Table'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('overview')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: viewMode === 'overview' ? 'var(--accent-cyan)' : 'transparent',
+                  color: viewMode === 'overview' ? '#000' : 'var(--text-secondary)',
+                  fontWeight: viewMode === 'overview' ? 700 : 500,
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>dashboard</span>
+                {language === 'ar' ? 'الملخص' : 'Overview'}
+              </button>
+            </div>
+          )}
         </div>
       }
     >
@@ -589,6 +640,8 @@ export function ShiftDetailsModal({
         <div style={{ padding: '40px', display: 'flex', justifyContent: 'center' }}>
           <LoadingSpinner label={language === 'ar' ? 'جاري تحميل تفاصيل الوردية...' : 'Loading shift details...'} />
         </div>
+      ) : viewMode === 'ledger' ? (
+        <ShiftLedgerTableReport summaryData={summaryData} onClose={onClose} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '72vh', overflowY: 'auto', paddingRight: '2px' }}>
           {/* Staff & Timing Banner */}

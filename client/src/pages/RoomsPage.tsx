@@ -283,7 +283,9 @@ export default function RoomsPage() {
             const device = (room.device_id ? data.devices.find((d) => d.id === room.device_id) : null) || (room.device as Device | null) || null;
             const session = device ? activeByDevice.get(device.id) : undefined;
             const isActive = device?.status === 'in_use';
-            const playMode = playModes[room.id] ?? 'single';
+            const currentPlayMode: PlayMode = (isActive && session?.play_mode)
+              ? (session.play_mode as PlayMode)
+              : (playModes[room.id] ?? 'single');
             const roomNum = (() => {
               const match = room.name.match(/\d+/);
               return match ? match[0].padStart(2, '0') : String(i + 1).padStart(2, '0');
@@ -297,9 +299,15 @@ export default function RoomsPage() {
                 ? (i % 2 === 0 ? './assets/ps4_card_bg.jpg' : './assets/ps5_card_bg.jpg')
                 : './assets/pc_card_bg.jpg';
 
-            const hourlyRate = playMode === 'multiplayer'
-              ? (device?.hourly_rate_multi || 30)
-              : (device?.hourly_rate || 20);
+            const hourlyRate = (isActive && session)
+              ? (session.hourly_rate_override !== null && session.hourly_rate_override !== undefined
+                  ? Number(session.hourly_rate_override)
+                  : (currentPlayMode === 'multiplayer'
+                      ? Number(device?.hourly_rate_multi || device?.hourly_rate || 30)
+                      : Number(device?.hourly_rate || 20)))
+              : (currentPlayMode === 'multiplayer'
+                  ? Number(device?.hourly_rate_multi || device?.hourly_rate || 30)
+                  : Number(device?.hourly_rate || 20));
 
             return (
               <div
@@ -548,30 +556,51 @@ export default function RoomsPage() {
                   {/* Play Mode Block (Clickable to switch mode) */}
                   <div
                     onClick={() => {
-                      if (!isActive) {
+                      if (isActive && session) {
+                        setTransferTarget(session);
+                      } else {
                         setPlayModes((p) => ({
                           ...p,
-                          [room.id]: playMode === 'single' ? 'multiplayer' : 'single',
+                          [room.id]: currentPlayMode === 'single' ? 'multiplayer' : 'single',
                         }));
                       }
                     }}
+                    title={
+                      isActive
+                        ? (language === 'ar' ? 'انقر للتحويل بين فردي وجماعي أو نقل الجهاز' : 'Click to transfer or switch play mode')
+                        : undefined
+                    }
                     style={{
                       padding: '10px 12px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: currentPlayMode === 'multiplayer' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(0, 194, 255, 0.08)',
                       borderRadius: '10px',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      border: currentPlayMode === 'multiplayer'
+                        ? '1px solid rgba(168, 85, 247, 0.35)'
+                        : '1px solid rgba(0, 194, 255, 0.25)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      cursor: isActive ? 'default' : 'pointer',
-                      transition: 'border-color 0.2s',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: playMode === 'single' ? 'var(--accent-cyan)' : 'var(--accent-purple)' }}>
-                      {playMode === 'single' ? 'person' : 'group'}
+                    <span
+                      className="material-symbols-outlined"
+                      style={{
+                        fontSize: '16px',
+                        color: currentPlayMode === 'single' ? 'var(--accent-cyan)' : 'var(--accent-purple)',
+                      }}
+                    >
+                      {currentPlayMode === 'single' ? 'person' : 'groups'}
                     </span>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {playMode === 'single' ? (language === 'ar' ? 'فردي' : 'Single') : (language === 'ar' ? 'جماعي' : 'Multi')}
+                    <span
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: currentPlayMode === 'single' ? 'var(--text-primary)' : 'var(--accent-purple)',
+                      }}
+                    >
+                      {currentPlayMode === 'single' ? (language === 'ar' ? 'فردي' : 'Single') : (language === 'ar' ? 'جماعي' : 'Multi')}
                     </span>
                   </div>
                 </div>
@@ -745,7 +774,7 @@ export default function RoomsPage() {
                     /* Start Session Button */
                     <button
                       onClick={() => {
-                        setStartPlayMode(playMode);
+                        setStartPlayMode(currentPlayMode);
                         handleAction(device);
                       }}
                       style={{

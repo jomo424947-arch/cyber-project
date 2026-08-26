@@ -8,15 +8,27 @@ describe('calculateSessionCost - Open Sessions', () => {
     sessionType: 'open' as const,
   };
 
-  it('bills 15-minute session as 30 minutes (minimum floor)', () => {
+  it('bills 8-minute session as 8 minutes (actual minute billing)', () => {
+    const result = calculateSessionCost({
+      ...baseParams,
+      deviceHourlyRate: 30.0,
+      endedAt: '2026-07-18T10:08:00.000Z',
+    });
+    expect(result.rawMinutes).toBe(8);
+    expect(result.billedMinutes).toBe(8);
+    expect(result.baseCost).toBe(4.0);
+    expect(result.totalCost).toBe(4.0);
+  });
+
+  it('bills 15-minute session as 15 minutes ($1.50 at $6/hr)', () => {
     const result = calculateSessionCost({
       ...baseParams,
       endedAt: '2026-07-18T10:15:00.000Z',
     });
     expect(result.rawMinutes).toBe(15);
-    expect(result.billedMinutes).toBe(30);
-    expect(result.baseCost).toBe(3.0);
-    expect(result.totalCost).toBe(3.0);
+    expect(result.billedMinutes).toBe(15);
+    expect(result.baseCost).toBe(1.5);
+    expect(result.totalCost).toBe(1.5);
   });
 
   it('bills 30-minute session as 30 minutes', () => {
@@ -40,6 +52,17 @@ describe('calculateSessionCost - Open Sessions', () => {
     expect(result.baseCost).toBe(4.5);
     expect(result.totalCost).toBe(4.5);
   });
+
+  it('supports custom minBillingMinutes override when explicitly passed', () => {
+    const result = calculateSessionCost({
+      ...baseParams,
+      endedAt: '2026-07-18T10:10:00.000Z',
+      minBillingMinutes: 30,
+    });
+    expect(result.rawMinutes).toBe(10);
+    expect(result.billedMinutes).toBe(30);
+    expect(result.baseCost).toBe(3.0);
+  });
 });
 
 describe('calculateSessionCost - Fixed Sessions & Overtime', () => {
@@ -55,12 +78,12 @@ describe('calculateSessionCost - Fixed Sessions & Overtime', () => {
       sessionType: 'fixed',
     });
     expect(result.rawMinutes).toBe(5);
-    expect(result.billedMinutes).toBe(30);
+    expect(result.billedMinutes).toBe(5);
     expect(result.overtimeMinutes).toBe(0);
     expect(result.isOvertime).toBe(false);
     expect(result.overtimeCost).toBe(0);
-    expect(result.baseCost).toBe(3.0);
-    expect(result.totalCost).toBe(3.0);
+    expect(result.baseCost).toBe(0.5);
+    expect(result.totalCost).toBe(0.5);
   });
 
   it('calculates 0 overtime when actual time matches scheduled time exactly plus grace period (Actual = 70, Scheduled = 60, Grace = 10)', () => {
@@ -109,9 +132,6 @@ describe('calculateSessionCost - Fixed Sessions & Overtime', () => {
       deviceHourlyRate: 6.0,
       sessionType: 'fixed',
     });
-    // rawMinutes = 75, scheduled = 60, grace = 10 -> overtimeMinutes = 5
-    // baseMinutes = 75 - 5 = 70 mins -> baseCost = 70/60 * 6.00 = 7.00
-    // overtimeCost = 5/60 * 6.00 * 1.5 = 0.75
     expect(result.overtimeMinutes).toBe(5);
     expect(result.baseCost).toBe(7.0);
     expect(result.overtimeCost).toBe(0.75);
@@ -144,8 +164,8 @@ describe('calculateSessionCost - Boundary Edge Cases', () => {
       endedAt: '2026-07-18T10:00:00.000Z',
     });
     expect(result.rawMinutes).toBe(0);
-    expect(result.billedMinutes).toBe(30);
-    expect(result.totalCost).toBe(3.0);
+    expect(result.billedMinutes).toBe(0);
+    expect(result.totalCost).toBe(0);
   });
 
   it('handles 1 minute duration boundary', () => {
@@ -154,8 +174,8 @@ describe('calculateSessionCost - Boundary Edge Cases', () => {
       endedAt: '2026-07-18T10:01:00.000Z',
     });
     expect(result.rawMinutes).toBe(1);
-    expect(result.billedMinutes).toBe(30);
-    expect(result.totalCost).toBe(3.0);
+    expect(result.billedMinutes).toBe(1);
+    expect(result.totalCost).toBe(0.1);
   });
 
   it('handles 29 minutes duration boundary', () => {
@@ -164,8 +184,8 @@ describe('calculateSessionCost - Boundary Edge Cases', () => {
       endedAt: '2026-07-18T10:29:00.000Z',
     });
     expect(result.rawMinutes).toBe(29);
-    expect(result.billedMinutes).toBe(30);
-    expect(result.totalCost).toBe(3.0);
+    expect(result.billedMinutes).toBe(29);
+    expect(result.totalCost).toBe(2.9);
   });
 
   it('handles 30 minutes duration boundary', () => {
@@ -178,24 +198,22 @@ describe('calculateSessionCost - Boundary Edge Cases', () => {
     expect(result.totalCost).toBe(3.0);
   });
 
-  it('handles 31 minutes duration boundary', () => {
-    const result = calculateSessionCost({
-      ...baseParams,
-      endedAt: '2026-07-18T10:31:00.000Z',
-    });
-    expect(result.rawMinutes).toBe(31);
-    expect(result.billedMinutes).toBe(31);
-    expect(result.totalCost).toBe(3.1);
-  });
-
-  it('handles fractional second rounding up to full minute', () => {
-    const result = calculateSessionCost({
+  it('handles fractional second rounding with nearest-minute rounding', () => {
+    const resultUnder = calculateSessionCost({
       ...baseParams,
       endedAt: '2026-07-18T10:30:05.000Z', // 30 mins 5 secs
     });
-    expect(result.rawMinutes).toBe(31);
-    expect(result.billedMinutes).toBe(31);
-    expect(result.totalCost).toBe(3.1);
+    expect(resultUnder.rawMinutes).toBe(30);
+    expect(resultUnder.billedMinutes).toBe(30);
+    expect(resultUnder.totalCost).toBe(3.0);
+
+    const resultOver = calculateSessionCost({
+      ...baseParams,
+      endedAt: '2026-07-18T10:30:35.000Z', // 30 mins 35 secs
+    });
+    expect(resultOver.rawMinutes).toBe(31);
+    expect(resultOver.billedMinutes).toBe(31);
+    expect(resultOver.totalCost).toBe(3.1);
   });
 });
 
@@ -219,40 +237,40 @@ describe('calculateSessionCost - Input Validation', () => {
     deviceHourlyRate: 6.0,
   };
 
-  it('throws error when startedAt or endedAt is missing', () => {
+  it('rejects missing or invalid dates', () => {
     expect(() => calculateSessionCost({ ...valid, startedAt: '' })).toThrow('startedAt and endedAt dates are required');
     expect(() => calculateSessionCost({ ...valid, endedAt: '' })).toThrow('startedAt and endedAt dates are required');
   });
 
-  it('throws error when invalid date string is passed', () => {
+  it('rejects unparseable dates', () => {
     expect(() => calculateSessionCost({ ...valid, startedAt: 'not-a-date' })).toThrow('Invalid date provided for session calculation');
   });
 
-  it('throws error when endedAt is before startedAt', () => {
+  it('rejects end time before start time', () => {
     expect(() => calculateSessionCost({ ...valid, endedAt: '2026-07-18T09:00:00.000Z' })).toThrow('Session end time cannot be before start time');
   });
 
-  it('throws error when deviceHourlyRate is negative', () => {
+  it('rejects negative deviceHourlyRate', () => {
     expect(() => calculateSessionCost({ ...valid, deviceHourlyRate: -5 })).toThrow('Device hourly rate must be a non-negative number');
   });
 
-  it('throws error when hourlyRateOverride is negative', () => {
+  it('rejects negative hourlyRateOverride', () => {
     expect(() => calculateSessionCost({ ...valid, hourlyRateOverride: -10 })).toThrow('Hourly rate override must be a non-negative number');
   });
 
-  it('throws error when gracePeriodMinutes is negative', () => {
+  it('rejects negative gracePeriodMinutes', () => {
     expect(() => calculateSessionCost({ ...valid, gracePeriodMinutes: -5 })).toThrow('Grace period minutes cannot be negative');
   });
 
-  it('throws error when overtimeRateMultiplier is negative', () => {
+  it('rejects negative overtimeRateMultiplier', () => {
     expect(() => calculateSessionCost({ ...valid, overtimeRateMultiplier: -1.5 })).toThrow('Overtime rate multiplier must be a non-negative number');
   });
 
-  it('throws error when fixed session lacks scheduledEnd', () => {
+  it('rejects missing scheduledEnd for fixed session', () => {
     expect(() => calculateSessionCost({ ...valid, sessionType: 'fixed' })).toThrow('Fixed-duration sessions require a valid scheduledEnd date');
   });
 
-  it('throws error when fixed session has invalid scheduledEnd date', () => {
+  it('rejects invalid scheduledEnd for fixed session', () => {
     expect(() => calculateSessionCost({ ...valid, sessionType: 'fixed', scheduledEnd: 'invalid-date' })).toThrow('Invalid scheduled end date provided for session calculation');
   });
 });
@@ -276,7 +294,7 @@ describe('calculateSessionCost - Paused Time', () => {
     expect(result.totalCost).toBe(4.5);
   });
 
-  it('open session short: rawMinutes=40, paused=20 → effective=20 → billedMinutes=30 (min floor) → cost=3.00', () => {
+  it('open session short: rawMinutes=40, paused=20 → effective=20 → billedMinutes=20 → cost=2.00', () => {
     const result = calculateSessionCost({
       startedAt: '2026-07-18T10:00:00.000Z',
       endedAt:   '2026-07-18T10:40:00.000Z', // 40 min raw
@@ -287,9 +305,9 @@ describe('calculateSessionCost - Paused Time', () => {
     expect(result.rawMinutes).toBe(40);
     expect(result.pausedMinutes).toBe(20);
     expect(result.effectiveMinutes).toBe(20);
-    expect(result.billedMinutes).toBe(30); // minimum floor
-    expect(result.baseCost).toBe(3.0);
-    expect(result.totalCost).toBe(3.0);
+    expect(result.billedMinutes).toBe(20);
+    expect(result.baseCost).toBe(2.0);
+    expect(result.totalCost).toBe(2.0);
   });
 
   it('fixed session: scheduled=60, rawMinutes=90, paused=20, grace=0 → effective=70 → overtimeMinutes=max(0,70-60-0)=10', () => {
@@ -307,7 +325,7 @@ describe('calculateSessionCost - Paused Time', () => {
     expect(result.effectiveMinutes).toBe(70);
     expect(result.overtimeMinutes).toBe(10);
     expect(result.isOvertime).toBe(true);
-    // billedMinutes = 70 (effective > 30)
+    // billedMinutes = 70
     // baseMinutes = 70 - 10 = 60 → baseCost = (60/60)*6 = 6.00
     // overtimeCost = (10/60)*6*1.0 = 1.00
     expect(result.baseCost).toBe(6.0);
@@ -315,7 +333,7 @@ describe('calculateSessionCost - Paused Time', () => {
     expect(result.totalCost).toBe(7.0);
   });
 
-  it('boundary: paused > raw (data error) → effectiveMinutes = 0, billedMinutes = 30', () => {
+  it('boundary: paused > raw (data error) → effectiveMinutes = 0, billedMinutes = 0', () => {
     const result = calculateSessionCost({
       startedAt: '2026-07-18T10:00:00.000Z',
       endedAt:   '2026-07-18T10:20:00.000Z', // 20 min raw
@@ -326,8 +344,8 @@ describe('calculateSessionCost - Paused Time', () => {
     expect(result.rawMinutes).toBe(20);
     expect(result.pausedMinutes).toBe(50);
     expect(result.effectiveMinutes).toBe(0); // clamped to 0
-    expect(result.billedMinutes).toBe(30);    // minimum floor
-    expect(result.totalCost).toBe(3.0);
+    expect(result.billedMinutes).toBe(0);
+    expect(result.totalCost).toBe(0);
   });
 
   it('zero paused minutes behaves identically to pre-feature (backward compat)', () => {
@@ -346,4 +364,3 @@ describe('calculateSessionCost - Paused Time', () => {
     expect(withZeroPause.totalCost).toBe(withoutParam.totalCost);
   });
 });
-

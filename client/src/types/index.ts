@@ -379,9 +379,11 @@ export interface ShiftSummary {
   invoice_count: number;
   paid_invoice_count: number;
   standalone_orders_count?: number;
+  session_orders_count?: number;
   expense_count: number;
   invoices: Invoice[];
   standalone_orders?: StandaloneOrder[];
+  session_orders?: any[];
   expenses: ShiftExpense[];
 }
 

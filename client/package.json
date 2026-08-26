@@ -15,7 +15,9 @@
     "electron:dev": "concurrently \"vite\" \"electron .\"",
     "dist": "npm run build && node scripts/package-server.cjs && electron-builder --config electron-builder.config.cjs && node scripts/copy-dist.cjs"
   },
-  "dependencies": {},
+  "dependencies": {
+    "html-to-image": "^1.11.13"
+  },
   "devDependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
