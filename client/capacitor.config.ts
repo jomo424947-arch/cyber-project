@@ -5,11 +5,11 @@ const config: CapacitorConfig = {
   appName: 'CCMS',
   webDir: 'dist',
   server: {
-    url: 'http://148.66.152.6',
-    cleartext: true,
+    url: 'https://www.ccms-cafe.online',
+    cleartext: false,
   },
   android: {
-    allowMixedContent: false,
+    allowMixedContent: true,
   },
 };
 
