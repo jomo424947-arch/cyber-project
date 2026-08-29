@@ -464,16 +464,6 @@ export function TransferSessionModal({
                 </button>
               ))}
             </div>
-            {durationMinutes && parseInt(durationMinutes, 10) > 0 && (
-              <div style={{ fontSize: '12px', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>schedule</span>
-                <span>
-                  {language === 'ar'
-                    ? `ستستمر الجلسة بعد التحويل لمدة ${durationMinutes} دقيقة وتنتهي تلقائياً.`
-                    : `Session will run for ${durationMinutes} mins and end automatically.`}
-                </span>
-              </div>
-            )}
           </div>
         )}
 

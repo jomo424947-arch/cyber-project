@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
@@ -65,7 +66,7 @@ function createWindow() {
     show: false, // Don't show until content is ready
     backgroundColor: '#0A0A0A', // Match app dark background to prevent white flash
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
@@ -82,7 +83,7 @@ function createWindow() {
 
   // Log renderer console messages to diagnostic log
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    if (level >= 2) {
+    if (level >= 2) { // warnings and errors
       logError(`[Renderer Console L${level}] ${message} (${sourceId}:${line})`, '');
     }
   });
@@ -127,6 +128,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -144,3 +146,88 @@ app.on('window-all-closed', () => {
 // IPC communication handlers for desktop-specific native APIs
 ipcMain.handle('get-app-version', () => app.getVersion());
 ipcMain.handle('is-packaged', () => app.isPackaged);
+
+// Auto-updater configuration and IPC handlers
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.logger = {
+    info: (msg) => logError(`[AutoUpdater INFO] ${msg}`, ''),
+    warn: (msg) => logError(`[AutoUpdater WARN] ${msg}`, ''),
+    error: (msg) => logError(`[AutoUpdater ERROR] ${msg}`, '')
+  };
+
+  autoUpdater.on('checking-for-update', () => {
+    logError('Checking for updates...', '');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    logError(`Update available: v${info.version}`, '');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', info);
+    }
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-download-progress', progressObj);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    logError(`Update downloaded: v${info.version}`, '');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-downloaded', info);
+    }
+
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'تحديث جديد متوفر — CCMS',
+      message: `تم تنزيل التحديث الجديد (v${info.version}) بنجاح!\n\nهل تريد إعادة تشغيل التطبيق وتثبيت التحديث الآن؟`,
+      buttons: ['إعادة التشغيل والتحديث الآن', 'لاحقاً عند إغلاق البرنامج'],
+      defaultId: 0,
+      cancelId: 1
+    }).then((res) => {
+      if (res.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    }).catch(() => {});
+  });
+
+  autoUpdater.on('error', (err) => {
+    logError('AutoUpdater error', err);
+  });
+
+  // Automatically check for updates 6 seconds after start (production build only)
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+        logError('Automatic check for updates failed', err);
+      });
+    }, 6000);
+  }
+}
+
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    return {
+      status: 'dev-mode',
+      message: 'التحديث التلقائي يعمل في النسخة المثبتة المجمعة فقط (Production Build)'
+    };
+  }
+  try {
+    const checkResult = await autoUpdater.checkForUpdates();
+    return {
+      status: 'success',
+      updateInfo: checkResult?.updateInfo
+    };
+  } catch (err) {
+    logError('Manual check for updates failed', err);
+    return { status: 'error', error: err?.message || 'فشل فحص التحديثات' };
+  }
+});
+
+ipcMain.handle('quit-and-install', () => {
+  autoUpdater.quitAndInstall();
+});

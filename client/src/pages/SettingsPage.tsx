@@ -19,6 +19,7 @@ import { apiErrorMessage } from '../services/http';
 import { DEVICE_TYPE_META } from '../utils/constants';
 import { formatCurrency } from '../utils/format';
 import { DeviceFormModal } from '../components/DeviceFormModal';
+import { SoftwareUpdateSection } from '../components/SoftwareUpdateSection';
 import type { Device, DeviceType } from '../types';
 
 export default function SettingsPage() {
@@ -52,6 +53,7 @@ export default function SettingsPage() {
         </Button>
       }
     >
+      <SoftwareUpdateSection />
       <ThemeSettingsSection />
       <SystemBrandingSection />
       <PaymentSettingsSection />

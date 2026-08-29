@@ -240,19 +240,6 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                 >
                   {user?.full_name ? user.full_name : 'Admin'}
                 </p>
-                <p
-                  style={{
-                    fontSize: '10px',
-                    color: 'var(--accent-cyan)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    margin: 0,
-                    fontWeight: 600,
-                    marginTop: '2px',
-                  }}
-                >
-                  {isAdmin ? t('system_secured') : t('operator_secured')}
-                </p>
               </div>
             </div>
           </div>

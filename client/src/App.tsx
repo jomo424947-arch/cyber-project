@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
+import { UpdateNotification } from './components/UpdateNotification';
 
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
@@ -216,34 +217,37 @@ export default function App() {
   // the /login route automatically redirects to /dashboard.
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />}
-      />
+    <>
+      <UpdateNotification />
+      <Routes>
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />}
+        />
 
-      {/* These routes intentionally render AuthPage — the page itself
-          reads ?view=reset or the URL hash to show the correct form. */}
-      <Route path="/reset-password" element={<AuthPage />} />
-      <Route path="/verify-email"   element={<AuthPage />} />
+        {/* These routes intentionally render AuthPage — the page itself
+            reads ?view=reset or the URL hash to show the correct form. */}
+        <Route path="/reset-password" element={<AuthPage />} />
+        <Route path="/verify-email"   element={<AuthPage />} />
 
-      <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
-      <Route path="/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
-      <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
-      <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-      <Route path="/billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
-      <Route path="/shifts" element={<ProtectedRoute><ShiftsPage /></ProtectedRoute>} />
-      <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
-      <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-      <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
-      <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />
-      <Route path="/employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
-      <Route path="/super-admin" element={<SuperAdminPage />} />
-      <Route path="/customers/:id" element={<ProtectedRoute><CustomerProfilePage /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
+        <Route path="/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
+        <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
+        <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+        <Route path="/billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
+        <Route path="/shifts" element={<ProtectedRoute><ShiftsPage /></ProtectedRoute>} />
+        <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
+        <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
+        <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+        <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />
+        <Route path="/employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
+        <Route path="/super-admin" element={<SuperAdminPage />} />
+        <Route path="/customers/:id" element={<ProtectedRoute><CustomerProfilePage /></ProtectedRoute>} />
 
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </>
   );
 }

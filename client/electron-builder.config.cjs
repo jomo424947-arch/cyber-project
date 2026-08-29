@@ -6,6 +6,9 @@ const tempOutputDir = path.join(os.tmpdir(), 'ccms-dist-output');
 module.exports = {
   appId: 'com.ccms.gaminglounge',
   productName: 'CCMS',
+  extraMetadata: {
+    version: require('./package.json').version,
+  },
   electronVersion: '31.2.0',
   npmRebuild: false,
   asar: true,
@@ -17,6 +20,14 @@ module.exports = {
     'dist/**/*',
     'electron/**/*',
     'build/**/*',
+  ],
+  publish: [
+    {
+      provider: 'github',
+      owner: 'jomo424947-arch',
+      repo: 'cyber-project',
+      releaseType: 'release',
+    },
   ],
   win: {
     target: ['nsis'],
@@ -31,6 +42,6 @@ module.exports = {
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
     shortcutName: 'CCMS',
-    artifactName: 'CCMS Setup ${version}.${ext}',
+    artifactName: 'CCMS-Setup-${version}.${ext}',
   },
 };
