@@ -384,6 +384,7 @@ export interface ShiftSummary {
   invoices: Invoice[];
   standalone_orders?: StandaloneOrder[];
   session_orders?: any[];
+  session_transfers?: SessionTransfer[];
   expenses: ShiftExpense[];
 }
 
@@ -407,6 +408,9 @@ export interface TransferSessionPayload {
   target_device_id: string;
   play_mode?: 'single' | 'multiplayer';
   hourly_rate_override?: number | null;
+  session_type?: 'open' | 'fixed';
+  scheduled_end?: string | null;
+  duration_minutes?: number | null;
 }
 
 export interface EndSessionPayload {

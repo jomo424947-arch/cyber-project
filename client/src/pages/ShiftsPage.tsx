@@ -20,7 +20,7 @@ import type { Shift, ShiftSummary } from '../types';
 
 export default function ShiftsPage() {
   const isMobile = useIsMobile();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { language, isRtl } = useLanguage();
   const { toast } = useToast();
 
@@ -45,8 +45,6 @@ export default function ShiftsPage() {
   // Form states
   const [openingCash, setOpeningCash] = useState<number>(0);
   const [startNotes, setStartNotes] = useState<string>('');
-  const [closingCash, setClosingCash] = useState<number | ''>('');
-  const [closeNotes, setCloseNotes] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
 
   // Expense form state
@@ -130,27 +128,11 @@ export default function ShiftsPage() {
     e.preventDefault();
     if (!activeShift) return;
 
-    if (closingCash === '' || Number(closingCash) < 0) {
-      toast(language === 'ar' ? 'يجب إدخال المبلغ الفعلي الموجود بالدرج' : 'Actual counted cash is required', 'error');
-      return;
-    }
-
-    const isDiscrepant = Math.abs(Number(closingCash) - activeExpectedCash) > 0.01;
-    if (isDiscrepant && !closeNotes.trim()) {
-      toast(language === 'ar' ? 'يجب كتابة سبب العجز أو الزيادة في خانة الملاحظات' : 'Please provide remarks explaining the discrepancy', 'error');
-      return;
-    }
-
     setSubmitting(true);
     try {
-      await dataService.closeShift(activeShift.id, {
-        closing_cash: Number(closingCash),
-        notes: closeNotes.trim() || undefined,
-      });
+      await dataService.closeShift(activeShift.id);
       toast(language === 'ar' ? 'تم إغلاق الوردية وتسجيل الخروج بنجاح' : 'Shift closed. Logged out successfully.', 'success');
       setShowCloseModal(false);
-      setClosingCash('');
-      setCloseNotes('');
       // Auto logout from account upon shift closure
       await logout();
     } catch (err) {
@@ -549,45 +531,48 @@ export default function ShiftsPage() {
         </div>
       )}
 
-      {/* 2. STATS CARDS */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px',
-        }}
-      >
-        <StatCard
-          label={language === 'ar' ? 'إجمالي الورديات' : 'Total Shifts'}
-          value={stats.totalShifts}
-          icon="history"
-          accent="var(--accent-cyan)"
-        />
-        <StatCard
-          label={language === 'ar' ? 'إجمالي إيرادات الورديات' : 'Total Invoiced Revenue'}
-          value={formatCurrency(stats.totalRev)}
-          icon="payments"
-          accent="var(--accent-green)"
-        />
-        <StatCard
-          label={language === 'ar' ? 'إجمالي المصروفات' : 'Total Shift Expenses'}
-          value={formatCurrency(stats.totalExp)}
-          icon="receipt_long"
-          accent="var(--accent-red)"
-        />
-        <StatCard
-          label={language === 'ar' ? 'صافي الحصيلة النقدية' : 'Net Total Cash'}
-          value={formatCurrency(stats.totalRev - stats.totalExp)}
-          icon="account_balance_wallet"
-          accent="var(--accent-yellow)"
-        />
-      </div>
+      {/* 2. STATS CARDS (Admin only) */}
+      {isAdmin && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '16px',
+            marginBottom: '24px',
+          }}
+        >
+          <StatCard
+            label={language === 'ar' ? 'إجمالي الورديات' : 'Total Shifts'}
+            value={stats.totalShifts}
+            icon="history"
+            accent="var(--accent-cyan)"
+          />
+          <StatCard
+            label={language === 'ar' ? 'إجمالي إيرادات الورديات' : 'Total Invoiced Revenue'}
+            value={formatCurrency(stats.totalRev)}
+            icon="payments"
+            accent="var(--accent-green)"
+          />
+          <StatCard
+            label={language === 'ar' ? 'إجمالي المصروفات' : 'Total Shift Expenses'}
+            value={formatCurrency(stats.totalExp)}
+            icon="receipt_long"
+            accent="var(--accent-red)"
+          />
+          <StatCard
+            label={language === 'ar' ? 'صافي الحصيلة النقدية' : 'Net Total Cash'}
+            value={formatCurrency(stats.totalRev - stats.totalExp)}
+            icon="account_balance_wallet"
+            accent="var(--accent-yellow)"
+          />
+        </div>
+      )}
 
-      {/* 3. SHIFTS HISTORY TABLE & FILTERS */}
-      <div
-        style={{
-          background: 'var(--bg-surface)',
+      {/* 3. SHIFTS HISTORY TABLE & FILTERS (Admin only) */}
+      {isAdmin && (
+        <div
+          style={{
+            background: 'var(--bg-surface)',
           border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '20px',
@@ -877,6 +862,7 @@ export default function ShiftsPage() {
           />
         )}
       </div>
+      )}
 
       {/* MODAL 1: START SHIFT */}
       <Modal
@@ -1017,95 +1003,22 @@ export default function ShiftsPage() {
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-              {language === 'ar' ? 'المبلغ الفعلي الموجود بالكاشير عند العد * (إلزامي)' : 'Actual Counted Closing Cash * (Required)'}
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              required
-              placeholder={formatCurrency(activeExpectedCash)}
-              value={closingCash}
-              onChange={(e) => setClosingCash(e.target.value === '' ? '' : Number(e.target.value))}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'var(--bg-input)',
-                border: closingCash === '' ? '1px solid var(--accent-red)' : '1px solid var(--border-default)',
-                borderRadius: '8px',
-                color: 'var(--text-primary)',
-                fontSize: '16px',
-                fontWeight: 700,
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            />
-            {closingCash !== '' && (
-              <div style={{ marginTop: '8px', fontSize: '12px' }}>
-                {Math.abs(Number(closingCash) - activeExpectedCash) <= 0.01 ? (
-                  <span style={{ color: 'var(--accent-green)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>check_circle</span>
-                    {language === 'ar' ? 'مطابق تماماً للمبلغ المتوقع' : 'Exact match with expected cash'}
-                  </span>
-                ) : Number(closingCash) > activeExpectedCash ? (
-                  <span style={{ color: 'var(--accent-yellow)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>trending_up</span>
-                    {language === 'ar' ? 'يوجد فائض بالدرج بمقدار:' : 'Cash Surplus:'}{' '}
-                    +{formatCurrency(Number(closingCash) - activeExpectedCash)}
-                  </span>
-                ) : (
-                  <span style={{ color: 'var(--accent-red)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>trending_down</span>
-                    {language === 'ar' ? 'يوجد عجز بالدرج بمقدار:' : 'Cash Deficit:'}{' '}
-                    {formatCurrency(Number(closingCash) - activeExpectedCash)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: (closingCash !== '' && Math.abs(Number(closingCash) - activeExpectedCash) > 0.01) ? 'var(--accent-yellow)' : 'var(--text-primary)', marginBottom: '6px' }}>
-              {(closingCash !== '' && Math.abs(Number(closingCash) - activeExpectedCash) > 0.01)
-                ? (language === 'ar' ? 'ملاحظات الإغلاق والتسليم * (إلزامي لتوضيح سبب الفارق/العجز/الزيادة)' : 'Closing Remarks * (Mandatory for Discrepancy)')
-                : (language === 'ar' ? 'ملاحظات الإغلاق (اختياري)' : 'Closing Remarks (Optional)')}
-            </label>
-            <textarea
-              rows={3}
-              required={closingCash !== '' && Math.abs(Number(closingCash) - activeExpectedCash) > 0.01}
-              value={closeNotes}
-              onChange={(e) => setCloseNotes(e.target.value)}
-              placeholder={
-                (closingCash !== '' && Math.abs(Number(closingCash) - activeExpectedCash) > 0.01)
-                  ? (language === 'ar' ? 'اكتب سبب وجود عجز أو زيادة في النقدية للإدارة...' : 'Explain the cash difference...')
-                  : (language === 'ar' ? 'ملاحظات للموظف القادم أو الإدارة...' : 'Notes for next shift / manager...')
-              }
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'var(--bg-input)',
-                border: (closingCash !== '' && Math.abs(Number(closingCash) - activeExpectedCash) > 0.01 && !closeNotes.trim()) ? '1px solid var(--accent-yellow)' : '1px solid var(--border-default)',
-                borderRadius: '8px',
-                color: 'var(--text-primary)',
-                fontSize: '13px',
-                resize: 'none',
-              }}
-            />
-          </div>
-
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0, 194, 255, 0.06)', border: '1px solid rgba(0, 194, 255, 0.2)', padding: '8px 12px', borderRadius: '8px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0, 194, 255, 0.06)', border: '1px solid rgba(0, 194, 255, 0.2)', padding: '10px 14px', borderRadius: '8px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
               info
             </span>
-            {language === 'ar' ? 'ملاحظة: سيتم تسجيل وتوثيق كل الأرقام والملاحظات في تقرير الوردية للأدمن.' : 'Note: All reconciliation details will be logged in the Admin Shift Report.'}
+            <span>
+              {language === 'ar'
+                ? 'سيتم اعتماد المبلغ المفترض بالدرج وإغلاق الوردية وتوثيق كل العمليات تلقائياً.'
+                : 'Expected cash will be recorded and the shift will be closed successfully.'}
+            </span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
             <Button variant="ghost" type="button" onClick={() => setShowCloseModal(false)}>
               {language === 'ar' ? 'إلغاء' : 'Cancel'}
             </Button>
-            <Button variant="danger" type="submit" disabled={submitting || closingCash === '' || Number(closingCash) < 0 || (Math.abs(Number(closingCash) - activeExpectedCash) > 0.01 && !closeNotes.trim())}>
+            <Button variant="danger" type="submit" disabled={submitting}>
               {submitting ? (language === 'ar' ? 'جارٍ الإغلاق...' : 'Closing...') : language === 'ar' ? 'تأكيد إغلاق الوردية وتسجيل الخروج' : 'Confirm Close Shift & Logout'}
             </Button>
           </div>

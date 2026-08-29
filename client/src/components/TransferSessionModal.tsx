@@ -31,6 +31,14 @@ export function TransferSessionModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Session Type State for Transfer
+  const isInitialFixed = session.session_type === 'fixed';
+  const initialRemaining = (isInitialFixed && session.scheduled_end)
+    ? Math.max(1, Math.round((new Date(session.scheduled_end).getTime() - Date.now()) / 60000))
+    : 60;
+  const [sessionType, setSessionType] = useState<'open' | 'fixed'>(session.session_type || 'open');
+  const [durationMinutes, setDurationMinutes] = useState<string>(String(initialRemaining));
+
   // Fetch available devices and rooms
   useEffect(() => {
     setLoading(true);
@@ -80,13 +88,39 @@ export function TransferSessionModal({
     : currentRate;
   const currentSegmentCost = Math.round((currentElapsedMins / 60) * effectiveCurrentRate * 100) / 100;
 
+  // Session Type (Open vs Fixed) and Remaining Duration calculation
+  const isFixedTime = session.session_type === 'fixed';
+  let remainingMins: number | null = null;
+  let scheduledEndTimeFormatted = '';
+  if (isFixedTime && session.scheduled_end) {
+    const endMs = new Date(session.scheduled_end).getTime();
+    const nowMs = Date.now();
+    const diffSec = Math.floor((endMs - nowMs) / 1000);
+    remainingMins = Math.max(0, Math.round(diffSec / 60));
+    try {
+      scheduledEndTimeFormatted = new Date(session.scheduled_end).toLocaleTimeString(language === 'ar' ? 'ar-EG' : undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      scheduledEndTimeFormatted = '';
+    }
+  }
+
   const isChangingPlayModeOnly = !selectedDeviceId && playMode !== (session.play_mode || 'single');
   const isTransferringDevice = Boolean(selectedDeviceId && selectedDeviceId !== session.device_id);
-  const canSubmit = isChangingPlayModeOnly || isTransferringDevice;
+  const isChangingSessionType = sessionType !== (session.session_type || 'open');
+  const isChangingDuration = sessionType === 'fixed' && (parseInt(durationMinutes, 10) || 0) !== initialRemaining;
+  const canSubmit = isChangingPlayModeOnly || isTransferringDevice || isChangingSessionType || isChangingDuration;
 
   const handleTransfer = async () => {
     if (!canSubmit) {
-      setErrorMsg(language === 'ar' ? 'يرجى اختيار جهاز هدف أو تغيير نمط اللعب للجلسة' : 'Please select target device or change play mode');
+      setErrorMsg(language === 'ar' ? 'يرجى اختيار جهاز هدف أو تعديل نوع الجلسة أو نمط اللعب' : 'Please select target device or adjust session settings');
+      return;
+    }
+
+    if (sessionType === 'fixed' && (!durationMinutes || parseInt(durationMinutes, 10) <= 0)) {
+      setErrorMsg(language === 'ar' ? 'يرجى إدخال مدة صحيحة بالدقائق للجلسة المحددة' : 'Please enter a valid duration in minutes');
       return;
     }
 
@@ -96,6 +130,8 @@ export function TransferSessionModal({
       await dataService.transferSession(session.id, {
         target_device_id: selectedDeviceId || session.device_id,
         play_mode: playMode,
+        session_type: sessionType,
+        duration_minutes: sessionType === 'fixed' ? (parseInt(durationMinutes, 10) || 60) : undefined,
       });
       onDone();
     } catch (err: any) {
@@ -140,10 +176,12 @@ export function TransferSessionModal({
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-              {isChangingPlayModeOnly ? 'published_with_changes' : 'swap_horiz'}
+              {isChangingPlayModeOnly || (!selectedDeviceId && (isChangingSessionType || isChangingDuration))
+                ? 'published_with_changes'
+                : 'swap_horiz'}
             </span>
-            {isChangingPlayModeOnly
-              ? (language === 'ar' ? `تحويل النمط إلى (${playMode === 'multiplayer' ? 'جماعي' : 'فردي'}) على نفس الجهاز` : `Switch Mode to ${playMode} on same device`)
+            {isChangingPlayModeOnly || (!selectedDeviceId && (isChangingSessionType || isChangingDuration))
+              ? (language === 'ar' ? 'تحديث إعدادات الجلسة' : 'Update Session Settings')
               : (language === 'ar' ? 'تأكيد التحويل الآن' : 'Confirm Transfer')}
           </Button>
         </>
@@ -163,14 +201,36 @@ export function TransferSessionModal({
             gap: '8px',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               {language === 'ar' ? 'الجلسة الحالية:' : 'Current Session:'}
             </span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sports_esports</span>
-              {session.device?.name}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>sports_esports</span>
+                {session.device?.name}
+              </span>
+              {/* Prominent Session Type Badge */}
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  background: 'rgba(0, 194, 255, 0.15)',
+                  border: '1px solid rgba(0, 194, 255, 0.35)',
+                  color: 'var(--accent-cyan)',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                  {isFixedTime ? 'timer' : 'all_inclusive'}
+                </span>
+                {isFixedTime ? (language === 'ar' ? 'وقت محدد' : 'Fixed Time') : (language === 'ar' ? 'وقت مفتوح' : 'Open Time')}
+              </span>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '6px' }}>
@@ -179,25 +239,41 @@ export function TransferSessionModal({
               <strong style={{ color: 'var(--text-primary)' }}>{session.customer?.name || 'Walk-in'}</strong>
             </div>
             <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'الوقت المنقضي: ' : 'Elapsed: '}</span>
-              <strong style={{ color: 'var(--accent-cyan)' }}>{currentElapsedMins} {language === 'ar' ? 'دقيقة' : 'mins'}</strong>
+              <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'نوع الجلسة: ' : 'Time Mode: '}</span>
+              <strong style={{ color: 'var(--accent-cyan)' }}>
+                {isFixedTime
+                  ? (language === 'ar'
+                      ? `وقت محدد (${remainingMins !== null ? `متبقي ${remainingMins} د` : ''}${scheduledEndTimeFormatted ? ` حتى ${scheduledEndTimeFormatted}` : ''})`
+                      : `Fixed (${remainingMins !== null ? `${remainingMins}m left` : ''}${scheduledEndTimeFormatted ? ` until ${scheduledEndTimeFormatted}` : ''})`)
+                  : (language === 'ar' ? 'وقت مفتوح (مستمر)' : 'Open Time')}
+              </strong>
             </div>
             <div>
-              <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'سعر الساعة الحالي: ' : 'Current Rate: '}</span>
-              <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(effectiveCurrentRate)}/{language === 'ar' ? 'س' : 'hr'} ({session.play_mode === 'multiplayer' ? (language === 'ar' ? 'جماعي' : 'Multi') : (language === 'ar' ? 'فردي' : 'Single')})</strong>
+              <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'الوقت المنقضي: ' : 'Elapsed: '}</span>
+              <strong style={{ color: 'var(--accent-cyan)' }}>{currentElapsedMins} {language === 'ar' ? 'دقيقة' : 'mins'}</strong>
             </div>
             <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
               <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'تكلفة المرحلة: ' : 'Segment Cost: '}</span>
               <strong style={{ color: 'var(--accent-green)' }}>{formatCurrency(currentSegmentCost)}</strong>
             </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>{language === 'ar' ? 'سعر الساعة الحالي: ' : 'Current Rate: '}</span>
+              <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(effectiveCurrentRate)}/{language === 'ar' ? 'س' : 'hr'} ({session.play_mode === 'multiplayer' ? (language === 'ar' ? 'جماعي' : 'Multi') : (language === 'ar' ? 'فردي' : 'Single')})</strong>
+            </div>
           </div>
 
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(0, 0, 0, 0.25)', padding: '6px 10px', borderRadius: '6px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: 'var(--accent-cyan)', flexShrink: 0 }}>info</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(0, 0, 0, 0.25)', padding: '8px 10px', borderRadius: '6px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--accent-cyan)', flexShrink: 0 }}>
+              {isFixedTime ? 'timer' : 'info'}
+            </span>
             <span>
-              {language === 'ar'
-                ? 'سيتم حفظ تكلفة الوقت المنقضي كشريحة أولى بالتسعيرة الحالية، ثم يبدأ العداد بالنمط أو الجهاز الجديد بالتسعيرة الجديدة.'
-                : 'Time elapsed will be billed as segment 1 with current rate, then a new segment starts with the new mode/station.'}
+              {isFixedTime
+                ? (language === 'ar'
+                    ? `الجلسة محددة المدة — سيتم نقل الوقت المتبقي (${remainingMins !== null ? `${remainingMins} دقيقة` : ''}) تلقائياً للجهاز/الغرفة الجديدة.`
+                    : `Fixed duration session — remaining time (${remainingMins !== null ? `${remainingMins} mins` : ''}) will transfer to the new station.`)
+                : (language === 'ar'
+                    ? 'الجلسة وقت مفتوح — سيتم حفظ تكلفة الوقت المنقضي كشريحة أولى، ويستمر العداد في الجهاز/الغرفة الجديدة بالتسعيرة المحددة.'
+                    : 'Open session — elapsed time will be saved as segment 1, and the timer continues on the new station.')}
             </span>
           </div>
         </div>
@@ -206,8 +282,8 @@ export function TransferSessionModal({
         <div
           style={{
             padding: '12px 14px',
-            background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
-            border: '1px solid rgba(0, 194, 255, 0.28)',
+            background: 'rgba(0, 194, 255, 0.05)',
+            border: '1px solid rgba(0, 194, 255, 0.22)',
             borderRadius: '10px',
             display: 'flex',
             alignItems: 'center',
@@ -264,8 +340,8 @@ export function TransferSessionModal({
               style={{
                 padding: '6px 14px',
                 borderRadius: '8px',
-                border: playMode === 'multiplayer' ? '2px solid var(--accent-purple)' : '1px solid var(--border-default)',
-                background: playMode === 'multiplayer' ? 'rgba(168, 85, 247, 0.3)' : 'var(--bg-input)',
+                border: playMode === 'multiplayer' ? '2px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                background: playMode === 'multiplayer' ? 'rgba(0, 194, 255, 0.25)' : 'var(--bg-input)',
                 color: playMode === 'multiplayer' ? '#FFFFFF' : 'var(--text-secondary)',
                 fontWeight: playMode === 'multiplayer' ? 700 : 500,
                 fontSize: '12px',
@@ -276,11 +352,130 @@ export function TransferSessionModal({
                 transition: 'all 0.15s ease',
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: playMode === 'multiplayer' ? 'var(--accent-purple)' : 'inherit' }}>groups</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: playMode === 'multiplayer' ? 'var(--accent-cyan)' : 'inherit' }}>groups</span>
               {language === 'ar' ? 'جماعي' : 'Multi'}
             </button>
           </div>
         </div>
+
+        {/* 4. Session Type Selector (Open vs Fixed) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span className="ccms-eyebrow" style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+            {language === 'ar' ? 'نوع الجلسة' : 'Session Type'}
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              className={sessionType === 'open' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
+              style={{
+                flex: 1,
+                fontSize: '13px',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                height: '42px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                borderRadius: '8px',
+              }}
+              onClick={() => setSessionType('open')}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>all_inclusive</span>
+              {language === 'ar' ? 'وقت مفتوح' : 'Open Time'}
+            </button>
+            <button
+              type="button"
+              className={sessionType === 'fixed' ? 'ccms-btn ccms-btn-primary' : 'ccms-btn ccms-btn-ghost'}
+              style={{
+                flex: 1,
+                fontSize: '13px',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                height: '42px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                borderRadius: '8px',
+              }}
+              onClick={() => setSessionType('fixed')}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>timer</span>
+              {language === 'ar' ? 'وقت محدد' : 'Fixed Time'}
+            </button>
+          </div>
+        </div>
+
+        {sessionType === 'fixed' && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              background: 'rgba(0, 194, 255, 0.05)',
+              border: '1px solid rgba(0, 194, 255, 0.25)',
+              padding: '12px 14px',
+              borderRadius: '10px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {language === 'ar' ? 'المدة المحددة للجلسة (بالدقائق)*:' : 'Duration (minutes)*:'}
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="5"
+                required
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(e.target.value)}
+                style={{
+                  width: '120px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(0, 194, 255, 0.4)',
+                  background: 'var(--bg-input)',
+                  color: 'var(--accent-cyan)',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  textAlign: 'center',
+                  fontFamily: 'JetBrains Mono, monospace',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[15, 30, 45, 60, 90, 120].map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => setDurationMinutes(String(mins))}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    border: durationMinutes === String(mins) ? '1px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                    background: durationMinutes === String(mins) ? 'rgba(0, 194, 255, 0.25)' : 'var(--bg-input)',
+                    color: durationMinutes === String(mins) ? '#FFFFFF' : 'var(--text-secondary)',
+                    fontSize: '11px',
+                    fontWeight: durationMinutes === String(mins) ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {mins} {language === 'ar' ? 'دقيقة' : 'm'}
+                </button>
+              ))}
+            </div>
+            {durationMinutes && parseInt(durationMinutes, 10) > 0 && (
+              <div style={{ fontSize: '12px', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>schedule</span>
+                <span>
+                  {language === 'ar'
+                    ? `ستستمر الجلسة بعد التحويل لمدة ${durationMinutes} دقيقة وتنتهي تلقائياً.`
+                    : `Session will run for ${durationMinutes} mins and end automatically.`}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Filter Chips & Search Bar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

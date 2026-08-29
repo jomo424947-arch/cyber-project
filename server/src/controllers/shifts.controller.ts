@@ -110,10 +110,6 @@ export async function closeShift(req: Request, res: Response) {
   const { id } = req.params;
   const { closing_cash, notes } = req.body as { closing_cash?: number; notes?: string };
 
-  if (closing_cash === undefined || closing_cash === null || isNaN(Number(closing_cash)) || Number(closing_cash) < 0) {
-    throw badRequest('يجب إدخال المبلغ الفعلي الموجود بالدرج عند إغلاق الوردية.', 'CLOSING_CASH_REQUIRED');
-  }
-
   // Fetch shift
   const { data: shift, error: fetchErr } = await supabase
     .from('shifts')
@@ -161,25 +157,20 @@ export async function closeShift(req: Request, res: Response) {
 
   const calculatedExpenses = (expenses || []).reduce((acc: number, exp: any) => acc + Number(exp.amount || 0), 0);
 
-  const expectedClosing = Number(shift.opening_cash || 0) + calculatedRevenue - calculatedExpenses;
-  const numericClosingCash = Number(closing_cash);
-  const cashDifference = numericClosingCash - expectedClosing;
+  const finalRevenue = Math.max(Number(shift.total_revenue || 0), calculatedRevenue);
+  const finalExpenses = Math.max(Number(shift.total_expenses || 0), calculatedExpenses);
+  const expectedClosing = Number(shift.opening_cash || 0) + finalRevenue - finalExpenses;
 
-  // If there is any cash difference, require an explanation note for audit integrity
-  if (Math.abs(cashDifference) > 0.01 && (!notes || !notes.trim())) {
-    throw badRequest(
-      cashDifference < 0
-        ? `يوجد عجز في الدرج بمقدار ${Math.abs(cashDifference).toFixed(2)} ج. يجب كتابة سبب العجز في خانة الملاحظات قبل الإغلاق.`
-        : `يوجد فائض في الدرج بمقدار ${cashDifference.toFixed(2)} ج. يجب كتابة سبب الفائض في خانة الملاحظات قبل الإغلاق.`,
-      'DISCREPANCY_NOTE_REQUIRED'
-    );
-  }
+  // When closing shift, closing_cash defaults to expectedClosing so closing is never blocked
+  const numericClosingCash = (closing_cash !== undefined && closing_cash !== null && !isNaN(Number(closing_cash)) && notes)
+    ? Number(closing_cash)
+    : expectedClosing;
 
   const patch: Record<string, any> = {
     ended_at: new Date().toISOString(),
     status: 'closed',
-    total_revenue: calculatedRevenue,
-    total_expenses: calculatedExpenses,
+    total_revenue: finalRevenue,
+    total_expenses: finalExpenses,
     closing_cash: numericClosingCash,
     notes: notes ? notes.trim() : shift.notes || null,
   };
@@ -222,7 +213,7 @@ export async function getShiftSummary(req: Request, res: Response) {
     .select(`
       *,
       creator:users(id, full_name, email),
-      session:sessions(id, started_at, ended_at, duration_minutes,
+      session:sessions(id, device_id, customer_id, started_at, ended_at, duration_minutes,
         device:devices(id, name, type),
         customer:customers(id, name))
     `)
@@ -274,6 +265,24 @@ export async function getShiftSummary(req: Request, res: Response) {
     }
   }
 
+  // Get session transfers for all sessions in this shift to track the device that started the session
+  let sessionTransfersList: any[] = [];
+  if (allShiftSessionIds.length > 0) {
+    try {
+      const { data: transfers, error: trErr } = await supabase
+        .from('session_transfers')
+        .select('*, from_device:devices!from_device_id(id, name, type), to_device:devices!to_device_id(id, name, type)')
+        .in('session_id', allShiftSessionIds)
+        .order('started_at', { ascending: true });
+
+      if (!trErr && transfers) {
+        sessionTransfersList = transfers;
+      }
+    } catch (trCatchErr) {
+      console.warn('[shifts] Could not query session_transfers for shift summary:', trCatchErr);
+    }
+  }
+
   const paidInvoices = invoiceList.filter((inv: any) => inv.paid);
   const paidInvoicesRevenue = paidInvoices.reduce((acc: number, inv: any) => acc + Number(inv.amount || 0), 0);
   const standaloneRevenue = standaloneList.reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
@@ -305,6 +314,7 @@ export async function getShiftSummary(req: Request, res: Response) {
       invoices: invoiceList,
       standalone_orders: standaloneList,
       session_orders: sessionOrdersList,
+      session_transfers: sessionTransfersList,
       expenses: expenseList,
     },
   });

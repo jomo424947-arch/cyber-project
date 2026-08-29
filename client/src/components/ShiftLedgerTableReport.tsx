@@ -20,6 +20,7 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
     cafe: true,
     expenses: true,
     service: false,
+    discount: false,
     time: false,
   });
 
@@ -40,7 +41,7 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
   };
 
   const expandAll = () => {
-    setExpandedSections({ cafe: true, expenses: true, service: true, time: true });
+    setExpandedSections({ cafe: true, expenses: true, service: true, discount: true, time: true });
     // Expand all category keys
     const allCats: Record<string, boolean> = {};
     Object.keys(reportData.cafeByCategory).forEach((k) => (allCats[`cafe_${k}`] = true));
@@ -50,62 +51,64 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
   };
 
   const collapseAll = () => {
-    setExpandedSections({ cafe: false, expenses: false, service: false, time: false });
+    setExpandedSections({ cafe: false, expenses: false, service: false, discount: false, time: false });
     setExpandedCategories({});
   };
 
-  const { shift, invoices = [], standalone_orders = [], session_orders = [], expenses = [] } = summaryData;
+  const { shift, invoices = [], standalone_orders = [], session_orders = [], expenses = [], session_transfers = [] } = summaryData;
 
   // Process data strictly categorized according to POS Accounting structure
   const reportData = useMemo(() => {
-    // ─── 1. Cafe & Drinks (Standalone Sales + Room/Device Orders) ───────────
-    const standaloneCafeRows = (standalone_orders || []).map((ord: any) => {
+    // ─── 1. Cafe & Drinks: Grouped by Product with total quantity sold ────────
+    const cafeMap: Record<string, {
+      id: string;
+      category: string;
+      name: string;
+      date: string;
+      qty: number;
+      price: number;
+      total: number;
+      notes: string;
+    }> = {};
+
+    const processOrder = (ord: any) => {
       let categoryName = ord.product?.category || '';
       if (!categoryName || categoryName === 'مشروبات' || categoryName === 'Drinks' || categoryName === 'مشروبات ومأكولات') {
         categoryName = language === 'ar' ? 'مشروبات وانترنت' : 'Drinks & Internet';
       }
+      const productName = ord.product?.name || (language === 'ar' ? 'صنف بوفيه' : 'Cafe item');
       const qty = Number(ord.quantity || 1);
       const total = Number(ord.total_price || (qty * Number(ord.unit_price || ord.product?.price || 0)));
-      const unitPrice = Number(ord.unit_price || ord.product?.price || (total / qty));
+      const unitPrice = Number(ord.unit_price || ord.product?.price || (qty > 0 ? total / qty : 0));
+      const key = `${categoryName}__${productName}`;
 
-      return {
-        id: `standalone_${ord.id}`,
-        category: categoryName,
-        name: ord.product?.name || (language === 'ar' ? 'صنف بوفيه' : 'Cafe item'),
-        date: ord.created_at ? formatDateTime(ord.created_at) : '—',
-        qty,
-        price: unitPrice,
-        total,
-        notes: ord.payment_method === 'card' ? (language === 'ar' ? 'بطاقة' : 'Card')
-          : ord.payment_method === 'instapay' ? 'InstaPay'
-          : (language === 'ar' ? 'مبيعات مباشرة' : 'Direct sale'),
-      };
-    });
-
-    const sessionCafeRows = (session_orders || []).map((ord: any) => {
-      let categoryName = ord.product?.category || '';
-      if (!categoryName || categoryName === 'مشروبات' || categoryName === 'Drinks' || categoryName === 'مشروبات ومأكولات') {
-        categoryName = language === 'ar' ? 'مشروبات وانترنت' : 'Drinks & Internet';
+      if (!cafeMap[key]) {
+        cafeMap[key] = {
+          id: `item_${key}`,
+          category: categoryName,
+          name: productName,
+          date: ord.created_at ? formatDateTime(ord.created_at) : '—',
+          qty: 0,
+          price: unitPrice,
+          total: 0,
+          notes: '',
+        };
       }
-      const qty = Number(ord.quantity || 1);
-      const total = Number(ord.total_price || (qty * Number(ord.unit_price || ord.product?.price || 0)));
-      const unitPrice = Number(ord.unit_price || ord.product?.price || (total / qty));
-      const deviceName = ord.session?.device?.name || (language === 'ar' ? 'طلب غرفة/جهاز' : 'Station order');
-      const customerName = ord.session?.customer?.name;
+      cafeMap[key].qty += qty;
+      cafeMap[key].total += total;
+      if (cafeMap[key].price === 0 && unitPrice > 0) {
+        cafeMap[key].price = unitPrice;
+      }
+    };
 
-      return {
-        id: `session_${ord.id}`,
-        category: categoryName,
-        name: ord.product?.name || (language === 'ar' ? 'صنف بوفيه' : 'Cafe item'),
-        date: ord.created_at ? formatDateTime(ord.created_at) : '—',
-        qty,
-        price: unitPrice,
-        total,
-        notes: customerName ? `${deviceName} (${customerName})` : deviceName,
-      };
-    });
+    (standalone_orders || []).forEach(processOrder);
+    (session_orders || []).forEach(processOrder);
 
-    const cafeRows = [...standaloneCafeRows, ...sessionCafeRows];
+    const cafeRows = Object.values(cafeMap).map((item) => ({
+      ...item,
+      price: item.qty > 0 ? Math.round((item.total / item.qty) * 100) / 100 : item.price,
+      notes: language === 'ar' ? `إجمالي المبيعات` : `Total sales`,
+    }));
 
     const cafeByCategory: Record<string, typeof cafeRows> = {};
     if (cafeRows.length === 0) {
@@ -142,7 +145,7 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
     }
     const expenseTotal = expenseRows.reduce((acc, r) => acc + r.total, 0);
 
-    // ─── 3. Service ────────────────────────────────────────────────────────
+    // ─── 3. Service & Discounts (Merged) ──────────────────────────────────
     const serviceRows: Array<{
       id: string;
       category: string;
@@ -154,23 +157,94 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
       notes: string;
     }> = [];
 
+    const adjustmentsRows: Array<{
+      id: string;
+      category: string;
+      name: string;
+      date: string;
+      qty: number;
+      price: number;
+      total: number;
+      isDeduction: boolean;
+      notes: string;
+    }> = [];
+
     let serviceTotal = 0;
+    let serviceCount = 0;
+    let latestServiceDate = '—';
+
     invoices.forEach((inv: any) => {
       const sFee = Number(inv.service_fee || 0);
       if (sFee > 0) {
         serviceTotal += sFee;
-        serviceRows.push({
-          id: inv.id,
-          category: 'service',
-          name: language === 'ar' ? `رسوم خدمة (فاتورة #${inv.id?.substring(0, 5)})` : `Service Fee (#${inv.id?.substring(0, 5)})`,
-          date: inv.issued_at ? formatDateTime(inv.issued_at) : '—',
-          qty: 1,
-          price: sFee,
-          total: sFee,
-          notes: inv.session?.device?.name || '',
-        });
+        serviceCount += 1;
+        if (inv.issued_at) {
+          latestServiceDate = formatDateTime(inv.issued_at);
+        }
       }
     });
+
+    if (serviceCount > 0) {
+      const sRow = {
+        id: 'service_aggregate',
+        category: 'service',
+        name: language === 'ar' ? 'رسوم خدمة' : 'Service Fee',
+        date: latestServiceDate,
+        qty: serviceCount,
+        price: Math.round((serviceTotal / serviceCount) * 100) / 100,
+        total: serviceTotal,
+        isDeduction: false,
+        notes: language === 'ar' ? 'إجمالي رسوم الخدمة' : 'Total service fees',
+      };
+      serviceRows.push(sRow);
+      adjustmentsRows.push(sRow);
+    }
+
+    // ─── 3.5 Discounts (خصومات الفواتير النهائية) ───────────────────────────
+    const discountRows: Array<{
+      id: string;
+      category: string;
+      name: string;
+      date: string;
+      qty: number;
+      price: number;
+      total: number;
+      isDeduction: boolean;
+      notes: string;
+    }> = [];
+
+    let discountTotal = 0;
+    let discountCount = 0;
+    let latestDiscountDate = '—';
+
+    invoices.forEach((inv: any) => {
+      const dAmount = Number(inv.discount_amount || 0);
+      if (dAmount > 0) {
+        discountTotal += dAmount;
+        discountCount += 1;
+        if (inv.issued_at) {
+          latestDiscountDate = formatDateTime(inv.issued_at);
+        }
+      }
+    });
+
+    if (discountCount > 0) {
+      const dRow = {
+        id: 'discount_aggregate',
+        category: 'Discount',
+        name: language === 'ar' ? 'خصم فاتورة' : 'Invoice Discount',
+        date: latestDiscountDate,
+        qty: discountCount,
+        price: Math.round((discountTotal / discountCount) * 100) / 100,
+        total: discountTotal,
+        isDeduction: true,
+        notes: language === 'ar' ? 'إجمالي الخصم' : 'Total discounts',
+      };
+      discountRows.push(dRow);
+      adjustmentsRows.push(dRow);
+    }
+
+    const adjustmentsNetTotal = serviceTotal - discountTotal;
 
     // ─── 4. Time (Gaming Sessions) ─────────────────────────────────────────
     const sessionCafeMap: Record<string, number> = {};
@@ -183,31 +257,64 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
 
     const timeRows = invoices.map((inv: any) => {
       const session = inv.session;
-      const deviceName = session?.device?.name || (language === 'ar' ? 'جهاز' : 'Station');
-      const deviceType = session?.device?.type === 'pc' ? 'PC'
-        : session?.device?.type === 'table' ? (language === 'ar' ? 'بلياردو' : 'Billiards')
-        : session?.device?.type === 'vr' ? 'VR'
+      const sId = inv.session_id || session?.id;
+
+      // Check if this session was transferred from another device
+      const sessionTransfers = (session_transfers || [])
+        .filter((tr: any) => tr.session_id === sId)
+        .sort((a: any, b: any) => new Date(a.started_at || a.created_at).getTime() - new Date(b.started_at || b.created_at).getTime());
+
+      // The device the session started with:
+      const initialDevice = sessionTransfers.length > 0 && sessionTransfers[0].from_device
+        ? sessionTransfers[0].from_device
+        : session?.device;
+
+      const currentDevice = session?.device;
+
+      const startDeviceName = initialDevice?.name || currentDevice?.name || (language === 'ar' ? 'جهاز' : 'Station');
+      const currentDeviceName = currentDevice?.name;
+
+      const hasTransfer = sessionTransfers.length > 0 && currentDeviceName && currentDeviceName !== startDeviceName;
+
+      // Category based on starting device (or current)
+      const devType = initialDevice?.type || currentDevice?.type;
+      const deviceType = devType === 'pc' ? 'PC'
+        : devType === 'table' ? (language === 'ar' ? 'بلياردو' : 'Billiards')
+        : devType === 'vr' ? 'VR'
         : 'Console';
-      const customerName = session?.customer?.name || (language === 'ar' ? 'عميل مباشر' : 'Walk-in');
+
       const durationMins = session?.duration_minutes || 0;
       const invAmount = Number(inv.amount || 0);
       const serviceFee = Number(inv.service_fee || 0);
-      const sId = inv.session_id || session?.id;
       const sessionCafeCost = sId ? (sessionCafeMap[sId] || 0) : 0;
       const baseSubtotal = inv.subtotal !== undefined && inv.subtotal !== null
         ? Number(inv.subtotal)
         : Math.max(0, invAmount - serviceFee);
       const pureTimeCost = Math.max(0, Math.round((baseSubtotal - sessionCafeCost) * 100) / 100);
 
+      // Display name:
+      // If transferred: show starting device -> current device
+      // Otherwise: show starting device name only (without customer name)
+      const displayName = hasTransfer
+        ? `${startDeviceName} ➔ ${currentDeviceName}`
+        : startDeviceName;
+
+      const transferNote = hasTransfer
+        ? (language === 'ar' ? `بدأ بـ ${startDeviceName} وتم التحويل إلى ${currentDeviceName}` : `Started on ${startDeviceName}, transferred to ${currentDeviceName}`)
+        : '';
+
+      const baseNote = inv.notes || (inv.paid ? (language === 'ar' ? 'مدفوعة' : 'Paid') : (language === 'ar' ? 'معلقة' : 'Pending'));
+      const finalNote = transferNote ? `${baseNote} | ${transferNote}` : baseNote;
+
       return {
         id: inv.id,
         category: deviceType,
-        name: `${deviceName} (${customerName})`,
+        name: displayName,
         date: inv.issued_at ? formatDateTime(inv.issued_at) : '—',
         qty: durationMins,
         price: pureTimeCost,
         total: pureTimeCost,
-        notes: inv.notes || (inv.paid ? (language === 'ar' ? 'مدفوعة' : 'Paid') : (language === 'ar' ? 'معلقة' : 'Pending')),
+        notes: finalNote,
       };
     });
 
@@ -223,7 +330,7 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
     const timeTotal = timeRows.reduce((acc, r) => acc + r.total, 0);
 
     // ─── Net Operations Total ──────────────────────────────────────────────
-    const netOperationsTotal = (timeTotal + cafeTotal + serviceTotal) - expenseTotal;
+    const netOperationsTotal = (timeTotal + cafeTotal + serviceTotal) - expenseTotal - discountTotal;
 
     return {
       cafeByCategory,
@@ -234,12 +341,16 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
       expenseTotal,
       serviceRows,
       serviceTotal,
+      discountRows,
+      discountTotal,
+      adjustmentsRows,
+      adjustmentsNetTotal,
       timeByCategory,
       timeRows,
       timeTotal,
       netOperationsTotal,
     };
-  }, [invoices, standalone_orders, expenses, shift, language]);
+  }, [invoices, standalone_orders, session_orders, expenses, session_transfers, shift, language]);
 
   const handlePrint = () => {
     window.print();
@@ -264,12 +375,13 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
     });
     csv += `Expenses,Total,,,,,"-${reportData.expenseTotal.toFixed(2)}",\n`;
 
-    // Service
-    if (reportData.serviceTotal > 0) {
-      reportData.serviceRows.forEach((r) => {
-        csv += `service,"service","${r.date}","${r.name}",${r.qty},${r.price.toFixed(2)},"${r.total.toFixed(2)}","${r.notes}"\n`;
+    // Service & Discounts (Merged)
+    if (reportData.adjustmentsRows.length > 0) {
+      reportData.adjustmentsRows.forEach((r) => {
+        const val = r.isDeduction ? `-${r.total.toFixed(2)}` : `${r.total.toFixed(2)}`;
+        csv += `service,"${r.category}","${r.date}","${r.name}",${r.qty},${r.price.toFixed(2)},"${val}","${r.notes}"\n`;
       });
-      csv += `service,Total,,,,,"${reportData.serviceTotal.toFixed(2)}",\n`;
+      csv += `service,Total,,,,,"${reportData.adjustmentsNetTotal.toFixed(2)}",\n`;
     }
 
     // Time
@@ -928,10 +1040,10 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
 
 
             {/* ═══════════════════════════════════════════════════════════════
-                3. SERVICE SECTION (Only shown if service fee exists)
+                3. SERVICE & DISCOUNT SECTION (Merged in 1 compact section)
             ════════════════════════════════════════════════════════════════ */}
             {(() => {
-              if (reportData.serviceTotal === 0 && reportData.serviceRows.length === 0) {
+              if (reportData.adjustmentsRows.length === 0) {
                 return null;
               }
               const isSectionExpanded = expandedSections['service'];
@@ -950,8 +1062,10 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
                     <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800 }}>Total</td>
                     <td style={{ border: '1px solid #000000', padding: '6px 8px' }}></td>
                     <td style={{ border: '1px solid #000000', padding: '6px 8px' }}></td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#0284c7', fontWeight: 900 }}>
-                      {reportData.serviceTotal.toFixed(2)}
+                    <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', color: reportData.adjustmentsNetTotal >= 0 ? '#0284c7' : '#e11d48', fontWeight: 900 }}>
+                      {reportData.adjustmentsNetTotal >= 0
+                        ? reportData.adjustmentsNetTotal.toFixed(2)
+                        : `(${Math.abs(reportData.adjustmentsNetTotal).toFixed(2)})`}
                     </td>
                     <td style={{ border: '1px solid #000000', padding: '6px 8px' }}></td>
                   </tr>
@@ -960,11 +1074,11 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
 
               return (
                 <>
-                  {reportData.serviceRows.map((row, idx) => (
+                  {reportData.adjustmentsRows.map((row, idx) => (
                     <tr key={row.id || idx} style={{ borderBottom: '1px solid #000000' }}>
                       {idx === 0 && (
                         <td
-                          rowSpan={reportData.serviceRows.length + 1}
+                          rowSpan={reportData.adjustmentsRows.length + 1}
                           style={{
                             border: '1px solid #000000',
                             padding: '6px 8px',
@@ -981,13 +1095,15 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
                           </div>
                         </td>
                       )}
-                      <td style={{ border: '1px solid #000000', padding: '6px 8px', fontWeight: 700 }}>service</td>
+                      <td style={{ border: '1px solid #000000', padding: '6px 8px', fontWeight: 700, color: row.isDeduction ? '#e11d48' : '#0284c7' }}>
+                        {row.category}
+                      </td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px', fontSize: '11px' }}>{row.date}</td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px' }}>{row.name}</td>
-                      <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center' }}>1</td>
+                      <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center' }}>{row.qty}</td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center' }}>{row.price.toFixed(2)}</td>
-                      <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800, color: '#0284c7' }}>
-                        {row.total.toFixed(2)}
+                      <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800, color: row.isDeduction ? '#e11d48' : '#0284c7' }}>
+                        {row.isDeduction ? `(${row.total.toFixed(2)})` : row.total.toFixed(2)}
                       </td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px' }}>{row.notes}</td>
                     </tr>
@@ -996,8 +1112,10 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
                     <td colSpan={5} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center' }}>
                       Total
                     </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#0284c7', fontWeight: 900 }}>
-                      {reportData.serviceTotal.toFixed(2)}
+                    <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', color: reportData.adjustmentsNetTotal >= 0 ? '#0284c7' : '#e11d48', fontWeight: 900 }}>
+                      {reportData.adjustmentsNetTotal >= 0
+                        ? reportData.adjustmentsNetTotal.toFixed(2)
+                        : `(${Math.abs(reportData.adjustmentsNetTotal).toFixed(2)})`}
                     </td>
                     <td style={{ border: '1px solid #000000', padding: '6px 8px' }}></td>
                   </tr>

@@ -461,7 +461,7 @@ export async function extendSession(req: Request, res: Response) {
 /** POST /api/sessions/:id/transfer — transfer an active session from one device/room to another, or switch play mode. */
 export async function transferSession(req: Request, res: Response) {
   const { id } = req.params;
-  const { target_device_id, play_mode, hourly_rate_override } = req.body;
+  const { target_device_id, play_mode, hourly_rate_override, session_type, scheduled_end, duration_minutes } = req.body;
 
   // 1. Fetch active session
   const { data: session, error: sErr } = await supabase
@@ -480,9 +480,11 @@ export async function transferSession(req: Request, res: Response) {
 
   const isSameDevice = !target_device_id || target_device_id === session.device_id;
   const newPlayMode = play_mode || session.play_mode;
+  const isChangingSessionType = Boolean(session_type && session_type !== session.session_type);
+  const isChangingDuration = Boolean(duration_minutes !== undefined || scheduled_end !== undefined);
 
-  if (isSameDevice && newPlayMode === session.play_mode && hourly_rate_override === undefined) {
-    throw badRequest('لم يتم تغيير الجهاز أو نمط اللعب للجلسة');
+  if (isSameDevice && newPlayMode === session.play_mode && hourly_rate_override === undefined && !isChangingSessionType && !isChangingDuration) {
+    throw badRequest('لم يتم تغيير الجهاز أو نمط اللعب أو مدة الجلسة');
   }
 
   let targetDevice = session.device;
@@ -579,8 +581,20 @@ export async function transferSession(req: Request, res: Response) {
       .eq('tenant_id', req.user!.tenant_id);
   }
 
-  // 6. Update session: switch device_id, set started_at to now for new segment, update play_mode
+  // 6. Update session: switch device_id, set started_at to now for new segment, update play_mode, session_type and scheduled_end
   const newOverride = hourly_rate_override !== undefined ? hourly_rate_override : null;
+
+  const newSessionType = session_type || session.session_type || 'open';
+  let newScheduledEnd = session.scheduled_end;
+  if (newSessionType === 'open') {
+    newScheduledEnd = null;
+  } else if (newSessionType === 'fixed') {
+    if (duration_minutes) {
+      newScheduledEnd = new Date(now.getTime() + Number(duration_minutes) * 60000).toISOString();
+    } else if (scheduled_end) {
+      newScheduledEnd = new Date(scheduled_end).toISOString();
+    }
+  }
 
   const { data: updatedSession, error: updErr } = await supabase
     .from('sessions')
@@ -590,6 +604,8 @@ export async function transferSession(req: Request, res: Response) {
       play_mode: newPlayMode,
       hourly_rate_override: newOverride,
       total_paused_minutes: 0,
+      session_type: newSessionType,
+      scheduled_end: newScheduledEnd,
     })
     .eq('id', id)
     .eq('tenant_id', req.user!.tenant_id)

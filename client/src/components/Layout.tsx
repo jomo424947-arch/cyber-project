@@ -746,69 +746,6 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                       <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-green)' }}>schedule</span>
                       <span>{t('shifts')}</span>
                     </NavLink>
-
-                    <NavLink
-                      to="/expenses"
-                      onClick={() => setShowMoreMenu(false)}
-                      style={({ isActive }) => ({
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                        background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
-                        textDecoration: 'none',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        minHeight: '42px',
-                      })}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-red)' }}>receipt_long</span>
-                      <span>{t('expenses')}</span>
-                    </NavLink>
-
-                    <NavLink
-                      to="/billing"
-                      onClick={() => setShowMoreMenu(false)}
-                      style={({ isActive }) => ({
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                        background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
-                        textDecoration: 'none',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        minHeight: '42px',
-                      })}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-yellow)' }}>payments</span>
-                      <span>{t('billing')}</span>
-                    </NavLink>
-
-                    <NavLink
-                      to="/reports"
-                      onClick={() => setShowMoreMenu(false)}
-                      style={({ isActive }) => ({
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                        background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
-                        textDecoration: 'none',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        minHeight: '42px',
-                      })}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-purple)' }}>query_stats</span>
-                      <span>{t('reports')}</span>
-                    </NavLink>
                   </div>
                 </div>
 
@@ -819,6 +756,68 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
                       {language === 'ar' ? 'لوحة الإدارة والتحكم' : 'Administration'}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <NavLink
+                        to="/expenses"
+                        onClick={() => setShowMoreMenu(false)}
+                        style={({ isActive }) => ({
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                          background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                          textDecoration: 'none',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          minHeight: '42px',
+                        })}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-red)' }}>receipt_long</span>
+                        <span>{t('expenses')}</span>
+                      </NavLink>
+
+                      <NavLink
+                        to="/billing"
+                        onClick={() => setShowMoreMenu(false)}
+                        style={({ isActive }) => ({
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                          background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                          textDecoration: 'none',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          minHeight: '42px',
+                        })}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-yellow)' }}>payments</span>
+                        <span>{t('billing')}</span>
+                      </NavLink>
+
+                      <NavLink
+                        to="/reports"
+                        onClick={() => setShowMoreMenu(false)}
+                        style={({ isActive }) => ({
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                          background: isActive ? 'var(--accent-cyan-dim)' : 'transparent',
+                          textDecoration: 'none',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          minHeight: '42px',
+                        })}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-purple)' }}>query_stats</span>
+                        <span>{t('reports')}</span>
+                      </NavLink>
                       <NavLink
                         to="/employees"
                         onClick={() => setShowMoreMenu(false)}

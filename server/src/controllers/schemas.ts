@@ -60,6 +60,9 @@ export const transferSessionSchema = z.object({
   target_device_id: z.string().uuid('Valid target_device_id required'),
   play_mode: z.enum(['single', 'multiplayer']).optional(),
   hourly_rate_override: z.number().nonnegative().optional().nullable(),
+  session_type: z.enum(['open', 'fixed']).optional(),
+  scheduled_end: z.string().optional().nullable(),
+  duration_minutes: z.number().int().positive().optional().nullable(),
 });
 
 export const endSessionSchema = z.object({

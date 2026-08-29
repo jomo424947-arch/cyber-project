@@ -556,7 +556,24 @@ class QueryBuilder {
         continue;
       }
 
-      const cols = join.columns.map(c => `"${c}"`).join(', ');
+      // Ensure all foreign key columns required by nested joins are included in SELECT
+      const nestedJoins = this._nestedJoins.get(join.alias);
+      const queryColumns = [...join.columns];
+      if (nestedJoins) {
+        const nestedFkMap = FK_MAP[join.table] || NESTED_FK_MAP[join.table];
+        if (nestedFkMap) {
+          for (const nested of nestedJoins) {
+            for (const [col, tbl] of Object.entries(nestedFkMap)) {
+              if (tbl === nested.table && !queryColumns.includes(col)) {
+                queryColumns.push(col);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const cols = queryColumns.length > 0 ? queryColumns.map(c => `"${c}"`).join(', ') : `"${join.table}".*`;
       // Wrap in try/finally to guarantee stmt.free() is always called
       const stmt = db.prepare(`SELECT ${cols} FROM "${join.table}" WHERE "id" = ?`);
       try {

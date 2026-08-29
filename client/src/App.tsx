@@ -232,10 +232,10 @@ export default function App() {
       <Route path="/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
       <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
       <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-      <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+      <Route path="/billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
       <Route path="/shifts" element={<ProtectedRoute><ShiftsPage /></ProtectedRoute>} />
-      <Route path="/expenses" element={<ProtectedRoute><ExpensesPage /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+      <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
+      <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
       <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
       <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />
       <Route path="/employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
