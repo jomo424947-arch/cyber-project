@@ -52,3 +52,6 @@ client/.vite/
 
 # TypeScript
 *.tsbuildinfo
+
+# Local Deploy Script
+deploy.py

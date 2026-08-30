@@ -208,7 +208,7 @@ export function SupportModal({ open, onClose }: SupportModalProps) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--accent-cyan)', fontSize: '18px' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--accent-green)', fontSize: '18px' }}>
                 call
               </span>
               <div>
