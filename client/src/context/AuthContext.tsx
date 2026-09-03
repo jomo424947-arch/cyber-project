@@ -10,8 +10,18 @@ import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import type { User } from '../types';
 
+export interface ActiveTenantInfo {
+  tenant_id: string;
+  name: string;
+  owner_email: string;
+  status?: string;
+  plan?: string;
+  expires_at?: string | null;
+}
+
 interface AuthContextValue {
   user: User | null;
+  tenant: ActiveTenantInfo | null;
   loading: boolean;
   serverOffline: boolean;
   isAuthenticated: boolean;
@@ -22,6 +32,7 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   activate: (email: string, password: string) => Promise<void>;
   retryConnection: () => void;
+  refreshActivationStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -36,11 +47,25 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [tenant, setTenant] = useState<ActiveTenantInfo | null>(null);
   const [isActivated, setIsActivated] = useState<boolean>(true);
   const [activationStatus, setActivationStatus] = useState<string>('active');
   const [loading, setLoading] = useState(true);
   const [serverOffline, setServerOffline] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  const refreshActivationStatus = useCallback(async () => {
+    try {
+      const statusRes = await dataService.getActivationStatus();
+      setActivationStatus(statusRes.status);
+      setIsActivated(statusRes.status === 'active' || statusRes.status === 'trial');
+      if (statusRes.tenant) {
+        setTenant(statusRes.tenant);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -57,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.success) {
         setIsActivated(true);
         setActivationStatus('active');
+        // Refresh full tenant status info
+        await refreshActivationStatus();
         // Now try logging in with the same credentials locally
         try {
           const loginRes = await dataService.login(email, password);
@@ -68,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       throw err;
     }
-  }, []);
+  }, [refreshActivationStatus]);
 
   const retryConnection = useCallback(() => {
     setLoading(true);
@@ -98,6 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setServerOffline(false);
           setActivationStatus(statusRes.status);
           setIsActivated(statusRes.status === 'active' || statusRes.status === 'trial');
+          if (statusRes.tenant) {
+            setTenant(statusRes.tenant);
+          }
         }
 
         if (statusRes.status === 'unactivated' || statusRes.status === 'suspended') {
@@ -141,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        tenant,
         loading,
         serverOffline,
         isAuthenticated: !!user,
@@ -151,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         activate,
         retryConnection,
+        refreshActivationStatus,
       }}
     >
       {children}

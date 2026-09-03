@@ -352,8 +352,6 @@ export function EndSessionModal({
   const [servicePercentVal, setServicePercentVal] = useState<string>('');
   const [serviceFixedVal, setServiceFixedVal] = useState<string>('');
 
-  // Rounding mode state
-  const [roundingMode, setRoundingMode] = useState<'none' | 'floor_5' | 'nearest_5' | 'nearest_10'>('none');
   const [invoiceNotes, setInvoiceNotes] = useState<string>('');
 
   useEffect(() => {
@@ -439,29 +437,7 @@ export function EndSessionModal({
       serviceFee = Math.round(parsedServiceVal * 100) / 100;
     }
   }
-  const beforeRounding = Math.round((afterDiscount + serviceFee) * 100) / 100;
-
-  // 3. Cash Rounding / Fakkah calculation
-  let calculatedDelta = 0;
-  if (roundingMode === 'floor_5') {
-    const target = Math.floor(beforeRounding / 5) * 5;
-    calculatedDelta = Math.round((target - beforeRounding) * 100) / 100;
-  } else if (roundingMode === 'nearest_5') {
-    const target = Math.round(beforeRounding / 5) * 5;
-    calculatedDelta = Math.round((target - beforeRounding) * 100) / 100;
-  } else if (roundingMode === 'nearest_10') {
-    const target = Math.round(beforeRounding / 10) * 10;
-    calculatedDelta = Math.round((target - beforeRounding) * 100) / 100;
-  }
-  const finalTotalCost = Math.max(0, Math.round((beforeRounding + calculatedDelta) * 100) / 100);
-
-  // Rounding options dynamic targets
-  const floor5Target = Math.floor(beforeRounding / 5) * 5;
-  const floor5Diff = Math.round((floor5Target - beforeRounding) * 100) / 100;
-  const nearest5Target = Math.round(beforeRounding / 5) * 5;
-  const nearest5Diff = Math.round((nearest5Target - beforeRounding) * 100) / 100;
-  const nearest10Target = Math.round(beforeRounding / 10) * 10;
-  const nearest10Diff = Math.round((nearest10Target - beforeRounding) * 100) / 100;
+  const finalTotalCost = Math.max(0, Math.round((afterDiscount + serviceFee) * 100) / 100);
 
   const submit = async () => {
     setLoading(true);
@@ -483,7 +459,7 @@ export function EndSessionModal({
         discount_value: parsedDiscountVal,
         service_fee: serviceFee,
         service_rate: serviceType === 'percentage' ? parsedServiceVal : 0,
-        rounding_delta: calculatedDelta,
+        rounding_delta: 0,
         notes: invoiceNotes.trim() || undefined,
       });
 
@@ -833,106 +809,7 @@ export function EndSessionModal({
             </div>
           </div>
 
-          {/* ─── SECTION 3: CASH ROUNDING / تسوية الفكة ─── */}
-          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>price_change</span>
-                {language === 'ar' ? 'تقريب الحساب / تسوية الفكة' : 'Cash Rounding & Change'}
-              </span>
-              {calculatedDelta !== 0 && (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: calculatedDelta < 0 ? 'var(--accent-green)' : 'var(--accent-cyan)' }}>
-                  {calculatedDelta < 0 ? `- ${formatCurrency(Math.abs(calculatedDelta))}` : `+ ${formatCurrency(calculatedDelta)}`}
-                </span>
-              )}
-            </div>
 
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
-              {language === 'ar' 
-                ? `المبلغ قبل التقريب: ${formatCurrency(beforeRounding)}. يمكنك تقريب المبلغ لتفادي مشاكل الفكة:` 
-                : `Amount before rounding: ${formatCurrency(beforeRounding)}.`}
-            </p>
-
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {/* Option 1: Exact (No Rounding) */}
-              <button
-                type="button"
-                onClick={() => setRoundingMode('none')}
-                style={{
-                  padding: '5px 10px',
-                  borderRadius: '16px',
-                  border: roundingMode === 'none' ? '1px solid #38bdf8' : '1px solid var(--border-default)',
-                  background: roundingMode === 'none' ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-input)',
-                  color: roundingMode === 'none' ? '#FFFFFF' : 'var(--text-secondary)',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {language === 'ar' ? `المبلغ الدقيق (${formatCurrency(beforeRounding)})` : `Exact (${formatCurrency(beforeRounding)})`}
-              </button>
-
-              {/* Option 2: Floor 5 (Forgive change / خصم الفكة) */}
-              {floor5Diff !== 0 && (
-                <button
-                  type="button"
-                  onClick={() => setRoundingMode('floor_5')}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '16px',
-                    border: roundingMode === 'floor_5' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-default)',
-                    background: roundingMode === 'floor_5' ? 'rgba(0, 194, 255, 0.2)' : 'var(--bg-input)',
-                    color: roundingMode === 'floor_5' ? '#FFFFFF' : 'var(--accent-cyan)',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {language === 'ar' ? `خصم الفكة لـ ${formatCurrency(floor5Target)} (${floor5Diff} ج)` : `Floor to ${formatCurrency(floor5Target)}`}
-                </button>
-              )}
-
-              {/* Option 3: Nearest 5 */}
-              {nearest5Diff !== 0 && nearest5Target !== floor5Target && (
-                <button
-                  type="button"
-                  onClick={() => setRoundingMode('nearest_5')}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '16px',
-                    border: roundingMode === 'nearest_5' ? '1px solid #38bdf8' : '1px solid var(--border-default)',
-                    background: roundingMode === 'nearest_5' ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-input)',
-                    color: roundingMode === 'nearest_5' ? '#FFFFFF' : 'var(--text-secondary)',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {language === 'ar' ? `تقريب لأقرب 5 (${formatCurrency(nearest5Target)})` : `Nearest 5 (${formatCurrency(nearest5Target)})`}
-                </button>
-              )}
-
-              {/* Option 4: Nearest 10 */}
-              {nearest10Diff !== 0 && nearest10Target !== floor5Target && nearest10Target !== nearest5Target && (
-                <button
-                  type="button"
-                  onClick={() => setRoundingMode('nearest_10')}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '16px',
-                    border: roundingMode === 'nearest_10' ? '1px solid #38bdf8' : '1px solid var(--border-default)',
-                    background: roundingMode === 'nearest_10' ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-input)',
-                    color: roundingMode === 'nearest_10' ? '#FFFFFF' : 'var(--text-secondary)',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {language === 'ar' ? `تقريب لأقرب 10 (${formatCurrency(nearest10Target)})` : `Nearest 10 (${formatCurrency(nearest10Target)})`}
-                </button>
-              )}
-            </div>
-          </div>
 
           {/* ─── FINAL NET TOTAL BOX ─── */}
           <div
@@ -963,12 +840,11 @@ export function EndSessionModal({
               </span>
             </div>
 
-            {(discountAmount > 0 || serviceFee > 0 || calculatedDelta !== 0) && (
+            {(discountAmount > 0 || serviceFee > 0) && (
               <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
                 <span>المجموع: {formatCurrency(subtotal)}</span>
                 {discountAmount > 0 && <span style={{ color: 'var(--accent-cyan)' }}>خصم: -{formatCurrency(discountAmount)}</span>}
                 {serviceFee > 0 && <span style={{ color: 'var(--accent-yellow)' }}>خدمة: +{formatCurrency(serviceFee)}</span>}
-                {calculatedDelta !== 0 && <span>تقريب: {calculatedDelta > 0 ? `+${calculatedDelta}` : calculatedDelta} ج</span>}
               </div>
             )}
           </div>

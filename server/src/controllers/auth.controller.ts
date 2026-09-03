@@ -4,7 +4,8 @@ import { badRequest, unauthorized, conflict } from '../lib/errors';
 import { hashPassword, verifyPassword, signToken, signRefreshToken, verifyRefreshToken } from '../lib/local-auth';
 import crypto from 'crypto';
 import { cloudSupabase } from '../lib/cloud-supabase';
-import { getDb, saveDatabase, setActiveTenantConfig, getActiveTenantConfig, updateActiveTenantStatus } from '../lib/database';
+import { getDb, saveDatabase, setActiveTenantConfig, getActiveTenantConfig, getActiveTenantId, updateActiveTenantStatus } from '../lib/database';
+import '../lib/types';
 
 // ─── Cookie helpers ────────────────────────────────────────────────────────
 
@@ -538,6 +539,9 @@ export async function getActivationStatus(_req: Request, res: Response) {
         tenant_id: config.tenant_id,
         name: config.tenant_name,
         owner_email: config.owner_email,
+        status: config.status || 'unactivated',
+        plan: config.plan || 'monthly_full',
+        expires_at: config.expires_at || null,
       };
     }
   } catch (err) {
@@ -679,9 +683,41 @@ export async function activateTenant(req: Request, res: Response) {
 
 // ─── SUPER ADMIN TENANT REGISTRATION ────────────────────────────────────────
 
+/** Helper to calculate default expiration date based on subscription plan */
+function calculateDefaultExpiry(plan: string): string {
+  const date = new Date();
+  switch (plan) {
+    case 'trial':
+      date.setDate(date.getDate() + 2); // يومين
+      break;
+    case 'monthly_mobile':
+    case 'monthly_full':
+      date.setDate(date.getDate() + 30);
+      break;
+    case 'quarterly_full':
+      date.setDate(date.getDate() + 90);
+      break;
+    case 'yearly_full':
+      date.setDate(date.getDate() + 365);
+      break;
+    default:
+      date.setDate(date.getDate() + 30);
+  }
+  return date.toISOString();
+}
+
 /** POST /api/auth/register-tenant — Registers a new cyber café (tenant) and its owner user. */
 export async function registerTenant(req: Request, res: Response) {
-  const { tenantName, ownerFullName, ownerEmail, ownerPassword, status = 'active', secretKey } = req.body;
+  const {
+    tenantName,
+    ownerFullName,
+    ownerEmail,
+    ownerPassword,
+    status = 'active',
+    plan = 'monthly_full',
+    expires_at,
+    secretKey,
+  } = req.body;
 
   const expectedKey = process.env.SUPER_ADMIN_KEY;
   if (!expectedKey) {
@@ -699,6 +735,8 @@ export async function registerTenant(req: Request, res: Response) {
     throw badRequest('Supabase cloud connection not configured in .env (Requires SUPER_ADMIN keys)');
   }
 
+  const computedExpiry = expires_at || calculateDefaultExpiry(plan);
+
   // 1. Create User in Supabase Auth
   const { data: authData, error: authErr } = await cloudSupabase.auth.admin.createUser({
     email: ownerEmail,
@@ -712,14 +750,30 @@ export async function registerTenant(req: Request, res: Response) {
 
   const userId = authData.user.id;
 
-  // 2. Create Tenant
+  // 2. Create Tenant (with graceful fallback if plan/expires_at columns are pending)
   const tenantId = crypto.randomUUID();
-  const { error: tenantErr } = await cloudSupabase.from('tenants').insert({
+  let tenantInsertPayload: any = {
     id: tenantId,
     name: tenantName,
     owner_email: ownerEmail,
     status,
-  });
+    plan,
+    expires_at: computedExpiry,
+  };
+
+  let { error: tenantErr } = await cloudSupabase.from('tenants').insert(tenantInsertPayload);
+
+  if (tenantErr) {
+    // If Supabase table schema doesn't yet have plan or expires_at columns, retry with base fields
+    console.warn('[SuperAdmin] Insert with plan/expires_at failed, retrying base fields:', tenantErr.message);
+    const retry = await cloudSupabase.from('tenants').insert({
+      id: tenantId,
+      name: tenantName,
+      owner_email: ownerEmail,
+      status,
+    });
+    tenantErr = retry.error;
+  }
 
   if (tenantErr) {
     // Rollback user
@@ -750,6 +804,9 @@ export async function registerTenant(req: Request, res: Response) {
       id: tenantId,
       name: tenantName,
       owner_email: ownerEmail,
+      status,
+      plan,
+      expires_at: computedExpiry,
     },
   });
 }
@@ -769,7 +826,7 @@ export async function getTenants(req: Request, res: Response) {
     throw badRequest('Supabase cloud connection not configured in .env (Requires SUPER_ADMIN keys)');
   }
 
-  const { data: tenants, error } = await cloudSupabase
+  const { data: rawTenants, error } = await cloudSupabase
     .from('tenants')
     .select('*')
     .order('created_at', { ascending: false });
@@ -778,13 +835,37 @@ export async function getTenants(req: Request, res: Response) {
     throw badRequest(error.message || 'Failed to fetch tenants');
   }
 
+  // Ensure default plans & expiration are populated if missing from older records
+  const tenants = (rawTenants || []).map((t: any) => {
+    const plan = t.plan || (t.status === 'trial' ? 'trial' : 'monthly_full');
+    let expiresAt = t.expires_at;
+    if (!expiresAt && t.created_at) {
+      const created = new Date(t.created_at);
+      if (plan === 'trial') {
+        created.setDate(created.getDate() + 2);
+      } else if (plan === 'quarterly_full') {
+        created.setDate(created.getDate() + 90);
+      } else if (plan === 'yearly_full') {
+        created.setDate(created.getDate() + 365);
+      } else {
+        created.setDate(created.getDate() + 30);
+      }
+      expiresAt = created.toISOString();
+    }
+    return {
+      ...t,
+      plan,
+      expires_at: expiresAt,
+    };
+  });
+
   res.json({
     success: true,
     tenants,
   });
 }
 
-/** PATCH /api/auth/tenants/:id/status — Updates a tenant's subscription status. */
+/** PATCH /api/auth/tenants/:id/status — Updates a tenant's subscription status, plan, or expiration. */
 export async function updateTenantStatus(req: Request, res: Response) {
   const secretKey = req.headers['x-super-admin-key'] as string;
   const expectedKey = process.env.SUPER_ADMIN_KEY;
@@ -800,44 +881,67 @@ export async function updateTenantStatus(req: Request, res: Response) {
   }
 
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, plan, expires_at } = req.body;
   const cleanId = id.trim();
 
-  if (!status || !['active', 'trial', 'suspended'].includes(status)) {
+  if (status && !['active', 'trial', 'suspended'].includes(status)) {
     throw badRequest('Invalid status value. Must be active, trial, or suspended.');
   }
 
-  console.log(`[SuperAdmin] Updating tenant ${cleanId} status to ${status}`);
-  
+  const updateFields: any = {};
+  if (status) updateFields.status = status;
+  if (plan) updateFields.plan = plan;
+  if (expires_at) updateFields.expires_at = expires_at;
+
+  if (Object.keys(updateFields).length === 0) {
+    throw badRequest('No update fields provided');
+  }
+
+  console.log(`[SuperAdmin] Updating tenant ${cleanId}:`, updateFields);
+
   // 1. Update in Supabase Cloud
-  const { data, error } = await cloudSupabase
+  let { data, error } = await cloudSupabase
     .from('tenants')
-    .update({ status })
+    .update(updateFields)
     .eq('id', cleanId)
     .select();
 
+  if (error && (plan || expires_at)) {
+    // If Supabase table doesn't have plan/expires_at columns yet, fallback to status-only
+    console.warn('[SuperAdmin] Multi-field update failed in Supabase, retrying with status only:', error.message);
+    const retry = await cloudSupabase
+      .from('tenants')
+      .update({ status: status || 'active' })
+      .eq('id', cleanId)
+      .select();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) {
     console.error('[SuperAdmin] Failed to update tenant status in Supabase:', error);
-    throw badRequest(error.message || 'Failed to update tenant status');
+    throw badRequest(error.message || 'Failed to update tenant');
   }
 
-  console.log(`[SuperAdmin] Supabase returned updated data:`, data);
-  if (!data || data.length === 0) {
-    console.warn(`[SuperAdmin] Retrying update without select filter for ${cleanId}...`);
-    await cloudSupabase.from('tenants').update({ status }).eq('id', cleanId);
-  }
-
-  // 2. Sync local SQLite database tenant_config status
+  // 2. Sync local SQLite database tenant_config ONLY IF the tenant being updated IS the local active tenant
   try {
-    updateActiveTenantStatus(status);
-    console.log(`[SuperAdmin] Local tenant_config updated to status=${status}`);
+    const localActiveTenantId = getActiveTenantId();
+    if (localActiveTenantId && localActiveTenantId === cleanId) {
+      if (status) {
+        updateActiveTenantStatus(status, undefined, plan, expires_at);
+        console.log(`[SuperAdmin] Local active tenant_config updated: status=${status}, plan=${plan}`);
+      }
+    } else {
+      console.log(`[SuperAdmin] Cloud tenant ${cleanId} updated (local active tenant is ${localActiveTenantId || 'none'})`);
+    }
   } catch (err: any) {
     console.error('[SuperAdmin] Failed to update local tenant_config status:', err.message);
   }
 
   res.json({
     success: true,
-    message: 'Tenant status updated successfully',
+    message: 'Tenant subscription updated successfully',
+    tenant: data?.[0] || { id: cleanId, ...updateFields },
   });
 }
 

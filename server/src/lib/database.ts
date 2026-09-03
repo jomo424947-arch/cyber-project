@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS tenant_config (
   tenant_name TEXT NOT NULL,
   owner_email TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
+  plan TEXT NOT NULL DEFAULT 'monthly_full',
+  expires_at TEXT,
   activated_at TEXT,
   last_checked_at TEXT
 );
@@ -413,6 +415,20 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       _db.run('ALTER TABLE reservations ADD COLUMN tenant_id TEXT;');
       _db.run('ALTER TABLE products ADD COLUMN tenant_id TEXT;');
       console.log('[database] Migration completed successfully.');
+    }
+
+    // Auto-migration for tenant_config plan and expires_at
+    try {
+      const tcInfo = _db.exec("PRAGMA table_info(tenant_config)");
+      const tcCols = tcInfo[0]?.values.map(v => v[1] as string) || [];
+      if (!tcCols.includes('plan')) {
+        _db.run("ALTER TABLE tenant_config ADD COLUMN plan TEXT NOT NULL DEFAULT 'monthly_full';");
+      }
+      if (!tcCols.includes('expires_at')) {
+        _db.run("ALTER TABLE tenant_config ADD COLUMN expires_at TEXT;");
+      }
+    } catch (e: any) {
+      console.warn('[database] tenant_config column migration check:', e.message);
     }
 
     // Deduplicate and sanitize tenant_config if multiple rows exist from legacy bugs
@@ -824,6 +840,8 @@ export interface TenantConfig {
   tenant_name: string;
   owner_email: string;
   status: string;
+  plan?: string;
+  expires_at?: string | null;
   activated_at: string | null;
   last_checked_at: string | null;
 }
@@ -833,6 +851,8 @@ export interface TenantConfigInput {
   tenant_name: string;
   owner_email: string;
   status?: string;
+  plan?: string;
+  expires_at?: string | null;
 }
 
 /**
@@ -916,27 +936,41 @@ export function getActiveTenantId(database?: SqlJsDatabase): string | null {
 export function setActiveTenantConfig(config: TenantConfigInput, database?: SqlJsDatabase): void {
   const db = database || getDb();
   const status = config.status || 'active';
+  const plan = config.plan || 'monthly_full';
+  const expiresAt = config.expires_at || null;
 
   db.run('DELETE FROM tenant_config');
   db.run(
-    `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, activated_at, last_checked_at)
-     VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-    [config.tenant_id, config.tenant_name, config.owner_email, status]
+    `INSERT INTO tenant_config (tenant_id, tenant_name, owner_email, status, plan, expires_at, activated_at, last_checked_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    [config.tenant_id, config.tenant_name, config.owner_email, status, plan, expiresAt]
   );
   saveDatabase();
 }
 
 /**
- * Updates status and last_checked_at timestamp for the active tenant.
+ * Updates status, plan, and last_checked_at timestamp for the active tenant.
  */
-export function updateActiveTenantStatus(status: string, database?: SqlJsDatabase): void {
+export function updateActiveTenantStatus(status: string, database?: SqlJsDatabase, plan?: string, expiresAt?: string | null): void {
   const db = database || getDb();
   const activeTenantId = getActiveTenantId(db);
   if (!activeTenantId) return;
 
-  db.run(
-    `UPDATE tenant_config SET status = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
-    [status, activeTenantId]
-  );
+  if (plan && expiresAt !== undefined) {
+    db.run(
+      `UPDATE tenant_config SET status = ?, plan = ?, expires_at = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
+      [status, plan, expiresAt, activeTenantId]
+    );
+  } else if (plan) {
+    db.run(
+      `UPDATE tenant_config SET status = ?, plan = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
+      [status, plan, activeTenantId]
+    );
+  } else {
+    db.run(
+      `UPDATE tenant_config SET status = ?, last_checked_at = datetime('now') WHERE tenant_id = ?`,
+      [status, activeTenantId]
+    );
+  }
   saveDatabase();
 }

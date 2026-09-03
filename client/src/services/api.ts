@@ -49,11 +49,30 @@ export interface DataService {
   resetPassword(token: string, newPassword: string): Promise<{ message: string }>;
   verifyEmail(token: string): Promise<{ user: User; message: string }>;
   getGoogleOAuthUrl(): Promise<{ url: string }>;
-  getActivationStatus(): Promise<{ status: string; tenant: { tenant_id: string; name: string; owner_email: string } | null }>;
+  getActivationStatus(): Promise<{
+    status: string;
+    tenant: {
+      tenant_id: string;
+      name: string;
+      owner_email: string;
+      status?: string;
+      plan?: string;
+      expires_at?: string | null;
+    } | null;
+  }>;
   activateTenant(email: string, password: string): Promise<{ success: boolean; tenant: { id: string; name: string; status: string } }>;
-  registerTenant(payload: { tenantName: string; ownerFullName: string; ownerEmail: string; ownerPassword: string; status?: string; secretKey: string }): Promise<{ success: boolean; tenant: { id: string; name: string; owner_email: string } }>;
+  registerTenant(payload: {
+    tenantName: string;
+    ownerFullName: string;
+    ownerEmail: string;
+    ownerPassword: string;
+    status?: string;
+    plan?: string;
+    expires_at?: string;
+    secretKey: string;
+  }): Promise<{ success: boolean; tenant: { id: string; name: string; owner_email: string; plan?: string; expires_at?: string; status?: string } }>;
   getTenants(secretKey: string): Promise<{ success: boolean; tenants: any[] }>;
-  updateTenantStatus(id: string, status: string, secretKey: string): Promise<{ success: boolean }>;
+  updateTenantStatus(id: string, updates: { status?: string; plan?: string; expires_at?: string } | string, secretKey: string): Promise<{ success: boolean; tenant?: any }>;
   listPublicEmployees(): Promise<User[]>;
   syncCloud?(): Promise<{ success: boolean; message: string }>;
 

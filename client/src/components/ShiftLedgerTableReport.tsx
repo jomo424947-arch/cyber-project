@@ -244,7 +244,42 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
       adjustmentsRows.push(dRow);
     }
 
-    const adjustmentsNetTotal = serviceTotal - discountTotal;
+    // ─── 3.6 Cash Rounding / تسوية الفكة ──────────────────────────────────
+    let roundingDeltaTotal = 0;
+    let roundingDeltaCount = 0;
+    let latestRoundingDate = '—';
+
+    invoices.forEach((inv: any) => {
+      const rDelta = Number(inv.rounding_delta || 0);
+      if (rDelta !== 0) {
+        roundingDeltaTotal += rDelta;
+        roundingDeltaCount += 1;
+        if (inv.issued_at) {
+          latestRoundingDate = formatDateTime(inv.issued_at);
+        }
+      }
+    });
+
+    if (roundingDeltaCount > 0 && Math.abs(roundingDeltaTotal) > 0.001) {
+      const isNegative = roundingDeltaTotal < 0;
+      const absVal = Math.round(Math.abs(roundingDeltaTotal) * 100) / 100;
+      const rRow = {
+        id: 'rounding_aggregate',
+        category: language === 'ar' ? 'فروق الفكة' : 'Rounding',
+        name: language === 'ar' 
+          ? (isNegative ? 'تسوية فكة (تخفيض)' : 'تسوية فكة (زيادة)') 
+          : (isNegative ? 'Rounding (Discount)' : 'Rounding (Addition)'),
+        date: latestRoundingDate,
+        qty: roundingDeltaCount,
+        price: Math.round((absVal / roundingDeltaCount) * 100) / 100,
+        total: absVal,
+        isDeduction: isNegative,
+        notes: language === 'ar' ? 'فروق تقريب نقدية' : 'Cash rounding delta',
+      };
+      adjustmentsRows.push(rRow);
+    }
+
+    const adjustmentsNetTotal = serviceTotal - discountTotal + roundingDeltaTotal;
 
     // ─── 4. Time (Gaming Sessions) ─────────────────────────────────────────
     const sessionCafeMap: Record<string, number> = {};
@@ -330,7 +365,7 @@ export function ShiftLedgerTableReport({ summaryData, onClose }: ShiftLedgerTabl
     const timeTotal = timeRows.reduce((acc, r) => acc + r.total, 0);
 
     // ─── Net Operations Total ──────────────────────────────────────────────
-    const netOperationsTotal = (timeTotal + cafeTotal + serviceTotal) - expenseTotal - discountTotal;
+    const netOperationsTotal = (timeTotal + cafeTotal + serviceTotal + roundingDeltaTotal) - expenseTotal - discountTotal;
 
     return {
       cafeByCategory,

@@ -22,7 +22,7 @@ interface LayoutProps {
 
 export function Layout({ title, subtitle, actions, children, currentShift }: LayoutProps) {
   const isMobile = useIsMobile();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout, tenant, activationStatus, refreshActivationStatus } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -32,6 +32,11 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
   const [showCloseModal, setShowCloseModal] = useState(false);
   const { language, setLanguage, t, isRtl } = useLanguage();
   const { theme, toggleTheme } = useTheme();
+
+  const isTrial = activationStatus === 'trial' || tenant?.status === 'trial' || tenant?.plan === 'trial';
+  const expiresAt = tenant?.expires_at;
+  const daysRemaining = expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const isExpiringSoon = daysRemaining !== null && daysRemaining <= 3;
 
   const effectiveShift = currentShift !== undefined ? currentShift : activeShift;
 
@@ -52,8 +57,12 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
     };
 
     fetchShift();
+    refreshActivationStatus();
     window.addEventListener('shift-changed', fetchShift);
-    window.addEventListener('focus', fetchShift);
+    window.addEventListener('focus', () => {
+      fetchShift();
+      refreshActivationStatus();
+    });
 
     const interval = setInterval(() => {
       if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
@@ -64,10 +73,9 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
     return () => {
       mounted = false;
       window.removeEventListener('shift-changed', fetchShift);
-      window.removeEventListener('focus', fetchShift);
       clearInterval(interval);
     };
-  }, []);
+  }, [refreshActivationStatus]);
 
   const handleLogout = async () => {
     setShowMoreMenu(false);
@@ -154,6 +162,98 @@ export function Layout({ title, subtitle, actions, children, currentShift }: Lay
               </button>
             ) : null}
           </div>
+
+          {/* Middle: Trial or Expiry Warning Banner (Circled in red in screenshot) */}
+          {(isTrial || isExpiringSoon) && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                background: isTrial
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : 'rgba(239, 68, 68, 0.12)',
+                border: isTrial
+                  ? '1px solid rgba(245, 158, 11, 0.35)'
+                  : '1px solid rgba(239, 68, 68, 0.35)',
+                color: isTrial ? '#fbbf24' : '#f87171',
+                boxShadow: isTrial
+                  ? '0 0 12px rgba(245, 158, 11, 0.15)'
+                  : '0 0 12px rgba(239, 68, 68, 0.15)',
+              }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: '18px',
+                  color: isTrial ? '#fbbf24' : '#f87171',
+                }}
+              >
+                {isTrial ? 'hourglass_top' : 'warning'}
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700 }}>
+                <span>
+                  {isTrial
+                    ? (language === 'ar' ? 'الفترة التجريبية تقترب من الانتهاء' : 'Trial period ending soon')
+                    : (language === 'ar' ? 'تنبيه: اقتراب انتهاء الاشتراك' : 'Subscription Expiring Soon')}
+                </span>
+
+                <span style={{ opacity: 0.6 }}>•</span>
+
+                <span style={{ color: daysRemaining === 0 ? '#ef4444' : 'inherit' }}>
+                  {isTrial
+                    ? (daysRemaining === 0
+                        ? (language === 'ar' ? 'تنتهي اليوم!' : 'Expires Today!')
+                        : (language === 'ar' ? 'صالحة لمدة يومين' : 'Valid for 2 days'))
+                    : (daysRemaining !== null
+                        ? (daysRemaining === 0
+                            ? (language === 'ar' ? 'تنتهي اليوم!' : 'Expires Today!')
+                            : (language === 'ar' ? `متبقي ${daysRemaining} يوم` : `${daysRemaining} days left`))
+                        : (language === 'ar' ? 'صالحة لمدة يومين' : 'Valid for 2 days'))}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSupportModal(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: isTrial
+                    ? 'rgba(245, 158, 11, 0.2)'
+                    : 'rgba(239, 68, 68, 0.2)',
+                  border: isTrial
+                    ? '1px solid rgba(245, 158, 11, 0.4)'
+                    : '1px solid rgba(239, 68, 68, 0.4)',
+                  color: '#ffffff',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = isTrial ? '#f59e0b' : '#ef4444';
+                  e.currentTarget.style.color = '#000000';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = isTrial ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+                  e.currentTarget.style.color = '#ffffff';
+                }}
+                title={language === 'ar' ? 'تواصل مع الدعم الفني لتفعيل وترقية الحساب' : 'Contact support to activate full license'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                  upgrade
+                </span>
+                <span>{language === 'ar' ? 'تفعيل كامل' : 'Activate'}</span>
+              </button>
+            </div>
+          )}
 
           {/* Right panel: User controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
