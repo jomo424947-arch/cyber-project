@@ -307,10 +307,32 @@ export default function SuperAdminPage() {
     if (!adminSecret.trim()) return;
     setUpdatingId(tenantId);
     try {
-      const res = await dataService.updateTenantStatus(tenantId, { status: newStatus }, adminSecret.trim());
+      const currentTenant = tenants.find(t => t.id === tenantId);
+      const targetPlan = newStatus === 'trial'
+        ? 'trial'
+        : (currentTenant?.plan === 'trial' ? 'monthly_full' : (currentTenant?.plan || 'monthly_full'));
+
+      const res = await dataService.updateTenantStatus(
+        tenantId,
+        {
+          status: newStatus,
+          plan: targetPlan,
+        },
+        adminSecret.trim()
+      );
       if (res.success) {
+        const returnedTenant = res.tenant || {};
         setTenants(prev =>
-          prev.map(t => (t.id === tenantId ? { ...t, status: newStatus } : t))
+          prev.map(t =>
+            t.id === tenantId
+              ? {
+                  ...t,
+                  ...returnedTenant,
+                  status: newStatus,
+                  plan: returnedTenant.plan || targetPlan,
+                }
+              : t
+          )
         );
       }
     } catch (err) {
@@ -359,15 +381,17 @@ export default function SuperAdminPage() {
       );
 
       if (res.success) {
+        const returnedTenant = res.tenant || {};
         setTenants(prev =>
           prev.map(t =>
             t.id === editingTenant.id
               ? {
-                ...t,
-                status: editStatus,
-                plan: editPlan,
-                expires_at: computedExpiry,
-              }
+                  ...t,
+                  ...returnedTenant,
+                  status: editStatus,
+                  plan: editPlan,
+                  expires_at: computedExpiry || returnedTenant.expires_at,
+                }
               : t
           )
         );

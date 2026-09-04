@@ -891,10 +891,40 @@ export async function updateTenantStatus(req: Request, res: Response) {
   const updateFields: any = {};
   if (status) updateFields.status = status;
   if (plan) updateFields.plan = plan;
-  if (expires_at) updateFields.expires_at = expires_at;
+  if (expires_at !== undefined) updateFields.expires_at = expires_at;
 
-  if (Object.keys(updateFields).length === 0) {
-    throw badRequest('No update fields provided');
+  // Always update updated_at timestamp so changes are immediately reflected in Supabase
+  updateFields.updated_at = new Date().toISOString();
+
+  // If status is given but plan or expires_at is missing, calculate defaults automatically
+  if (status && (!plan || expires_at === undefined)) {
+    try {
+      const { data: currentTenant } = await cloudSupabase
+        .from('tenants')
+        .select('id, name, status, plan, expires_at, created_at')
+        .eq('id', cleanId)
+        .maybeSingle();
+
+      const targetPlan = plan || currentTenant?.plan || (status === 'trial' ? 'trial' : 'monthly_full');
+      updateFields.plan = targetPlan;
+
+      if (expires_at === undefined) {
+        if (status === 'trial') {
+          const d = new Date();
+          d.setDate(d.getDate() + 2);
+          updateFields.expires_at = d.toISOString();
+        } else if (status === 'active') {
+          const currentExp = currentTenant?.expires_at ? new Date(currentTenant.expires_at).getTime() : 0;
+          if (currentExp > Date.now() && currentTenant?.expires_at) {
+            updateFields.expires_at = currentTenant.expires_at;
+          } else {
+            updateFields.expires_at = calculateDefaultExpiry(targetPlan);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('[SuperAdmin] Could not query current tenant for expiry defaults:', err.message);
+    }
   }
 
   console.log(`[SuperAdmin] Updating tenant ${cleanId}:`, updateFields);
@@ -906,12 +936,15 @@ export async function updateTenantStatus(req: Request, res: Response) {
     .eq('id', cleanId)
     .select();
 
-  if (error && (plan || expires_at)) {
-    // If Supabase table doesn't have plan/expires_at columns yet, fallback to status-only
-    console.warn('[SuperAdmin] Multi-field update failed in Supabase, retrying with status only:', error.message);
+  if (error && (updateFields.plan || updateFields.expires_at)) {
+    // If Supabase table doesn't have plan/expires_at columns yet, fallback to base fields
+    console.warn('[SuperAdmin] Multi-field update failed in Supabase, retrying with base fields:', error.message);
     const retry = await cloudSupabase
       .from('tenants')
-      .update({ status: status || 'active' })
+      .update({
+        status: status || 'active',
+        updated_at: updateFields.updated_at,
+      })
       .eq('id', cleanId)
       .select();
     data = retry.data;
@@ -928,8 +961,8 @@ export async function updateTenantStatus(req: Request, res: Response) {
     const localActiveTenantId = getActiveTenantId();
     if (localActiveTenantId && localActiveTenantId === cleanId) {
       if (status) {
-        updateActiveTenantStatus(status, undefined, plan, expires_at);
-        console.log(`[SuperAdmin] Local active tenant_config updated: status=${status}, plan=${plan}`);
+        updateActiveTenantStatus(status, undefined, updateFields.plan, updateFields.expires_at);
+        console.log(`[SuperAdmin] Local active tenant_config updated: status=${status}, plan=${updateFields.plan}`);
       }
     } else {
       console.log(`[SuperAdmin] Cloud tenant ${cleanId} updated (local active tenant is ${localActiveTenantId || 'none'})`);
@@ -938,10 +971,12 @@ export async function updateTenantStatus(req: Request, res: Response) {
     console.error('[SuperAdmin] Failed to update local tenant_config status:', err.message);
   }
 
+  const resultTenant = data?.[0] || { id: cleanId, ...updateFields };
+
   res.json({
     success: true,
     message: 'Tenant subscription updated successfully',
-    tenant: data?.[0] || { id: cleanId, ...updateFields },
+    tenant: resultTenant,
   });
 }
 

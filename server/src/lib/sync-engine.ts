@@ -28,12 +28,12 @@ async function verifySubscription(): Promise<void> {
   try {
     const { data: tenant } = await cloudSupabase
       .from('tenants')
-      .select('status')
+      .select('status, plan, expires_at')
       .eq('id', localTenantId)
       .maybeSingle();
 
     if (tenant) {
-      updateActiveTenantStatus(tenant.status, db);
+      updateActiveTenantStatus(tenant.status, db, tenant.plan, tenant.expires_at);
       if (tenant.status !== 'active' && tenant.status !== 'trial') {
         console.warn(`[sync] Tenant subscription is ${tenant.status}. Application locked.`);
       }
