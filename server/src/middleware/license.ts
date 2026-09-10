@@ -29,6 +29,11 @@ export function licenseCheck(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
+  // On Cloud / Multi-Tenant mode (Railway), tenant subscription is verified per-tenant via JWT & Supabase
+  if (process.env.OFFLINE_MODE !== 'true') {
+    return next();
+  }
+
   try {
     const config = getActiveTenantConfig();
     const status = config?.status || 'unactivated';

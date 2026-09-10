@@ -207,8 +207,10 @@ export default function App() {
   if (serverOffline) return <ServerOfflineScreen />;
 
   const isSuperAdminRoute = window.location.href.includes('super-admin');
+  const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
-  if (!isActivated && !isSuperAdminRoute) {
+  // Device activation is only required on local offline Desktop Electron terminals
+  if (isElectron && !isActivated && !isSuperAdminRoute) {
     return <AuthPage forceView={activationStatus === 'suspended' ? 'suspended' : 'activate'} />;
   }
 
@@ -228,7 +230,7 @@ export default function App() {
         {/* These routes intentionally render AuthPage — the page itself
             reads ?view=reset or the URL hash to show the correct form. */}
         <Route path="/reset-password" element={<AuthPage />} />
-        <Route path="/verify-email"   element={<AuthPage />} />
+        <Route path="/verify-email" element={<AuthPage />} />
 
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />

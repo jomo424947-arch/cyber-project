@@ -159,7 +159,7 @@ export async function login(req: Request, res: Response) {
           try {
             const { pullFromCloud } = require('../lib/sync-engine');
             pullFromCloud(tenantId).catch((err: any) => console.warn('[auth] Cloud login pull failed:', err.message));
-          } catch {}
+          } catch { }
         }
 
         res.json({
@@ -199,7 +199,7 @@ export async function login(req: Request, res: Response) {
     try {
       const { pullFromCloud } = require('../lib/sync-engine');
       pullFromCloud(user.tenant_id).catch((err: any) => console.warn('[auth] Local login pull failed:', err.message));
-    } catch {}
+    } catch { }
   }
 
   res.json({
@@ -396,7 +396,7 @@ export async function forgotPassword(req: Request, res: Response) {
     });
   } else {
     if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
-    
+
     const { error } = await cloudSupabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${req.headers.origin}/reset-password`,
     });
@@ -426,7 +426,7 @@ export async function resetPassword(req: Request, res: Response) {
     });
   } else {
     if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
-    
+
     if (token) {
       const { error: verifyErr } = await cloudSupabase.auth.verifyOtp({
         token_hash: token,
@@ -462,7 +462,7 @@ export async function verifyEmail(req: Request, res: Response) {
     });
   } else {
     if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
-    
+
     const { data, error } = await cloudSupabase.auth.verifyOtp({
       token_hash: token,
       type: 'email',
@@ -499,7 +499,7 @@ export async function googleLogin(req: Request, res: Response) {
     });
   } else {
     if (!cloudSupabase) throw badRequest('Supabase cloud connection not configured');
-    
+
     const { data, error } = await cloudSupabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -528,6 +528,12 @@ export async function googleCallback(req: Request, res: Response) {
 
 /** GET /api/auth/status — Check if app is activated locally. */
 export async function getActivationStatus(_req: Request, res: Response) {
+  // In Cloud / Multi-Tenant mode (Railway), the server serves all tenants directly via Supabase Auth
+  if (process.env.OFFLINE_MODE !== 'true') {
+    res.json({ status: 'active', tenant: null, mode: 'cloud' });
+    return;
+  }
+
   let status = 'unactivated';
   let tenant = null;
 
@@ -609,7 +615,7 @@ export async function activateTenant(req: Request, res: Response) {
 
   // 4. Save to local SQLite database
   const db = getDb();
-  
+
   // Set single authoritative tenant configuration
   setActiveTenantConfig({
     tenant_id: tenant.id,

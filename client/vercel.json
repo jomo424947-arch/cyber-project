@@ -1,6 +1,9 @@
 {
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://cyber-project-production-9562.up.railway.app/api/$1" },
+    { "source": "/health", "destination": "https://cyber-project-production-9562.up.railway.app/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

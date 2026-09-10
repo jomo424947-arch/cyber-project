@@ -17,7 +17,8 @@ function resolveBaseUrl(): string {
   const envUrl = import.meta.env.VITE_API_URL;
   if (typeof window !== 'undefined') {
     const { hostname, port, protocol } = window.location;
-    // Check if custom server URL stored in localStorage
+
+    // 1. Check if custom server URL stored in localStorage
     try {
       const storedUrl = localStorage.getItem('ccms_server_url');
       if (storedUrl && storedUrl.trim()) {
@@ -27,13 +28,23 @@ function resolveBaseUrl(): string {
       // Ignore storage error
     }
 
-    // If running in browser or mobile on a remote host / LAN IP (e.g. 148.66.152.6 or 192.168.1.X)
+    // 2. Desktop Electron application (uses local embedded Express server)
+    const isElectron = !!(window as any).electronAPI || protocol === 'file:';
+    if (isElectron) {
+      return 'http://localhost:5000';
+    }
+
+    // 3. If explicit backend URL is provided via Vite env (e.g. Railway URL)
+    if (envUrl && envUrl.trim() && !envUrl.includes('localhost')) {
+      return envUrl.trim().replace(/\/+$/, '');
+    }
+
+    // 4. If running in browser or mobile on a remote host / LAN IP without explicit env
     if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      // If served directly from port 5000 or standard web port (80/443), relative '' works seamlessly
+      // If served directly or via Vercel proxy rewrite, relative '' works seamlessly
       if (port === '5000' || !port || port === '80' || port === '443') {
         return '';
       }
-      // If dev server or different port, route to port 5000 on the same host
       return `${protocol}//${hostname}:5000`;
     }
   }
