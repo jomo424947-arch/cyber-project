@@ -56,6 +56,56 @@ export async function getActiveShift(req: Request, res: Response) {
 
   if (error) throw error;
 
+  if (data) {
+    try {
+      const shiftId = (data as any).id;
+      const tenantId = (data as any).tenant_id || req.user!.tenant_id;
+
+      const [invoicesRes, standaloneRes, expensesRes] = await Promise.all([
+        supabase
+          .from('invoices')
+          .select('amount, paid')
+          .eq('shift_id', shiftId)
+          .eq('paid', true)
+          .eq('tenant_id', tenantId),
+        supabase
+          .from('standalone_orders')
+          .select('total_price')
+          .eq('shift_id', shiftId)
+          .eq('tenant_id', tenantId),
+        supabase
+          .from('shift_expenses')
+          .select('amount')
+          .eq('shift_id', shiftId)
+          .eq('tenant_id', tenantId),
+      ]);
+
+      const invoicesRevenue = (invoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.amount || 0), 0);
+      const standaloneRevenue = (standaloneRes.data || []).reduce((acc: number, ord: any) => acc + Number(ord.total_price || 0), 0);
+      const calculatedRevenue = Math.round((invoicesRevenue + standaloneRevenue) * 100) / 100;
+      const calculatedExpenses = Math.round(((expensesRes.data || []).reduce((acc: number, exp: any) => acc + Number(exp.amount || 0), 0)) * 100) / 100;
+
+      const finalRevenue = Math.max(Number((data as any).total_revenue || 0), calculatedRevenue);
+      const finalExpenses = Math.max(Number((data as any).total_expenses || 0), calculatedExpenses);
+
+      if (finalRevenue !== Number((data as any).total_revenue) || finalExpenses !== Number((data as any).total_expenses)) {
+        (data as any).total_revenue = finalRevenue;
+        (data as any).total_expenses = finalExpenses;
+
+        await supabase
+          .from('shifts')
+          .update({
+            total_revenue: finalRevenue,
+            total_expenses: finalExpenses,
+          })
+          .eq('id', shiftId)
+          .eq('tenant_id', tenantId);
+      }
+    } catch (calcErr) {
+      console.warn('[shifts] Could not auto-reconcile active shift metrics:', calcErr);
+    }
+  }
+
   res.json({ data: data ? (data as unknown as DbShift) : null });
 }
 

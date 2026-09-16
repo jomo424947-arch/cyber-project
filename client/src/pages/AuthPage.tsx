@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services';
@@ -6,6 +6,9 @@ import { apiErrorMessage } from '../services/http';
 import { useLanguage } from '../context/LanguageContext';
 import { useSystemSettings } from '../context/SystemSettingsContext';
 import type { User } from '../types';
+
+const REMEMBER_ME_KEY = 'ccms_remember_me';
+const REMEMBERED_EMAIL_KEY = 'ccms_remembered_email';
 
 // ─── View Types ──────────────────────────────────────────────────────────────
 type View = 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'activate' | 'suspended';
@@ -35,14 +38,29 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
     }
   }, [forceView]);
 
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+
   // Form state
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    try {
+      const isRemembered = localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+      return isRemembered ? (localStorage.getItem(REMEMBERED_EMAIL_KEY) || '') : '';
+    } catch {
+      return '';
+    }
+  });
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [resetToken, setResetToken] = useState(urlToken);
   const [newPassword, setNewPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    try {
+      return localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [showPassword, setShowPassword] = useState(false);
 
   // UI state
@@ -59,6 +77,16 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
     resetForm();
     setView(next);
   }, [resetForm]);
+
+  // If email was remembered, automatically shift focus to the password field
+  useEffect(() => {
+    if (view === 'login' && email.trim()) {
+      const timer = setTimeout(() => {
+        passwordInputRef.current?.focus();
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [view]);
 
   // Auto-detect reset password token from URL hash (Supabase email links)
 
@@ -87,6 +115,18 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
     navigate('/dashboard', { replace: true });
   };
 
+  const handleRememberMeChange = (checked: boolean) => {
+    setRememberMe(checked);
+    if (!checked) {
+      try {
+        localStorage.removeItem(REMEMBER_ME_KEY);
+        localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   // ─── Login ────────────────────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +135,21 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
 
     setLoading(true);
     try {
-      const { user } = await dataService.login(email.trim(), password, rememberMe);
+      const trimmedEmail = email.trim();
+      const { user } = await dataService.login(trimmedEmail, password, rememberMe);
+
+      try {
+        if (rememberMe) {
+          localStorage.setItem(REMEMBER_ME_KEY, 'true');
+          localStorage.setItem(REMEMBERED_EMAIL_KEY, trimmedEmail);
+        } else {
+          localStorage.removeItem(REMEMBER_ME_KEY);
+          localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        }
+      } catch (storageErr) {
+        console.warn('[auth] Could not persist credentials to localStorage:', storageErr);
+      }
+
       handleSuccess(user);
     } catch (err) {
       setError(apiErrorMessage(err, 'Invalid email or password.'));
@@ -250,14 +304,15 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                       placeholder="you@cafe.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="email"
-                      autoFocus
+                      autoComplete="username email"
+                      autoFocus={!email}
                     />
                   </Field>
 
                   <Field label={t('password')}>
                     <div className="password-wrapper">
                       <input
+                        ref={passwordInputRef}
                         id="auth-password"
                         type={showPassword ? 'text' : 'password'}
                         className="ccms-input"
@@ -265,6 +320,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete="current-password"
+                        autoFocus={!!email}
                       />
                       <button type="button" className="pw-toggle" onClick={() => setShowPassword(v => !v)} tabIndex={-1} aria-label="Toggle password visibility">
                         {showPassword ? <EyeOffIcon /> : <EyeIcon />}
@@ -277,7 +333,7 @@ export default function AuthPage({ forceView }: AuthPageProps = {}) {
                       <input
                         type="checkbox"
                         checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
+                        onChange={(e) => handleRememberMeChange(e.target.checked)}
                         className="remember-checkbox"
                       />
                       <span>{t('remember_me')}</span>

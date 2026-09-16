@@ -333,20 +333,32 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const sh of shifts) {
         if (isLocalRecordPendingSync('shifts', sh.id)) continue;
 
-        const localStmt = db.prepare('SELECT status, synced FROM shifts WHERE id = ?');
+        const localStmt = db.prepare('SELECT status, synced, total_revenue, total_expenses FROM shifts WHERE id = ?');
         localStmt.bind([sh.id]);
         let localStatus: string | null = null;
         let localSynced: number | null = null;
+        let localRev = 0;
+        let localExp = 0;
         if (localStmt.step()) {
           const row = localStmt.getAsObject();
           localStatus = row.status as string;
           localSynced = row.synced as number;
+          localRev = Number(row.total_revenue || 0);
+          localExp = Number(row.total_expenses || 0);
         }
         localStmt.free();
 
         if (localStatus === 'closed' && sh.status === 'active' && localSynced === 0) {
           continue;
         }
+
+        // For active shifts, never downgrade local financial metrics with older cloud values
+        const finalRev = (sh.status === 'active' || localStatus === 'active')
+          ? Math.max(localRev, Number(sh.total_revenue) || 0)
+          : (Number(sh.total_revenue) || 0);
+        const finalExp = (sh.status === 'active' || localStatus === 'active')
+          ? Math.max(localExp, Number(sh.total_expenses) || 0)
+          : (Number(sh.total_expenses) || 0);
 
         db.run(
           `INSERT OR REPLACE INTO shifts (id, user_id, tenant_id, started_at, ended_at, opening_cash, closing_cash, total_revenue, total_expenses, notes, status, created_at, synced, synced_at)
@@ -359,8 +371,8 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
             sh.ended_at || null,
             Number(sh.opening_cash) || 0,
             sh.closing_cash !== null && sh.closing_cash !== undefined ? Number(sh.closing_cash) : null,
-            Number(sh.total_revenue) || 0,
-            Number(sh.total_expenses) || 0,
+            finalRev,
+            finalExp,
             sh.notes || null,
             sh.status || 'active',
             sh.created_at || new Date().toISOString(),
