@@ -183,9 +183,6 @@ export async function startSession(req: Request, res: Response) {
 
   const isBackdated = started_at && (now.getTime() - sessionStart.getTime() > 60000);
   if (isBackdated) {
-    if (req.user?.role !== 'admin') {
-      throw forbidden('Only admins can backdate session start times');
-    }
     if (now.getTime() - sessionStart.getTime() > 30 * 86400000) {
       throw badRequest('Session start time cannot be backdated by more than 30 days');
     }
@@ -292,9 +289,6 @@ export async function editSession(req: Request, res: Response) {
     }
 
     const backdateMs = nowTime - newStart.getTime();
-    if (backdateMs > 60000 && req.user?.role !== 'admin') {
-      throw forbidden('Only admins can backdate session start times');
-    }
     if (backdateMs > 30 * 86400000) {
       throw badRequest('Session start time cannot be backdated by more than 30 days');
     }
@@ -708,10 +702,10 @@ export async function endSession(req: Request, res: Response) {
     throw badRequest('Session end time cannot be in the future');
   }
 
-  // Check backdate permission BEFORE any DB writes
+  // Check backdate bounds BEFORE any DB writes
   const isEndBackdated = ended_at && (new Date().getTime() - sessionEnd.getTime() > 60000);
-  if (isEndBackdated && req.user?.role !== 'admin') {
-    throw forbidden('Only admins can backdate session end times');
+  if (isEndBackdated && (new Date().getTime() - sessionEnd.getTime() > 30 * 86400000)) {
+    throw badRequest('Session end time cannot be backdated by more than 30 days');
   }
 
   const deviceHourlyRate = session.play_mode === 'multiplayer' 
