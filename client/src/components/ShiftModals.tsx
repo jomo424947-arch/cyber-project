@@ -149,6 +149,11 @@ export function CloseShiftModal({
   const { language } = useLanguage();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (open) setNotes('');
+  }, [open]);
 
   const activeOpening = Number(shift?.opening_cash || 0);
   const activeRev = Number(shift?.total_revenue || 0);
@@ -161,7 +166,9 @@ export function CloseShiftModal({
 
     setSubmitting(true);
     try {
-      await dataService.closeShift(shift.id);
+      await dataService.closeShift(shift.id, {
+        notes: notes.trim() || undefined,
+      });
       toast(language === 'ar' ? 'تم إغلاق الوردية وتسجيل الخروج بنجاح' : 'Shift closed. Logged out successfully.', 'success');
       window.dispatchEvent(new CustomEvent('shift-changed', { detail: null }));
       onClose();
@@ -236,14 +243,39 @@ export function CloseShiftModal({
           </div>
         </div>
 
+        {/* Optional Discrepancy Reason / Closing Notes */}
+        <div>
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            {language === 'ar' ? 'سبب العجز أو الفائض / ملاحظات الإغلاق (اختياري)' : 'Discrepancy Reason / Closing Notes (Optional)'}
+          </label>
+          <textarea
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={language === 'ar' ? 'أي ملاحظات للموظف القادم أو الإدارة (مثل سبب العجز أو الفائض إن وُجد)...' : 'Any notes for the next staff or management...'}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              fontSize: '13px',
+              resize: 'none',
+              outline: 'none',
+              fontFamily: 'inherit',
+            }}
+          />
+        </div>
+
         <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0, 194, 255, 0.06)', border: '1px solid rgba(0, 194, 255, 0.2)', padding: '10px 14px', borderRadius: '8px' }}>
           <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>
             info
           </span>
           <span>
             {language === 'ar'
-              ? 'سيتم اعتماد المبلغ المفترض بالدرج وإغلاق الوردية وتوثيق كافة العمليات تلقائياً.'
-              : 'Expected cash will be recorded and the shift will be closed successfully.'}
+              ? 'ملاحظة: سيتم تسجيل وإثبات كل الأرقام والملاحظات في تقرير الوردية للأدمن.'
+              : 'Note: Drawer cash and notes will be recorded in the shift report for admin.'}
           </span>
         </div>
 

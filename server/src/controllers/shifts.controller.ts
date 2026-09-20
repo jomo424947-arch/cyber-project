@@ -212,7 +212,7 @@ export async function closeShift(req: Request, res: Response) {
   const expectedClosing = Number(shift.opening_cash || 0) + finalRevenue - finalExpenses;
 
   // When closing shift, closing_cash defaults to expectedClosing so closing is never blocked
-  const numericClosingCash = (closing_cash !== undefined && closing_cash !== null && !isNaN(Number(closing_cash)) && notes)
+  const numericClosingCash = (closing_cash !== undefined && closing_cash !== null && !isNaN(Number(closing_cash)))
     ? Number(closing_cash)
     : expectedClosing;
 
@@ -222,7 +222,9 @@ export async function closeShift(req: Request, res: Response) {
     total_revenue: finalRevenue,
     total_expenses: finalExpenses,
     closing_cash: numericClosingCash,
-    notes: notes ? notes.trim() : shift.notes || null,
+    notes: notes && notes.trim()
+      ? (shift.notes ? `${shift.notes}\n[ملاحظات الإغلاق]: ${notes.trim()}` : notes.trim())
+      : shift.notes || null,
   };
 
   const { data, error } = await supabase
