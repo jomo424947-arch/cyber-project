@@ -158,7 +158,8 @@ export function CloseShiftModal({
   const activeOpening = Number(shift?.opening_cash || 0);
   const activeRev = Number(shift?.total_revenue || 0);
   const activeExp = Number(shift?.total_expenses || 0);
-  const activeExpectedCash = activeOpening + activeRev - activeExp;
+  const rawNetCash = Math.round((activeOpening + activeRev - activeExp) * 100) / 100;
+  const activeExpectedCash = Math.max(0, rawNetCash);
 
   const handleCloseShift = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,6 +242,26 @@ export function CloseShiftModal({
               {formatCurrency(activeExpectedCash)}
             </span>
           </div>
+          {rawNetCash < 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '8px 10px',
+                borderRadius: '6px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                fontSize: '13px',
+                color: 'var(--accent-red)',
+                fontWeight: 600,
+              }}
+            >
+              <span>{language === 'ar' ? 'قيمة العجز (المصروفات تجاوزت الإيرادات):' : 'Deficit Amount:'}</span>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                -{formatCurrency(Math.abs(rawNetCash))}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Optional Discrepancy Reason / Closing Notes */}

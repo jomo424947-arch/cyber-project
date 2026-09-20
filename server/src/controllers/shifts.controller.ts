@@ -209,12 +209,23 @@ export async function closeShift(req: Request, res: Response) {
 
   const finalRevenue = Math.max(Number(shift.total_revenue || 0), calculatedRevenue);
   const finalExpenses = Math.max(Number(shift.total_expenses || 0), calculatedExpenses);
-  const expectedClosing = Number(shift.opening_cash || 0) + finalRevenue - finalExpenses;
+  const rawNetCash = Math.round((Number(shift.opening_cash || 0) + finalRevenue - finalExpenses) * 100) / 100;
+  // Database check constraint enforces closing_cash >= 0 (physical drawer cash cannot be negative)
+  const expectedClosing = Math.max(0, rawNetCash);
 
   // When closing shift, closing_cash defaults to expectedClosing so closing is never blocked
   const numericClosingCash = (closing_cash !== undefined && closing_cash !== null && !isNaN(Number(closing_cash)))
-    ? Number(closing_cash)
+    ? Math.max(0, Math.round(Number(closing_cash) * 100) / 100)
     : expectedClosing;
+
+  let finalNotes = notes && notes.trim()
+    ? (shift.notes ? `${shift.notes}\n[ملاحظات الإغلاق]: ${notes.trim()}` : notes.trim())
+    : shift.notes || null;
+
+  if (rawNetCash < 0) {
+    const deficitNote = `[عجز الدرج]: المصروفات (${finalExpenses} ج) تجاوزت الإيرادات والعهدة بمقدار (${Math.abs(rawNetCash)} ج)`;
+    finalNotes = finalNotes ? `${finalNotes}\n${deficitNote}` : deficitNote;
+  }
 
   const patch: Record<string, any> = {
     ended_at: new Date().toISOString(),
@@ -222,9 +233,7 @@ export async function closeShift(req: Request, res: Response) {
     total_revenue: finalRevenue,
     total_expenses: finalExpenses,
     closing_cash: numericClosingCash,
-    notes: notes && notes.trim()
-      ? (shift.notes ? `${shift.notes}\n[ملاحظات الإغلاق]: ${notes.trim()}` : notes.trim())
-      : shift.notes || null,
+    notes: finalNotes,
   };
 
   const { data, error } = await supabase
