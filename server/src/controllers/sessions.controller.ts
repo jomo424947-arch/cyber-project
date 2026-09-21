@@ -497,10 +497,6 @@ export async function transferSession(req: Request, res: Response) {
     if (fetchedTargetDevice.archived || fetchedTargetDevice.status === 'offline') {
       throw badRequest('الجهاز أو الغرفة الهدف غير متاحة (Offline)');
     }
-    if (fetchedTargetDevice.status === 'in_use') {
-      throw conflict('الجهاز أو الغرفة الهدف مشغولة حالياً بجلسة أخرى', 'DEVICE_BUSY');
-    }
-
     // Guard against an already-active session for target device
     const { data: existingTargetSession } = await supabase
       .from('sessions')
@@ -508,11 +504,20 @@ export async function transferSession(req: Request, res: Response) {
       .eq('device_id', target_device_id)
       .eq('status', 'active')
       .eq('tenant_id', req.user!.tenant_id)
+      .neq('id', id)
       .maybeSingle();
 
     if (existingTargetSession) {
       throw conflict('الجهاز الهدف لديه جلسة نشطة بالفعل', 'SESSION_ACTIVE');
     }
+
+    // Self-healing check: if target device was stranded in 'in_use' without an active session
+    if (fetchedTargetDevice.status === 'in_use' && !existingTargetSession) {
+      console.warn(`[transferSession] Target device ${target_device_id} was marked in_use without active session (stale state). Self-healing to proceed.`);
+    } else if (fetchedTargetDevice.status === 'in_use') {
+      throw conflict('الجهاز أو الغرفة الهدف مشغولة حالياً بجلسة أخرى', 'DEVICE_BUSY');
+    }
+
     targetDevice = fetchedTargetDevice;
   }
 
@@ -537,93 +542,143 @@ export async function transferSession(req: Request, res: Response) {
 
   const destinationDeviceId = isSameDevice ? session.device_id : target_device_id;
 
-  // 4. Save transfer segment record
-  const { data: transferRecord, error: trErr } = await supabase
-    .from('session_transfers')
-    .insert({
-      session_id: id,
-      from_device_id: session.device_id,
-      to_device_id: destinationDeviceId,
-      started_at: session.started_at,
-      transferred_at: now.toISOString(),
-      duration_minutes: effectiveMinutes,
-      hourly_rate: effectiveRate,
-      play_mode: session.play_mode,
-      cost: segmentCost,
-      transferred_by: req.user!.id,
-      tenant_id: req.user!.tenant_id,
-    })
-    .select('*, from_device:devices!from_device_id(id,name,type), to_device:devices!to_device_id(id,name,type)')
-    .single();
-
-  if (trErr) throw trErr;
-
-  // 5. Update devices statuses if device changed
-  if (!isSameDevice) {
-    // Free old device
-    await supabase
-      .from('devices')
-      .update({ status: 'available' })
-      .eq('id', session.device_id)
-      .eq('tenant_id', req.user!.tenant_id);
-
-    // Mark target device in_use
-    await supabase
-      .from('devices')
-      .update({ status: 'in_use' })
-      .eq('id', destinationDeviceId)
-      .eq('tenant_id', req.user!.tenant_id);
-  }
-
-  // 6. Update session: switch device_id, set started_at to now for new segment, update play_mode, session_type and scheduled_end
-  const newOverride = hourly_rate_override !== undefined ? hourly_rate_override : null;
-
-  const newSessionType = session_type || session.session_type || 'open';
-  let newScheduledEnd = session.scheduled_end;
-  if (newSessionType === 'open') {
-    newScheduledEnd = null;
-  } else if (newSessionType === 'fixed') {
-    if (duration_minutes) {
-      newScheduledEnd = new Date(now.getTime() + Number(duration_minutes) * 60000).toISOString();
-    } else if (scheduled_end) {
-      newScheduledEnd = new Date(scheduled_end).toISOString();
+  // Use SQLite transaction (offline mode) to keep all writes atomic and suppress intermediate disk writes
+  const isOfflineMode = process.env.OFFLINE_MODE === 'true' || !cloudSupabase;
+  let rawDb: any = null;
+  if (isOfflineMode) {
+    try {
+      rawDb = getDb();
+      setSuppressSave(true);
+      rawDb.run('BEGIN');
+    } catch {
+      rawDb = null;
     }
   }
 
-  const { data: updatedSession, error: updErr } = await supabase
-    .from('sessions')
-    .update({
-      device_id: destinationDeviceId,
-      started_at: now.toISOString(),
-      play_mode: newPlayMode,
-      hourly_rate_override: newOverride,
-      total_paused_minutes: 0,
-      session_type: newSessionType,
-      scheduled_end: newScheduledEnd,
-    })
-    .eq('id', id)
-    .eq('tenant_id', req.user!.tenant_id)
-    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
-    .single();
+  let updatedSession: any = null;
+  let transferRecord: any = null;
 
-  if (updErr) throw updErr;
+  try {
+    // 4. Free old device FIRST (if changing device) to satisfy uniqueness and clean state
+    if (!isSameDevice) {
+      const { error: freeOldErr } = await supabase
+        .from('devices')
+        .update({ status: 'available' })
+        .eq('id', session.device_id)
+        .eq('tenant_id', req.user!.tenant_id);
 
-  // 7. Audit log
-  const auditField = isSameDevice ? 'switch_play_mode' : 'transfer_device';
-  const auditOldVal = isSameDevice 
-    ? `نمط ${session.play_mode === 'multiplayer' ? 'جماعي' : 'فردي'} (${rawMinutes} دقيقة - ${segmentCost} ج)`
-    : `${session.device?.name ?? 'Device'} (${rawMinutes} دقيقة - ${segmentCost} ج)`;
-  const auditNewVal = isSameDevice
-    ? `نمط ${newPlayMode === 'multiplayer' ? 'جماعي' : 'فردي'}`
-    : targetDevice?.name ?? 'Device';
+      if (freeOldErr) throw freeOldErr;
+    }
 
-  await supabase.from('session_audit_log').insert({
-    session_id: id,
-    edited_by: req.user!.id,
-    field_changed: auditField,
-    old_value: auditOldVal,
-    new_value: auditNewVal,
-  });
+    // 5. Update session: switch device_id, set started_at to now for new segment, update play_mode, session_type and scheduled_end
+    const newOverride = hourly_rate_override !== undefined
+      ? hourly_rate_override
+      : (session.hourly_rate_override ?? null);
+
+    const newSessionType = session_type || session.session_type || 'open';
+    let newScheduledEnd = session.scheduled_end;
+    if (newSessionType === 'open') {
+      newScheduledEnd = null;
+    } else if (newSessionType === 'fixed') {
+      if (duration_minutes) {
+        newScheduledEnd = new Date(now.getTime() + Number(duration_minutes) * 60000).toISOString();
+      } else if (scheduled_end) {
+        newScheduledEnd = new Date(scheduled_end).toISOString();
+      }
+    }
+
+    const { data: updatedSessionData, error: updErr } = await supabase
+      .from('sessions')
+      .update({
+        device_id: destinationDeviceId,
+        started_at: now.toISOString(),
+        play_mode: newPlayMode,
+        hourly_rate_override: newOverride,
+        total_paused_minutes: 0,
+        session_type: newSessionType,
+        scheduled_end: newScheduledEnd,
+      })
+      .eq('id', id)
+      .eq('tenant_id', req.user!.tenant_id)
+      .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
+      .maybeSingle();
+
+    if (updErr) throw updErr;
+    if (!updatedSessionData) throw notFound('Failed to update session or session not found');
+    updatedSession = updatedSessionData;
+
+    // 6. Mark target device in_use (if changing device)
+    if (!isSameDevice) {
+      const { error: occupyTargetErr } = await supabase
+        .from('devices')
+        .update({ status: 'in_use' })
+        .eq('id', destinationDeviceId)
+        .eq('tenant_id', req.user!.tenant_id);
+
+      if (occupyTargetErr) throw occupyTargetErr;
+    }
+
+    // 7. Save transfer segment record
+    const { data: savedTransfer, error: trErr } = await supabase
+      .from('session_transfers')
+      .insert({
+        session_id: id,
+        from_device_id: session.device_id,
+        to_device_id: destinationDeviceId,
+        started_at: session.started_at,
+        transferred_at: now.toISOString(),
+        duration_minutes: effectiveMinutes,
+        hourly_rate: effectiveRate,
+        play_mode: session.play_mode,
+        cost: segmentCost,
+        transferred_by: req.user!.id,
+        tenant_id: req.user!.tenant_id,
+      })
+      .select('*, from_device:devices!from_device_id(id,name,type), to_device:devices!to_device_id(id,name,type)')
+      .maybeSingle();
+
+    if (trErr) throw trErr;
+    transferRecord = savedTransfer;
+
+    // 8. Audit log
+    const auditField = isSameDevice ? 'switch_play_mode' : 'transfer_device';
+    const auditOldVal = isSameDevice 
+      ? `نمط ${session.play_mode === 'multiplayer' ? 'جماعي' : 'فردي'} (${rawMinutes} دقيقة - ${segmentCost} ج)`
+      : `${session.device?.name ?? 'Device'} (${rawMinutes} دقيقة - ${segmentCost} ج)`;
+    const auditNewVal = isSameDevice
+      ? `نمط ${newPlayMode === 'multiplayer' ? 'جماعي' : 'فردي'}`
+      : targetDevice?.name ?? 'Device';
+
+    const { error: auditErr } = await supabase.from('session_audit_log').insert({
+      session_id: id,
+      edited_by: req.user!.id,
+      field_changed: auditField,
+      old_value: auditOldVal,
+      new_value: auditNewVal,
+    });
+    if (auditErr) {
+      console.warn('[transferSession] Failed to insert audit log:', auditErr.message);
+    }
+
+    // Commit & persist
+    if (rawDb) {
+      rawDb.run('COMMIT');
+      setSuppressSave(false);
+      saveDatabase();
+    }
+    triggerImmediateSync();
+  } catch (err) {
+    // Rollback on any failure — device, session, and transfer records stay consistent
+    if (rawDb) {
+      try {
+        rawDb.run('ROLLBACK');
+      } catch (rbErr: any) {
+        console.error('[sessions:transfer] SQLite rollback failed:', rbErr?.message || rbErr);
+      }
+      setSuppressSave(false);
+    }
+    throw err;
+  }
 
   res.json({
     data: updatedSession as unknown as DbSession,
