@@ -75,7 +75,7 @@ export function setLastSyncedAt(tableName: string, tenantId: string, timestamp: 
   }
 }
 
-/** Helper: Check if a local record has unsynced modifications (synced = 0). */
+/** Helper: Check if a local record has unsynced modifications (synced = 0) or is queued in sync_queue. */
 export function isLocalRecordPendingSync(tableName: string, recordId: string): boolean {
   const db = getDb();
   try {
@@ -87,7 +87,14 @@ export function isLocalRecordPendingSync(tableName: string, recordId: string): b
       isPending = obj.synced === 0;
     }
     stmt.free();
-    return isPending;
+    if (isPending) return true;
+
+    // Double protection: Check if sync_queue has an unsynced entry for this record
+    const qStmt = db.prepare(`SELECT id FROM sync_queue WHERE table_name = ? AND record_id = ? AND synced = 0 LIMIT 1`);
+    qStmt.bind([tableName, recordId]);
+    const hasQueueItem = qStmt.step();
+    qStmt.free();
+    return hasQueueItem;
   } catch {
     return false;
   }

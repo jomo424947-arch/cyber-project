@@ -13,6 +13,8 @@ create or replace function public.decrement_product_stock(
 )
 returns setof public.products
 language sql
+security definer
+set search_path = public
 as $$
   update public.products
   set stock = stock - p_qty
@@ -31,6 +33,8 @@ create or replace function public.adjust_product_stock(
 )
 returns setof public.products
 language sql
+security definer
+set search_path = public
 as $$
   update public.products
   set stock = stock + p_delta
@@ -39,6 +43,9 @@ as $$
     and stock + p_delta >= 0
   returning *;
 $$;
+
+grant execute on function public.decrement_product_stock(uuid, uuid, integer) to authenticated;
+grant execute on function public.adjust_product_stock(uuid, uuid, integer) to authenticated;
 
 -- ============================================================================
 -- End of migration 012

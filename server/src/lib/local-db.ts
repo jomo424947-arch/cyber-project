@@ -918,7 +918,7 @@ export function adjustProductStockAtomic(
 ): Record<string, any> | null {
   const db = getDb();
   db.run(
-    `UPDATE products SET stock = stock + ? WHERE id = ? AND tenant_id = ? AND stock + ? >= 0`,
+    `UPDATE products SET stock = stock + ?, synced = 0 WHERE id = ? AND tenant_id = ? AND stock + ? >= 0`,
     [delta, productId, tenantId, delta]
   );
   const rowsModified = typeof (db as any).getRowsModified === 'function' ? (db as any).getRowsModified() : 0;
@@ -930,6 +930,23 @@ export function adjustProductStockAtomic(
   let row: Record<string, any> | null = null;
   if (stmt.step()) row = stmt.getAsObject();
   stmt.free();
+
+  // Queue sync for the updated product so cloud receives the updated stock
+  if (row) {
+    try {
+      db.run(
+        `INSERT INTO sync_queue (table_name, record_id, operation, payload) VALUES (?, ?, ?, ?)`,
+        ['products', productId, 'UPDATE', JSON.stringify({ stock: row.stock })]
+      );
+    } catch (err: any) {
+      syncQueueHealth.hasUnrecordedSync = true;
+      syncQueueHealth.unrecordedCount++;
+      syncQueueHealth.lastError = err?.message || String(err);
+      syncQueueHealth.lastFailedAt = new Date().toISOString();
+      console.error(`[local-db:sync_queue] Failed to enqueue stock update sync for product ${productId}:`, err);
+    }
+  }
+
   saveDatabase();
   return row;
 }

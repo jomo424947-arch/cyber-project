@@ -1272,6 +1272,7 @@ export async function addSessionOrder(req: Request, res: Response) {
   });
 
   res.status(201).json({ data: order });
+  triggerImmediateSync();
 }
 
 /** DELETE /api/sessions/:id/orders/:orderId — void/remove an order line from an active session. */
@@ -1352,6 +1353,7 @@ export async function voidSessionOrder(req: Request, res: Response) {
   });
 
   res.json({ success: true, voided: order });
+  triggerImmediateSync();
 }
 
 /** GET /api/sessions/:id/orders — list all café orders for a session. */

@@ -9,6 +9,7 @@ import {
   getSyncQueueHealth,
   resetSyncQueueHealth
 } from './local-db';
+import { isLocalRecordPendingSync } from './sync-engine';
 
 describe('Data Integrity & Concurrency Operations', () => {
   const testTenantId = 'tenant-test-123';
@@ -209,6 +210,35 @@ describe('Data Integrity & Concurrency Operations', () => {
 
       const res = db.exec(`SELECT stock FROM products WHERE id = '${productId}'`);
       expect(res[0]?.values[0]?.[0]).toBe(2);
+    });
+
+    it('sets synced = 0, enqueues to sync_queue, and protects local stock from cloud overwrite on stock changes', () => {
+      const db = getDb();
+      const productId = 'prod-stock-sync-guard';
+      // Insert product with synced = 1 (already synced)
+      db.run(`INSERT INTO products (id, name, price, stock, tenant_id, synced) VALUES (?, 'Cola', 12, 20, ?, 1)`, [productId, testTenantId]);
+
+      // Initially, it is not pending sync
+      expect(isLocalRecordPendingSync('products', productId)).toBe(false);
+
+      // Sale of 2 cans
+      const updated = decrementProductStockAtomic(productId, testTenantId, 2);
+      expect(updated?.stock).toBe(18);
+
+      // 1. Must have set synced = 0 on products table
+      const pRes = db.exec(`SELECT synced, stock FROM products WHERE id = '${productId}'`);
+      expect(pRes[0]?.values[0]?.[0]).toBe(0);
+      expect(pRes[0]?.values[0]?.[1]).toBe(18);
+
+      // 2. Must have enqueued an UPDATE operation to sync_queue
+      const qRes = db.exec(`SELECT record_id, operation, payload FROM sync_queue WHERE table_name = 'products' AND record_id = '${productId}'`);
+      expect(qRes[0]?.values?.length).toBe(1);
+      expect(qRes[0]?.values[0]?.[1]).toBe('UPDATE');
+      const payload = JSON.parse(qRes[0]?.values[0]?.[2] as string);
+      expect(payload.stock).toBe(18);
+
+      // 3. isLocalRecordPendingSync must be true so pullFromCloud NEVER overwrites it
+      expect(isLocalRecordPendingSync('products', productId)).toBe(true);
     });
   });
 });

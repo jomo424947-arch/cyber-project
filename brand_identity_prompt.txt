@@ -1,0 +1,33 @@
+# ==============================================================================
+# CCMS - Brand Identity & Visual Style Guide for AI Image Models
+# (Midjourney / Flux / DALL-E 3 / Stable Diffusion / Imagen)
+# ==============================================================================
+
+### 1. THE MASTER PROMPT (البرومبت الأساسي الشامل للإعلانات):
+------------------------------------------------------------------------------
+A high-end 3D commercial product render for "CCMS" (Cyber Cafe & PlayStation Management System). 
+Visual Identity & Color Palette: Deep abyss charcoal and midnight black background (#0A0A0E, #111111), illuminated by glowing electric cyber cyan (#00C2FF) and deep neon purple-violet (#7000FF, #3626CE) volumetric rim lighting and subtle atmospheric reflections.
+Core Brand Emblem: A futuristic glowing neon hexagonal shield featuring a stylized gaming controller integrated into a sleek circular tech arc in electric cyan and purple glow.
+Hero Elements: In the center, a premium sleek curved ultrawide frameless monitor showing a dark-mode SaaS dashboard with glowing live telemetry charts, gaming device status cards (PlayStation icons, PC gaming stations with active green timer bars), and real-time revenue metrics. Beside the monitor, a modern smartphone displaying a mobile companion app interface showing live remote monitoring from home.
+Foreground & Props: A matte-black wireless gaming gamepad with subtle glowing cyan accents resting on a dark reflective surface.
+Mood & Aesthetic: Ultra-realistic, cinematic studio lighting, clean tech advertisement, octane render style, 8k resolution, crisp focus, minimalist modern aesthetic, no clutter.
+
+
+### 2. VARIATION: FACEBOOK COVER / BANNER (بانر عريض لغلاف الصفحة 16:9):
+------------------------------------------------------------------------------
+Wide-angle 16:9 commercial promotional banner for CCMS gaming lounge management software. Sleek futuristic esports arena control room vibe. Dominant colors are deep midnight black (#0A0A0E) with electric cyber cyan (#00C2FF) and neon violet (#7000FF) neon ambient glows. Multiple sleek floating monitors showing device timers, room controls, and live cashier analytics. Glowing holographic hexagonal gaming controller logo floating subtly in the background. Ultra-sharp, cinematic lighting, modern SaaS corporate tech style.
+
+
+### 3. VARIATION: MOBILE REMOTE MONITORING (التركيز على المتابعة من البيت):
+------------------------------------------------------------------------------
+Close-up commercial advertisement shot of a person holding a sleek modern smartphone in a cozy home environment, looking at the screen. The smartphone screen clearly displays a dark-mode real-time cyber cafe management dashboard with glowing cyan live device counters, revenue meters, and security status. In the blurred background, a relaxing modern living room with soft subtle blue ambient lighting. Concept of peace of mind, remote business monitoring, premium fintech/SaaS app design.
+
+
+### 4. CORE BRAND TOKENS (أكواد الهوية لاستخدامها في أي برومبت):
+------------------------------------------------------------------------------
+- Primary Dark Canvas: #0A0A0E (Deep Void Black) & #111111 (Surface Dark)
+- Primary Neon Accent: #00C2FF (Electric Cyber Cyan)
+- Secondary Neon Accent: #7000FF / #3626CE (Deep Violet / Neon Purple)
+- Status Colors: #22C55E (Active Emerald Green), #F59E0B (Amber Gold)
+- Logo Motif: Hexagonal cyber shield + gaming controller silhouette + circular tech arc
+- UI Style: Dark glassmorphism, clean typography, glowing line charts, device status indicators
