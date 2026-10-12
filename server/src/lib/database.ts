@@ -317,6 +317,24 @@ CREATE TABLE IF NOT EXISTS rooms (
 CREATE INDEX IF NOT EXISTS idx_rooms_tenant ON rooms(tenant_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_device ON rooms(device_id) WHERE device_id IS NOT NULL;
 
+-- cafe_tables (dedicated café tables)
+CREATE TABLE IF NOT EXISTS cafe_tables (
+  id           TEXT PRIMARY KEY,
+  table_number TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  capacity     INTEGER NOT NULL DEFAULT 4,
+  device_id    TEXT REFERENCES devices(id) ON DELETE SET NULL,
+  tenant_id    TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  synced       INTEGER NOT NULL DEFAULT 0,
+  synced_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_cafe_tables_tenant ON cafe_tables(tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cafe_tables_tenant_number ON cafe_tables(tenant_id, table_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cafe_tables_device ON cafe_tables(device_id) WHERE device_id IS NOT NULL;
+
 -- shifts
 CREATE TABLE IF NOT EXISTS shifts (
   id              TEXT PRIMARY KEY,
@@ -464,6 +482,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       _db.run('UPDATE session_transfers SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
       _db.run('UPDATE session_pauses SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
       _db.run('UPDATE product_stock_logs SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      _db.run('UPDATE cafe_tables SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
     }
   } catch (err: any) {
     console.error('[database] Auto-migration check failed:', err.message);
@@ -569,6 +588,36 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     `);
   } catch (rErr: any) {
     console.error('[database] Rooms table creation/migration failed:', rErr.message);
+  }
+
+  // Auto-migration helper for cafe_tables table
+  try {
+    _db.run(`
+      CREATE TABLE IF NOT EXISTS cafe_tables (
+        id           TEXT PRIMARY KEY,
+        table_number TEXT NOT NULL,
+        name         TEXT NOT NULL,
+        capacity     INTEGER NOT NULL DEFAULT 4,
+        device_id    TEXT REFERENCES devices(id) ON DELETE SET NULL,
+        tenant_id    TEXT,
+        created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+        synced       INTEGER NOT NULL DEFAULT 0,
+        synced_at    TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_cafe_tables_tenant ON cafe_tables(tenant_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_cafe_tables_tenant_number ON cafe_tables(tenant_id, table_number);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_cafe_tables_device ON cafe_tables(device_id) WHERE device_id IS NOT NULL;
+    `);
+
+    // Auto-sync table name and backing device name to table_number
+    _db.run(`
+      UPDATE cafe_tables SET name = table_number WHERE table_number IS NOT NULL AND name != table_number;
+      UPDATE devices SET name = (SELECT ct.table_number FROM cafe_tables ct WHERE ct.device_id = devices.id)
+      WHERE type = 'table' AND id IN (SELECT device_id FROM cafe_tables WHERE device_id IS NOT NULL);
+    `);
+  } catch (tErr: any) {
+    console.error('[database] Cafe tables table creation/migration failed:', tErr.message);
   }
 
   // Auto-migration helper for shifts and shift_expenses

@@ -476,529 +476,646 @@ export function EndSessionModal({
       <Modal
         open
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--accent-red)', fontSize: '22px' }}>
-              receipt_long
-            </span>
-            <span>
-              {language === 'ar'
-                ? `إنهاء الجلسة وإصدار الفاتورة · ${session.device?.name ?? 'الجهاز'}`
-                : `End Session & Invoice · ${session.device?.name ?? 'Device'}`}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, rgba(255, 68, 102, 0.2), rgba(255, 170, 0, 0.15))',
+              border: '1px solid rgba(255, 68, 102, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent-red)',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>receipt_long</span>
+            </div>
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>{language === 'ar' ? 'إنهاء الجلسة وإصدار الفاتورة' : 'End Session & Invoice'}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '2px 10px',
+                  borderRadius: '12px',
+                  background: 'rgba(0, 194, 255, 0.15)',
+                  color: 'var(--accent-cyan)',
+                  border: '1px solid rgba(0, 194, 255, 0.3)',
+                }}>
+                  {session.device?.name ?? 'الجهاز'}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                {language === 'ar'
+                  ? `العميل: ${session.customer ? `@${session.customer.username} (${session.customer.name})` : 'مستغل خارجي'} · تسوية الحساب والوردية`
+                  : `Customer: ${session.customer ? session.customer.name : 'Walk-in'} · Checkout & Settlement`}
+              </div>
+            </div>
           </div>
         }
         onClose={onClose}
-        width={580}
+        width="min(1180px, 96vw)"
+        bodyStyle={{ padding: '16px 20px', overflow: 'hidden' }}
         footer={
-          <>
-            <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>{t('cancel')}</Button>
-            <Button 
-              variant="danger" 
-              loading={loading} 
-              disabled={session.is_paused}
-              onClick={submit} 
-              style={{
-                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 18px',
-                fontWeight: 700,
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
-              {language === 'ar' ? `إنهاء ودفع (${formatCurrency(finalTotalCost)})` : `End & Checkout (${formatCurrency(finalTotalCost)})`}
-            </Button>
-          </>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRtl ? 'right' : 'left', maxHeight: '72vh', overflowY: 'auto', paddingRight: '4px' }}>
-          
-          <Input
-            type="datetime-local"
-            label={language === 'ar' ? 'وقت الانتهاء' : 'End Time'}
-            value={endedAt}
-            max={toLocalISOString(new Date())}
-            onChange={(e) => setEndedAt(e.target.value)}
-          />
-
-          {/* Session Breakdown Box */}
-          <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border-default)' }}>
-            <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={session.customer ? `@${session.customer.username} (${session.customer.name})` : (language === 'ar' ? 'مستغل خارجي' : 'Walk-in')} />
-            <Row label={language === 'ar' ? 'الجهاز الحالي' : 'Current Device'} value={`${session.device?.name} (${formatCurrency(rate)}/س)`} />
-            <Row label={language === 'ar' ? 'تاريخ البدء' : 'Started At'} value={new Date(session.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)} />
-            <Row 
-              label={language === 'ar' ? 'الوقت المحسوب للجهاز الحالي' : 'Current Billed Time'} 
-              value={language === 'ar' 
-                ? `${effectiveMinutes} دقيقة`
-                : `${effectiveMinutes} minutes`
-              } 
-            />
-            {pausedMinutes > 0 && (
-              <Row
-                label={language === 'ar' ? 'الوقت المعلّق' : 'Paused Time'}
-                value={`${pausedMinutes} ${language === 'ar' ? 'دقيقة' : 'min'}`}
-                valueColor="var(--accent-yellow)"
-              />
-            )}
-            
-            <Row label={language === 'ar' ? 'تكلفة الجهاز الحالي' : 'Current Device Cost'} value={formatCurrency(currentSegmentCost)} />
-
-            {/* Previous Transfers Breakdown */}
-            {transfers && transfers.length > 0 && (
-              <>
-                <hr style={{ border: '0', borderTop: '1px dashed var(--border-default)', margin: '4px 0' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
-                    {language === 'ar' ? 'مراحل التحويل السابقة:' : 'Previous Transfers:'}
-                  </span>
-                  {transfers.map((tr, idx) => (
-                    <div key={tr.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      <span>{tr.from_device?.name ?? 'الجهاز السابق'} ({tr.duration_minutes} دقيقة)</span>
-                      <span style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{formatCurrency(tr.cost)}</span>
-                    </div>
-                  ))}
-                </div>
-                <Row label={language === 'ar' ? 'إجمالي تكلفة التحويلات السابقة' : 'Transfers Total'} value={formatCurrency(transfersCost)} valueColor="var(--accent-purple)" />
-              </>
-            )}
-
-            {/* Overtime in fixed sessions */}
-            {session.session_type === 'fixed' && overtimeMinutes > 0 && (
-              <>
-                <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-                <Row 
-                  label={language === 'ar' ? 'دقائق الوقت الإضافي' : 'Overtime Minutes'} 
-                  value={`${overtimeMinutes} دقيقة`} 
-                  valueColor="var(--accent-red)"
-                />
-                <Row 
-                  label={language === 'ar' ? 'تكلفة الوقت الإضافي' : 'Overtime Cost'} 
-                  value={formatCurrency(overtimeCost)} 
-                  valueColor="var(--accent-red)"
-                />
-              </>
-            )}
-
-            {/* Café Orders */}
-            {cafeCost > 0 && (
-              <>
-                <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {language === 'ar' ? 'طلبات البوفيه:' : 'Café Orders:'}
-                  </span>
-                  {(orders ?? []).map((ord) => (
-                    <div key={ord.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      <span>{ord.product?.name} (×{ord.quantity})</span>
-                      <span>{formatCurrency(ord.total_price)}</span>
-                    </div>
-                  ))}
-                </div>
-                <Row label={language === 'ar' ? 'إجمالي تكلفة البوفيه' : 'Total Café Cost'} value={formatCurrency(cafeCost)} valueColor="var(--accent-cyan)" />
-              </>
-            )}
-
-            <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
-            
-            {/* Subtotal */}
-            <Row 
-              label={language === 'ar' ? 'المجموع الفرعي (قبل الخصم والخدمة)' : 'Subtotal'} 
-              value={formatCurrency(subtotal)} 
-              valueColor="#FFFFFF" 
-              isBold 
-            />
-          </div>
-
-          {/* ─── SECTION 1: DISCOUNT / التخفيض ─── */}
-          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>local_offer</span>
-                {language === 'ar' ? 'الخصم / التخفيض' : 'Discount'}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                {language === 'ar' ? 'المبلغ النهائي المطلوب:' : 'Final Amount Due:'}
               </span>
-              {discountAmount > 0 && (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  - {formatCurrency(discountAmount)}
-                </span>
-              )}
-            </div>
-
-            {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              {/* Field 1: Discount Percentage */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'percentage' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
-                  {language === 'ar' ? 'نسبة مئوية (%)' : 'Percentage (%)'}
-                </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="0"
-                    value={discountPercentVal}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setDiscountPercentVal(v);
-                      if (v && parseFloat(v) > 0) {
-                        setDiscountType('percentage');
-                        setDiscountFixedVal('');
-                      } else if (!discountFixedVal) {
-                        setDiscountType('none');
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 24px 8px 10px',
-                      background: discountType === 'percentage' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
-                      border: discountType === 'percentage' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
-                      borderRadius: '6px',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      fontFamily: 'JetBrains Mono, monospace',
-                      outline: 'none',
-                    }}
-                  />
-                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700 }}>
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {/* Field 2: Fixed Amount */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'fixed' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
-                  {language === 'ar' ? 'مبلغ ثابت بالعملة (ج)' : 'Fixed Amount (EGP)'}
-                </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0.00"
-                    value={discountFixedVal}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setDiscountFixedVal(v);
-                      if (v && parseFloat(v) > 0) {
-                        setDiscountType('fixed');
-                        setDiscountPercentVal('');
-                      } else if (!discountPercentVal) {
-                        setDiscountType('none');
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 28px 8px 10px',
-                      background: discountType === 'fixed' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
-                      border: discountType === 'fixed' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
-                      borderRadius: '6px',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      fontFamily: 'JetBrains Mono, monospace',
-                      outline: 'none',
-                    }}
-                  />
-                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                    {language === 'ar' ? 'ج' : 'EGP'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ─── SECTION 2: SERVICE FEE / خدمة الصالة ─── */}
-          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>room_service</span>
-                {language === 'ar' ? 'رسوم الخدمة / خدمة الصالة' : 'Service Fee'}
-              </span>
-              {serviceFee > 0 && (
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  + {formatCurrency(serviceFee)}
-                </span>
-              )}
-            </div>
-
-            {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              {/* Field 1: Service Percentage */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'percentage' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
-                  {language === 'ar' ? 'نسبة مئوية (%)' : 'Percentage (%)'}
-                </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="0"
-                    value={servicePercentVal}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setServicePercentVal(v);
-                      if (v && parseFloat(v) > 0) {
-                        setServiceType('percentage');
-                        setServiceFixedVal('');
-                      } else if (!serviceFixedVal) {
-                        setServiceType('none');
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 24px 8px 10px',
-                      background: serviceType === 'percentage' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
-                      border: serviceType === 'percentage' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
-                      borderRadius: '6px',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      fontFamily: 'JetBrains Mono, monospace',
-                      outline: 'none',
-                    }}
-                  />
-                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700 }}>
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {/* Field 2: Fixed Service Amount */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'fixed' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
-                  {language === 'ar' ? 'مبلغ ثابت بالعملة (ج)' : 'Fixed Amount (EGP)'}
-                </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0.00"
-                    value={serviceFixedVal}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setServiceFixedVal(v);
-                      if (v && parseFloat(v) > 0) {
-                        setServiceType('fixed');
-                        setServicePercentVal('');
-                      } else if (!servicePercentVal) {
-                        setServiceType('none');
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 28px 8px 10px',
-                      background: serviceType === 'fixed' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
-                      border: serviceType === 'fixed' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
-                      borderRadius: '6px',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      fontFamily: 'JetBrains Mono, monospace',
-                      outline: 'none',
-                    }}
-                  />
-                  <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                    {language === 'ar' ? 'ج' : 'EGP'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-
-
-          {/* ─── FINAL NET TOTAL BOX ─── */}
-          <div
-            style={{
-              padding: '14px 16px',
-              background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.08) 0%, rgba(0, 102, 255, 0.03) 100%)',
-              border: '1px solid rgba(0, 194, 255, 0.28)',
-              borderRadius: '10px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFFFFF' }}>
-                {language === 'ar' ? 'الإجمالي الصافي المطلوب دفعه:' : 'Net Total Due:'}
-              </span>
-              <span
-                style={{
-                  fontSize: '24px',
-                  fontWeight: 900,
-                  color: 'var(--accent-cyan)',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  textShadow: '0 0 12px rgba(0, 194, 255, 0.35)',
-                }}
-              >
+              <span style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '18px',
+                fontWeight: 800,
+                color: 'var(--accent-cyan)',
+              }}>
                 {formatCurrency(finalTotalCost)}
               </span>
             </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
+                {t('cancel')}
+              </Button>
+              <Button 
+                variant="danger" 
+                loading={loading} 
+                disabled={session.is_paused}
+                onClick={submit} 
+                style={{
+                  fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 24px',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  boxShadow: '0 0 16px rgba(255, 68, 102, 0.25)',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+                {language === 'ar' ? `إنهاء ودفع (${formatCurrency(finalTotalCost)})` : `End & Checkout (${formatCurrency(finalTotalCost)})`}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {/* 2-Column POS Checkout Layout */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)',
+            gap: '20px',
+            height: 'calc(78vh - 75px)',
+            minHeight: '480px',
+            maxHeight: '660px',
+            textAlign: isRtl ? 'right' : 'left',
+          }}
+        >
+          {/* ================= COLUMN 1: SESSION CONSUMPTION & BREAKDOWN ================= */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              minHeight: 0,
+              overflowY: 'auto',
+              paddingRight: isRtl ? 0 : '6px',
+              paddingLeft: isRtl ? '6px' : 0,
+            }}
+          >
+            {/* End Time Picker Row */}
+            <div style={{
+              padding: '12px 14px',
+              background: 'var(--bg-surface)',
+              borderRadius: '8px',
+              border: '1px solid var(--border-default)',
+            }}>
+              <Input
+                type="datetime-local"
+                label={language === 'ar' ? 'وقت الانتهاء (تعديل وقت الحساب إذا لزم)' : 'End Time (Adjust if needed)'}
+                value={endedAt}
+                max={toLocalISOString(new Date())}
+                onChange={(e) => setEndedAt(e.target.value)}
+              />
+            </div>
 
-            {(discountAmount > 0 || serviceFee > 0) && (
-              <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                <span>المجموع: {formatCurrency(subtotal)}</span>
-                {discountAmount > 0 && <span style={{ color: 'var(--accent-cyan)' }}>خصم: -{formatCurrency(discountAmount)}</span>}
-                {serviceFee > 0 && <span style={{ color: 'var(--accent-yellow)' }}>خدمة: +{formatCurrency(serviceFee)}</span>}
+            {/* Session Consumption Breakdown Box */}
+            <div
+              style={{
+                padding: '14px',
+                background: 'var(--bg-surface)',
+                borderRadius: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>timer</span>
+                {language === 'ar' ? 'بيانات واستهلاك وقت الجلسة' : 'Session Duration & Device Usage'}
+              </div>
+
+              <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={session.customer ? `@${session.customer.username} (${session.customer.name})` : (language === 'ar' ? 'مستغل خارجي' : 'Walk-in')} />
+              <Row label={language === 'ar' ? 'الجهاز الحالي' : 'Current Device'} value={`${session.device?.name} (${formatCurrency(rate)}/س)`} />
+              <Row label={language === 'ar' ? 'تاريخ البدء' : 'Started At'} value={new Date(session.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)} />
+              <Row 
+                label={language === 'ar' ? 'الوقت المحسوب للجهاز الحالي' : 'Current Billed Time'} 
+                value={language === 'ar' 
+                  ? `${effectiveMinutes} دقيقة`
+                  : `${effectiveMinutes} minutes`
+                } 
+                valueColor="var(--accent-green)"
+                isBold
+              />
+              {pausedMinutes > 0 && (
+                <Row
+                  label={language === 'ar' ? 'الوقت المعلّق' : 'Paused Time'}
+                  value={`${pausedMinutes} ${language === 'ar' ? 'دقيقة' : 'min'}`}
+                  valueColor="var(--accent-yellow)"
+                />
+              )}
+              
+              <Row label={language === 'ar' ? 'تكلفة الجهاز الحالي' : 'Current Device Cost'} value={formatCurrency(currentSegmentCost)} isBold />
+
+              {/* Previous Transfers Breakdown */}
+              {transfers && transfers.length > 0 && (
+                <>
+                  <hr style={{ border: '0', borderTop: '1px dashed var(--border-default)', margin: '4px 0' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+                      {language === 'ar' ? 'مراحل التحويل السابقة:' : 'Previous Transfers:'}
+                    </span>
+                    {transfers.map((tr, idx) => (
+                      <div key={tr.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        <span>{tr.from_device?.name ?? 'الجهاز السابق'} ({tr.duration_minutes} دقيقة)</span>
+                        <span style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{formatCurrency(tr.cost)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Row label={language === 'ar' ? 'إجمالي تكلفة التحويلات السابقة' : 'Transfers Total'} value={formatCurrency(transfersCost)} valueColor="var(--accent-purple)" />
+                </>
+              )}
+
+              {/* Overtime in fixed sessions */}
+              {session.session_type === 'fixed' && overtimeMinutes > 0 && (
+                <>
+                  <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+                  <Row 
+                    label={language === 'ar' ? 'دقائق الوقت الإضافي' : 'Overtime Minutes'} 
+                    value={`${overtimeMinutes} دقيقة`} 
+                    valueColor="var(--accent-red)"
+                  />
+                  <Row 
+                    label={language === 'ar' ? 'تكلفة الوقت الإضافي' : 'Overtime Cost'} 
+                    value={formatCurrency(overtimeCost)} 
+                    valueColor="var(--accent-red)"
+                  />
+                </>
+              )}
+
+              {/* Café Orders */}
+              {cafeCost > 0 && (
+                <>
+                  <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {language === 'ar' ? `طلبات البوفيه (${orders?.length ?? 0} أصناف):` : 'Café Orders:'}
+                    </span>
+                    {(orders ?? []).map((ord) => (
+                      <div key={ord.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        <span>{ord.product?.name} (×{ord.quantity})</span>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(ord.total_price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Row label={language === 'ar' ? 'إجمالي تكلفة البوفيه' : 'Total Café Cost'} value={formatCurrency(cafeCost)} valueColor="var(--accent-cyan)" isBold />
+                </>
+              )}
+
+              <hr style={{ border: '0', borderTop: '1px solid var(--border-default)', margin: '4px 0' }} />
+              
+              {/* Subtotal */}
+              <Row 
+                label={language === 'ar' ? 'المجموع الفرعي (قبل الخصم والخدمة)' : 'Subtotal'} 
+                value={formatCurrency(subtotal)} 
+                valueColor="#FFFFFF" 
+                isBold 
+              />
+            </div>
+
+            {/* Invoice Notes Field */}
+            <div style={{
+              padding: '12px 14px',
+              background: 'var(--bg-surface)',
+              borderRadius: '8px',
+              border: '1px solid var(--border-default)',
+            }}>
+              <Input
+                label={language === 'ar' ? 'ملاحظات الفاتورة (اختياري)' : 'Invoice Notes (optional)'}
+                placeholder={language === 'ar' ? 'مثال: سبب الخصم، العميل طلب كذا، ملاحظات خاصة...' : 'e.g. Discount reason...'}
+                value={invoiceNotes}
+                onChange={(e) => setInvoiceNotes(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* ================= COLUMN 2: DISCOUNTS, FEES, PAYMENT & SETTLEMENT ================= */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              minHeight: 0,
+              overflowY: 'auto',
+              paddingRight: isRtl ? 0 : '6px',
+              paddingLeft: isRtl ? '6px' : 0,
+            }}
+          >
+            {/* ─── SECTION 1: DISCOUNT / التخفيض ─── */}
+            <div style={{ padding: '12px 14px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>local_offer</span>
+                  {language === 'ar' ? 'الخصم / التخفيض' : 'Discount'}
+                </span>
+                {discountAmount > 0 && (
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    - {formatCurrency(discountAmount)}
+                  </span>
+                )}
+              </div>
+
+              {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {/* Field 1: Discount Percentage */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'percentage' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
+                    {language === 'ar' ? 'نسبة مئوية (%)' : 'Percentage (%)'}
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="0"
+                      value={discountPercentVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setDiscountPercentVal(v);
+                        if (v && parseFloat(v) > 0) {
+                          setDiscountType('percentage');
+                          setDiscountFixedVal('');
+                        } else if (!discountFixedVal) {
+                          setDiscountType('none');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 24px 8px 10px',
+                        background: discountType === 'percentage' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
+                        border: discountType === 'percentage' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        outline: 'none',
+                      }}
+                    />
+                    <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700 }}>
+                      %
+                    </span>
+                  </div>
+                </div>
+
+                {/* Field 2: Fixed Amount */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'fixed' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
+                    {language === 'ar' ? 'مبلغ ثابت بالعملة (ج)' : 'Fixed Amount (EGP)'}
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0.00"
+                      value={discountFixedVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setDiscountFixedVal(v);
+                        if (v && parseFloat(v) > 0) {
+                          setDiscountType('fixed');
+                          setDiscountPercentVal('');
+                        } else if (!discountPercentVal) {
+                          setDiscountType('none');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 28px 8px 10px',
+                        background: discountType === 'fixed' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
+                        border: discountType === 'fixed' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        outline: 'none',
+                      }}
+                    />
+                    <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                      {language === 'ar' ? 'ج' : 'EGP'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── SECTION 2: SERVICE FEE / خدمة الصالة ─── */}
+            <div style={{ padding: '12px 14px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>room_service</span>
+                  {language === 'ar' ? 'رسوم الخدمة / خدمة الصالة' : 'Service Fee'}
+                </span>
+                {serviceFee > 0 && (
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-yellow)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    + {formatCurrency(serviceFee)}
+                  </span>
+                )}
+              </div>
+
+              {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {/* Field 1: Service Percentage */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'percentage' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
+                    {language === 'ar' ? 'نسبة مئوية (%)' : 'Percentage (%)'}
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="0"
+                      value={servicePercentVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setServicePercentVal(v);
+                        if (v && parseFloat(v) > 0) {
+                          setServiceType('percentage');
+                          setServiceFixedVal('');
+                        } else if (!serviceFixedVal) {
+                          setServiceType('none');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 24px 8px 10px',
+                        background: serviceType === 'percentage' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
+                        border: serviceType === 'percentage' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        outline: 'none',
+                      }}
+                    />
+                    <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700 }}>
+                      %
+                    </span>
+                  </div>
+                </div>
+
+                {/* Field 2: Fixed Service Amount */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'fixed' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
+                    {language === 'ar' ? 'مبلغ ثابت بالعملة (ج)' : 'Fixed Amount (EGP)'}
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0.00"
+                      value={serviceFixedVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setServiceFixedVal(v);
+                        if (v && parseFloat(v) > 0) {
+                          setServiceType('fixed');
+                          setServicePercentVal('');
+                        } else if (!servicePercentVal) {
+                          setServiceType('none');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 28px 8px 10px',
+                        background: serviceType === 'fixed' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
+                        border: serviceType === 'fixed' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
+                        borderRadius: '6px',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        outline: 'none',
+                      }}
+                    />
+                    <span style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                      {language === 'ar' ? 'ج' : 'EGP'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── SECTION 3: FINAL NET TOTAL BOX ─── */}
+            <div
+              style={{
+                padding: '14px 16px',
+                background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.1) 0%, rgba(0, 102, 255, 0.04) 100%)',
+                border: '1.5px solid rgba(0, 194, 255, 0.35)',
+                borderRadius: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                boxShadow: '0 0 15px rgba(0, 194, 255, 0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFFFFF' }}>
+                  {language === 'ar' ? 'الإجمالي الصافي المطلوب دفعه:' : 'Net Total Due:'}
+                </span>
+                <span
+                  style={{
+                    fontSize: '26px',
+                    fontWeight: 900,
+                    color: 'var(--accent-cyan)',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    textShadow: '0 0 14px rgba(0, 194, 255, 0.4)',
+                  }}
+                >
+                  {formatCurrency(finalTotalCost)}
+                </span>
+              </div>
+
+              {(discountAmount > 0 || serviceFee > 0) && (
+                <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)', flexWrap: 'wrap', paddingTop: '4px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <span>المجموع الفرعي: {formatCurrency(subtotal)}</span>
+                  {discountAmount > 0 && <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>خصم: -{formatCurrency(discountAmount)}</span>}
+                  {serviceFee > 0 && <span style={{ color: 'var(--accent-yellow)', fontWeight: 600 }}>خدمة: +{formatCurrency(serviceFee)}</span>}
+                </div>
+              )}
+            </div>
+
+            {/* ─── SECTION 4: PAYMENT METHOD & SETTLEMENT ─── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <input 
+                  type="checkbox" 
+                  checked={markPaid} 
+                  onChange={(e) => setMarkPaid(e.target.checked)} 
+                />
+                {language === 'ar' ? 'تسجيل الفاتورة كمدفوعة فوراً في الوردية' : 'Mark as Paid Immediately in Shift'}
+              </label>
+              
+              {markPaid && (
+                <>
+                  <Select
+                    label={language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                  >
+                    <option value="cash">{language === 'ar' ? 'نقدي (Cash)' : 'Cash'}</option>
+                    <option value="card">{language === 'ar' ? 'فيزا / كارت ائتمان (POS)' : 'Credit/Debit Card'}</option>
+                    <option value="transfer">{language === 'ar' ? 'تحويل بنكي / InstaPay' : 'Bank Transfer'}</option>
+                    <option value="wallet">{language === 'ar' ? 'محفظة إلكترونية (فودافون كاش)' : 'Digital Wallet'}</option>
+                  </Select>
+
+                  {/* Wallet Details & QR Code display */}
+                  {paymentMethod === 'wallet' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', padding: '12px', background: 'var(--bg-input)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+                          {language === 'ar' ? 'سداد عبر المحفظة الإلكترونية (فودافون كاش)' : 'Pay via E-Wallet (Vodafone Cash)'}
+                        </span>
+                        {walletQrUrl && (
+                          <button 
+                            type="button" 
+                            className="ccms-btn ccms-btn-ghost" 
+                            style={{ fontSize: '11px', padding: '2px 8px', color: 'var(--accent-green)' }}
+                            onClick={() => setShowQrZoom(true)}
+                          >
+                            {language === 'ar' ? 'تكبير الـ QR' : 'Zoom QR'}
+                          </button>
+                        )}
+                      </div>
+
+                      {walletQrUrl ? (
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#FFFFFF', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)' }}>
+                          <img 
+                            src={walletQrUrl} 
+                            alt="Vodafone Cash QR" 
+                            style={{ width: '80px', height: '80px', objectFit: 'contain', cursor: 'pointer', borderRadius: '4px' }} 
+                            onClick={() => setShowQrZoom(true)}
+                          />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#1E293B' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                              {language === 'ar' ? 'امسح الـ QR للتحويل الفوري' : 'Scan QR code to pay'}
+                            </span>
+                            {walletPhoneNumber ? (
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>phone_iphone</span>
+                                {walletPhoneNumber}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#475569' }}>
+                                {language === 'ar' ? 'حوالة فودافون كاش المباشرة' : 'Vodafone Cash Direct Wallet'}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '10px', color: '#64748B' }}>
+                              {language === 'ar' ? 'تأكد من مطابقة المبلغ قبل إتمام العملية' : 'Please verify amount before transfer'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ padding: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent-yellow)', lineHeight: '1.5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
+                          <span>{language === 'ar' ? 'لم يتم تعيين صورة الـ QR للمحفظة في الإعدادات بعد.' : 'No E-Wallet QR image set in settings yet.'}</span>
+                        </div>
+                      )}
+
+                      <Input
+                        label={language === 'ar' ? 'رقم عملية المحفظة / رقم المحوّل (اختياري)' : 'Wallet Transaction Ref / Phone (optional)'}
+                        placeholder={language === 'ar' ? 'مثال: 010xxx أو رقم العملية' : 'e.g. 010xxx or TxID'}
+                        value={paymentRef}
+                        onChange={(e) => setPaymentRef(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Card POS Details */}
+                  {paymentMethod === 'card' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(0, 194, 255, 0.05)', border: '1px solid rgba(0, 194, 255, 0.2)', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>credit_card</span>
+                        {language === 'ar' ? 'دفع عبر ماكينة الفيزا (POS)' : 'Card Terminal (POS)'}
+                      </div>
+                      <Input
+                        label={language === 'ar' ? 'رقم العملية / مرجع ماكينة الـ POS (اختياري)' : 'POS Transaction Ref / Auth Code (optional)'}
+                        placeholder={language === 'ar' ? 'مثال: Auth Code #123456' : 'e.g. Auth Code #123456'}
+                        value={paymentRef}
+                        onChange={(e) => setPaymentRef(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Bank Transfer Details */}
+                  {paymentMethod === 'transfer' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#c084fc' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance</span>
+                        {language === 'ar' ? 'تحويل بنكي / InstaPay' : 'Bank Transfer / InstaPay'}
+                      </div>
+                      {bankDetails ? (
+                        <div style={{ fontSize: '12px', background: '#111', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                          {bankDetails}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {language === 'ar' ? 'يمكنك تدوين بيانات الحساب البنكي من صفحة الإعدادات.' : 'You can configure bank details in Settings.'}
+                        </div>
+                      )}
+                      <Input
+                        label={language === 'ar' ? 'رقم مرجع التحويل / اسم المحوّل (اختياري)' : 'Bank Reference / Sender Name (optional)'}
+                        placeholder={language === 'ar' ? 'رقم الحوالة أو الاسم' : 'Transfer Ref or Name'}
+                        value={paymentRef}
+                        onChange={(e) => setPaymentRef(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Session Paused Alert */}
+            {session.is_paused && (
+              <div style={{ color: 'var(--accent-yellow)', fontSize: '13px', padding: '10px 12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', border: '1px solid var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>pause_circle</span>
+                <span>{language === 'ar' ? 'الجلسة معلّقة حالياً. يرجى استئناف الجلسة أولاً قبل إنهائها.' : 'Session is currently paused. Please resume the session before ending it.'}</span>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {errorMsg && (
+              <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '10px 12px', background: 'rgba(255, 68, 102, 0.12)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.35)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
+                <span>{errorMsg}</span>
               </div>
             )}
           </div>
-
-          <Input
-            label={language === 'ar' ? 'ملاحظات الفاتورة (اختياري)' : 'Invoice Notes (optional)'}
-            placeholder={language === 'ar' ? 'مثال: سبب الخصم أو ملاحظات الدفع' : 'e.g. Discount reason...'}
-            value={invoiceNotes}
-            onChange={(e) => setInvoiceNotes(e.target.value)}
-          />
-
-          {session.is_paused && (
-            <div style={{ color: 'var(--accent-yellow)', fontSize: '13px', padding: '10px 12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', border: '1px solid var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>pause_circle</span>
-              <span>{language === 'ar' ? 'الجلسة معلّقة حالياً. يرجى استئناف الجلسة أولاً قبل إنهائها.' : 'Session is currently paused. Please resume the session before ending it.'}</span>
-            </div>
-          )}
-
-          {/* Payment Method & Shift Checkbox */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-              <input 
-                type="checkbox" 
-                checked={markPaid} 
-                onChange={(e) => setMarkPaid(e.target.checked)} 
-              />
-              {language === 'ar' ? 'تسجيل كمدفوع فوراً' : 'Mark as Paid Immediately'}
-            </label>
-            
-            {markPaid && (
-              <>
-                <Select
-                  label={language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                >
-                  <option value="cash">{language === 'ar' ? 'نقدي' : 'Cash'}</option>
-                  <option value="card">{language === 'ar' ? 'فيزا / كارت ائتمان' : 'Credit/Debit Card'}</option>
-                  <option value="transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
-                  <option value="wallet">{language === 'ar' ? 'محفظة إلكترونية' : 'Digital Wallet'}</option>
-                </Select>
-
-                {/* Wallet Details & QR Code display */}
-                {paymentMethod === 'wallet' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
-                        {language === 'ar' ? 'سداد عبر المحفظة الإلكترونية (فودافون كاش)' : 'Pay via E-Wallet (Vodafone Cash)'}
-                      </span>
-                      {walletQrUrl && (
-                        <button 
-                          type="button" 
-                          className="ccms-btn ccms-btn-ghost" 
-                          style={{ fontSize: '11px', padding: '2px 8px', color: 'var(--accent-green)' }}
-                          onClick={() => setShowQrZoom(true)}
-                        >
-                          {language === 'ar' ? 'تكبير الـ QR' : 'Zoom QR'}
-                        </button>
-                      )}
-                    </div>
-
-                    {walletQrUrl ? (
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#FFFFFF', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)' }}>
-                        <img 
-                          src={walletQrUrl} 
-                          alt="Vodafone Cash QR" 
-                          style={{ width: '100px', height: '100px', objectFit: 'contain', cursor: 'pointer', borderRadius: '4px' }} 
-                          onClick={() => setShowQrZoom(true)}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#1E293B' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
-                            {language === 'ar' ? 'امسح الـ QR للتحويل الفوري' : 'Scan QR code to pay'}
-                          </span>
-                          {walletPhoneNumber ? (
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>phone_iphone</span>
-                              {walletPhoneNumber}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '11px', color: '#475569' }}>
-                              {language === 'ar' ? 'حوالة فودافون كاش المباشرة' : 'Vodafone Cash Direct Wallet'}
-                            </span>
-                          )}
-                          <span style={{ fontSize: '10px', color: '#64748B' }}>
-                            {language === 'ar' ? 'تأكد من مطابقة المبلغ قبل إتمام العملية' : 'Please verify amount before transfer'}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ padding: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent-yellow)', lineHeight: '1.5', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
-                        <span>{language === 'ar' ? 'لم يتم تعيين صورة الـ QR للمحفظة في الإعدادات بعد (الديفولت فارغة). يمكنك رفع صورة QR فودافون كاش من صفحة الإعدادات.' : 'No E-Wallet QR image set in settings yet. You can upload your QR code in the Settings page.'}</span>
-                      </div>
-                    )}
-
-                    <Input
-                      label={language === 'ar' ? 'رقم عملية المحفظة / رقم المحوّل (اختياري)' : 'Wallet Transaction Ref / Phone (optional)'}
-                      placeholder={language === 'ar' ? 'مثال: 010xxx أو رقم العملية' : 'e.g. 010xxx or TxID'}
-                      value={paymentRef}
-                      onChange={(e) => setPaymentRef(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {/* Card POS Details */}
-                {paymentMethod === 'card' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(0, 194, 255, 0.05)', border: '1px solid rgba(0, 194, 255, 0.2)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>credit_card</span>
-                      {language === 'ar' ? 'دفع عبر ماكينة الفيزا (POS)' : 'Card Terminal (POS)'}
-                    </div>
-                    <Input
-                      label={language === 'ar' ? 'رقم العملية / مرجع ماكينة الـ POS (اختياري)' : 'POS Transaction Ref / Auth Code (optional)'}
-                      placeholder={language === 'ar' ? 'مثال: Auth Code #123456' : 'e.g. Auth Code #123456'}
-                      value={paymentRef}
-                      onChange={(e) => setPaymentRef(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {/* Bank Transfer Details */}
-                {paymentMethod === 'transfer' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', padding: '12px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#c084fc' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance</span>
-                      {language === 'ar' ? 'تحويل بنكي / InstaPay' : 'Bank Transfer / InstaPay'}
-                    </div>
-                    {bankDetails ? (
-                      <div style={{ fontSize: '12px', background: '#111', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                        {bankDetails}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {language === 'ar' ? 'يمكنك تدوين بيانات الحساب البنكي من صفحة الإعدادات.' : 'You can configure bank details in Settings.'}
-                      </div>
-                    )}
-                    <Input
-                      label={language === 'ar' ? 'رقم مرجع التحويل / اسم المحوّل (اختياري)' : 'Bank Reference / Sender Name (optional)'}
-                      placeholder={language === 'ar' ? 'رقم الحوالة أو الاسم' : 'Transfer Ref or Name'}
-                      value={paymentRef}
-                      onChange={(e) => setPaymentRef(e.target.value)}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {errorMsg && (
-            <div style={{ color: 'var(--accent-red)', fontSize: '13px', padding: '8px', background: 'rgba(255, 68, 102, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 68, 102, 0.3)' }}>
-              {errorMsg}
-            </div>
-          )}
         </div>
       </Modal>
 

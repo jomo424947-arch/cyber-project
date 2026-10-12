@@ -176,5 +176,19 @@ export const createExpenseSchema = z.object({
   description: z.string().min(1, 'Description required').max(300),
 });
 
+export const createCafeTableSchema = z.object({
+  table_number: z.string().min(1, 'Table number required').max(50),
+  name: z.string().min(1, 'Table name required').max(100),
+  capacity: z.number().int().positive().optional().default(4),
+  device_id: z.string().uuid().optional().nullable(),
+});
+
+export const updateCafeTableSchema = z.object({
+  table_number: z.string().min(1).max(50).optional(),
+  name: z.string().min(1).max(100).optional(),
+  capacity: z.number().int().positive().optional(),
+});
+
+
 
 

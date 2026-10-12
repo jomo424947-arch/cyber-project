@@ -27,6 +27,7 @@ import productRoutes from './routes/products.routes';
 import pricingRoutes from './routes/pricing.routes';
 import employeeRoutes from './routes/employees.routes';
 import roomRoutes from './routes/rooms.routes';
+import cafeTableRoutes from './routes/cafe-tables.routes';
 import shiftRoutes from './routes/shifts.routes';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import { supabase } from './lib/supabase';
@@ -117,6 +118,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/cafe-tables', cafeTableRoutes);
 app.use('/api/shifts', shiftRoutes);
 
 // Serve Static Frontend if compiled client/dist exists

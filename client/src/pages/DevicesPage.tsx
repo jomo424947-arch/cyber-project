@@ -29,12 +29,13 @@ export default function DevicesPage() {
   const { isAdmin } = useAuth();
 
   const { data, loading, refetch } = useAsync(async () => {
-    const [devices, sessions, rooms] = await Promise.all([
+    const [devices, sessions, rooms, tables] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
       dataService.listRooms().catch(() => []),
+      dataService.listCafeTables().catch(() => []),
     ]);
-    return { devices, sessions, rooms };
+    return { devices, sessions, rooms, tables };
   }, []);
 
   // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
@@ -47,14 +48,17 @@ export default function DevicesPage() {
     return map;
   }, [data]);
 
-  // Set of device IDs assigned to private rooms
-  const roomDeviceIds = useMemo(() => {
+  // Set of device IDs assigned to private rooms and cafe tables
+  const excludedDeviceIds = useMemo(() => {
     const set = new Set<string>();
     (data?.rooms ?? []).forEach((r) => {
       if (r.device_id) set.add(r.device_id);
     });
+    (data?.tables ?? []).forEach((t) => {
+      if (t.device_id) set.add(t.device_id);
+    });
     return set;
-  }, [data?.rooms]);
+  }, [data?.rooms, data?.tables]);
 
   const [startTarget, setStartTarget] = useState<Device | null>(null);
   const [endTarget, setEndTarget] = useState<Session | null>(null);
@@ -66,15 +70,15 @@ export default function DevicesPage() {
 
   const hallDevices = useMemo(() => {
     return (data?.devices ?? []).filter(
-      (d) => !roomDeviceIds.has(d.id) && d.type !== 'table' && !d.name.toLowerCase().includes('billiards') && !d.name.toLowerCase().includes('بلياردو')
+      (d) => !excludedDeviceIds.has(d.id) && d.type !== 'table' && !d.name.toLowerCase().includes('billiards') && !d.name.toLowerCase().includes('بلياردو')
     );
-  }, [data?.devices, roomDeviceIds]);
+  }, [data?.devices, excludedDeviceIds]);
 
   const billiardsDevices = useMemo(() => {
     return (data?.devices ?? []).filter(
-      (d) => !roomDeviceIds.has(d.id) && (d.type === 'table' || d.name.toLowerCase().includes('billiards') || d.name.toLowerCase().includes('بلياردو'))
+      (d) => !excludedDeviceIds.has(d.id) && (d.type === 'table' || d.name.toLowerCase().includes('billiards') || d.name.toLowerCase().includes('بلياردو'))
     );
-  }, [data?.devices, roomDeviceIds]);
+  }, [data?.devices, excludedDeviceIds]);
 
   const handleAction = (device: Device) => {
     if (device.status === 'in_use') {

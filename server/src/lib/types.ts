@@ -189,6 +189,19 @@ export interface DbRoom {
   device?: Pick<DbDevice, 'id' | 'name' | 'type' | 'status' | 'hourly_rate' | 'hourly_rate_multi'> | null;
 }
 
+export interface DbCafeTable {
+  id: string;
+  table_number: string;
+  name: string;
+  capacity: number;
+  device_id: string | null;
+  tenant_id: string | null;
+  created_at: string;
+  updated_at: string;
+  device?: Pick<DbDevice, 'id' | 'name' | 'type' | 'status' | 'hourly_rate' | 'hourly_rate_multi'> | null;
+  active_session?: DbSession | null;
+}
+
 // Augment Express Request with the authenticated user.
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace

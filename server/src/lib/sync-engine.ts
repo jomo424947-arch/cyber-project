@@ -149,6 +149,10 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
     let roomQuery = cloudSupabase.from('rooms').select('*').eq('tenant_id', tenantId);
     if (lastRoomSynced) roomQuery = roomQuery.gt('updated_at', lastRoomSynced);
 
+    const lastTableSynced = getLastSyncedAt('cafe_tables', tenantId);
+    let tableQuery = cloudSupabase.from('cafe_tables').select('*').eq('tenant_id', tenantId);
+    if (lastTableSynced) tableQuery = tableQuery.gt('updated_at', lastTableSynced);
+
     const lastShiftSynced = getLastSyncedAt('shifts', tenantId);
     let shiftQuery = cloudSupabase.from('shifts').select('*').eq('tenant_id', tenantId);
     if (lastShiftSynced) {
@@ -194,6 +198,7 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       invoicesRes,
       reservationsRes,
       roomsRes,
+      cafeTablesRes,
       shiftsRes,
       shiftExpensesRes,
       sessionOrdersRes,
@@ -210,6 +215,7 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       invQuery,
       resQuery,
       roomQuery,
+      tableQuery,
       shiftQuery,
       expQuery,
       orderQuery,
@@ -331,6 +337,31 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
         if (rm.updated_at && rm.updated_at > maxUpdated) maxUpdated = rm.updated_at;
       }
       if (maxUpdated) setLastSyncedAt('rooms', tenantId, maxUpdated);
+    }
+
+    // 4b. Process cafe_tables
+    const cafeTables = cafeTablesRes.data;
+    if (cafeTables && cafeTables.length > 0) {
+      let maxUpdated = lastTableSynced || '';
+      for (const ct of cafeTables) {
+        if (isLocalRecordPendingSync('cafe_tables', ct.id)) continue;
+        db.run(
+          `INSERT OR REPLACE INTO cafe_tables (id, table_number, name, capacity, device_id, tenant_id, created_at, updated_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          [
+            ct.id,
+            ct.table_number,
+            ct.name,
+            Number(ct.capacity) || 4,
+            ct.device_id || null,
+            tenantId,
+            ct.created_at || new Date().toISOString(),
+            ct.updated_at || new Date().toISOString(),
+          ]
+        );
+        if (ct.updated_at && ct.updated_at > maxUpdated) maxUpdated = ct.updated_at;
+      }
+      if (maxUpdated) setLastSyncedAt('cafe_tables', tenantId, maxUpdated);
     }
 
     // 5. Process shifts
@@ -724,6 +755,7 @@ export async function runSync(): Promise<void> {
       'reservations',
       'products',
       'rooms',
+      'cafe_tables',
       'shifts',
       'shift_expenses',
       'standalone_orders',
@@ -739,6 +771,7 @@ export async function runSync(): Promise<void> {
       customers: 3,
       devices: 4,
       rooms: 5,
+      cafe_tables: 5,
       products: 6,
       shifts: 7,
       sessions: 8,

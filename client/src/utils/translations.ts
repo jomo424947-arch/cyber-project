@@ -102,6 +102,25 @@ export const translations: Record<string, Record<string, string>> = {
     remove_node: 'Remove Node',
     remove_node_confirm: 'Are you sure you want to remove node {name}? This device will be permanently deleted from the database.',
 
+    // Café Tables
+    cafe_tables: 'Café Tables',
+    cafe_tables_title: 'Café Tables',
+    cafe_tables_subtitle: 'Manage dining & café tables, open orders, and track guest tabs',
+    add_table: 'Add Table',
+    edit_table: 'Edit Table',
+    delete_table: 'Delete Table',
+    table_number: 'Table Number',
+    table_name: 'Table Name',
+    capacity: 'Capacity',
+    seats: 'seats',
+    open_order: 'Open Order',
+    add_products: 'Add Items',
+    order_details: 'Order Details',
+    close_order: 'Close & Pay',
+    occupied: 'Occupied',
+    no_tables_found: 'No café tables found',
+    no_tables_desc: 'Add café tables to start managing customer orders and tabs.',
+
     // Employees
     employees_title: 'Employees Management',
     employees_subtitle: 'Admin console — add, edit, or delete staff members and manage roles',
@@ -244,6 +263,25 @@ export const translations: Record<string, Record<string, string>> = {
     ram: 'الرامات (RAM)',
     remove_node: 'إزالة جهاز',
     remove_node_confirm: 'هل أنت متأكد من رغبتك في إزالة الجهاز {name}؟ سيتم مسح هذا الجهاز نهائياً من قاعدة البيانات.',
+
+    // Café Tables
+    cafe_tables: 'طاولات الكافيه',
+    cafe_tables_title: 'طاولات الكافيه',
+    cafe_tables_subtitle: 'إدارة طاولات الكافيه، فتح الطلبات، ومتابعة فواتير الزبائن والمشروبات',
+    add_table: 'إضافة طاولة',
+    edit_table: 'تعديل الطاولة',
+    delete_table: 'حذف الطاولة',
+    table_number: 'رقم الطاولة',
+    table_name: 'اسم الطاولة',
+    capacity: 'السعة (كراسي)',
+    seats: 'كراسي',
+    open_order: 'فتح طلب طاولة',
+    add_products: 'إضافة طلبات',
+    order_details: 'تفاصيل الطلب',
+    close_order: 'إنهاء ودفع الفاتورة',
+    occupied: 'مشغولة',
+    no_tables_found: 'لا توجد طاولات كافيه',
+    no_tables_desc: 'أضف طاولات كافيه لبدء إدارة طلبات الزبائن والمشروبات بسهولة.',
 
     // Employees
     employees_title: 'إدارة الموظفين',

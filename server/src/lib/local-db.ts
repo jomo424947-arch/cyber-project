@@ -75,6 +75,9 @@ const FK_MAP: Record<string, Record<string, string>> = {
   rooms: {
     device_id: 'devices',
   },
+  cafe_tables: {
+    device_id: 'devices',
+  },
   standalone_orders: {
     product_id: 'products',
     created_by: 'users',
@@ -666,6 +669,7 @@ class QueryBuilder {
       'products',
       'session_pauses',
       'rooms',
+      'cafe_tables',
       'shifts',
       'shift_expenses',
       'standalone_orders',

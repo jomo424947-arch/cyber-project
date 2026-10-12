@@ -18,6 +18,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', key: 'dashboard', icon: 'dashboard' },
   { to: '/rooms', label: 'Gaming Rooms', key: 'rooms', icon: 'meeting_room' },
+  { to: '/cafe-tables', label: 'Café Tables', key: 'cafe_tables', icon: 'table_restaurant' },
   { to: '/devices', label: 'Device Fleet', key: 'devices', icon: 'devices' },
   { to: '/sessions', label: 'Active Sessions', key: 'sessions', icon: 'p2p' },
   { to: '/products', label: 'Product Catalog', key: 'products', icon: 'inventory_2' },

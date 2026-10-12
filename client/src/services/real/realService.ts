@@ -23,6 +23,7 @@ import type {
   StockLog,
   StandaloneOrder,
   GamingRoom,
+  CafeTable,
   Shift,
   ShiftExpense,
   ShiftSummary,
@@ -368,6 +369,24 @@ export const realService: DataService = {
   },
   async deleteRoom(id) {
     await http.delete(`/api/rooms/${id}`);
+  },
+
+  // ─── Café Tables ─────────────────────────────────────────────────────────
+
+  async listCafeTables() {
+    const { data } = await http.get<ListWrap<CafeTable>>('/api/cafe-tables');
+    return data.data;
+  },
+  async createCafeTable(payload) {
+    const { data } = await http.post<OneWrap<CafeTable>>('/api/cafe-tables', payload);
+    return data.data;
+  },
+  async updateCafeTable(id, patch) {
+    const { data } = await http.patch<OneWrap<CafeTable>>(`/api/cafe-tables/${id}`, patch);
+    return data.data;
+  },
+  async deleteCafeTable(id) {
+    await http.delete(`/api/cafe-tables/${id}`);
   },
 
   // ─── Shifts ──────────────────────────────────────────────────────────────

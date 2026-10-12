@@ -7,6 +7,7 @@ interface StatCardProps {
   accent: string; // CSS color for the icon circle/border
   hint?: string;
   index?: number; // for staggered animation delay
+  onClick?: () => void;
 }
 
 function getMaterialIconName(icon: any): string {
@@ -38,7 +39,7 @@ function getMaterialIconName(icon: any): string {
   }
 }
 
-export function StatCard({ icon, label, value, accent, hint, index = 0 }: StatCardProps) {
+export function StatCard({ icon, label, value, accent, hint, index = 0, onClick }: StatCardProps) {
   const iconName = getMaterialIconName(icon);
 
   // Set default hints matching screenshot design if none provided
@@ -67,12 +68,14 @@ export function StatCard({ icon, label, value, accent, hint, index = 0 }: StatCa
 
   return (
     <div
-      className="ccms-card-stat ccms-card-stat-hover ccms-stagger group"
+      onClick={onClick}
+      className={`ccms-card-stat ccms-card-stat-hover ccms-stagger group ${onClick ? 'cursor-pointer' : ''}`}
       style={{
         animationDelay: `${index * 80}ms`,
         borderTop: `1px solid ${accent}`,
         position: 'relative',
         overflow: 'hidden',
+        cursor: onClick ? 'pointer' : undefined,
       }}
     >
       {/* Background Decorative Icon */}

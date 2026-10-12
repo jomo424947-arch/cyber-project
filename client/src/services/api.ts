@@ -26,6 +26,9 @@ import type {
   StandaloneOrder,
   GamingRoom,
   CreateRoomPayload,
+  CafeTable,
+  CreateCafeTablePayload,
+  UpdateCafeTablePayload,
   Shift,
   ShiftExpense,
   ShiftSummary,
@@ -143,6 +146,12 @@ export interface DataService {
   createRoom(payload: CreateRoomPayload): Promise<GamingRoom>;
   updateRoom(id: string, patch: Partial<{ name: string; icon: string; device_id: string | null; hourly_rate: number; hourly_rate_multi: number }>): Promise<GamingRoom>;
   deleteRoom(id: string): Promise<void>;
+
+  // cafe tables
+  listCafeTables(): Promise<CafeTable[]>;
+  createCafeTable(payload: CreateCafeTablePayload): Promise<CafeTable>;
+  updateCafeTable(id: string, patch: UpdateCafeTablePayload): Promise<CafeTable>;
+  deleteCafeTable(id: string): Promise<void>;
 
   // shifts
   listShifts(filter?: 'active' | 'closed', userId?: string): Promise<Shift[]>;

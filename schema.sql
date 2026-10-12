@@ -635,6 +635,41 @@ create policy "staff write shift_expenses"
   using ( public.is_staff() )
   with check ( public.is_staff() );
 
+-- ----------------------------------------------------------------------------
+-- 15. cafe_tables — dedicated café tables for customers ordering drinks/food
+-- Added in migration 017
+-- ----------------------------------------------------------------------------
+create table if not exists public.cafe_tables (
+  id           uuid primary key default gen_random_uuid(),
+  table_number text not null,
+  name         text not null,
+  capacity     integer not null default 4 check (capacity > 0),
+  device_id    uuid references public.devices(id) on delete set null,
+  tenant_id    uuid references public.tenants(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists idx_cafe_tables_tenant on public.cafe_tables(tenant_id);
+create unique index if not exists idx_cafe_tables_tenant_number on public.cafe_tables(tenant_id, table_number);
+create unique index if not exists idx_cafe_tables_device on public.cafe_tables(device_id) where device_id is not null;
+
+drop trigger if exists trg_cafe_tables_updated_at on public.cafe_tables;
+create trigger trg_cafe_tables_updated_at
+before update on public.cafe_tables
+for each row execute function public.set_updated_at();
+
+alter table public.cafe_tables enable row level security;
+
+create policy "staff read cafe_tables"
+  on public.cafe_tables for select to authenticated
+  using ( public.is_staff() );
+
+create policy "admin write cafe_tables"
+  on public.cafe_tables for all to authenticated
+  using ( public.is_admin() )
+  with check ( public.is_admin() );
+
 -- ============================================================================
 -- Seed data — starter devices (optional, per tenant).
 -- After creating your first tenant and user, assign tenant_id to these rows.

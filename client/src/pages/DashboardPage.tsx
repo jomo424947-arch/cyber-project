@@ -73,24 +73,46 @@ export default function DashboardPage() {
 
   // Fetch everything in parallel via a single async wrapper.
   const { data, loading, error, refetch } = useAsync(async () => {
-    const [devices, sessions, invoices, reservations, revReport, activeShift] = await Promise.all([
+    const [devices, sessions, invoices, reservations, revReport, activeShift, cafeTables] = await Promise.all([
       dataService.listDevices(),
       dataService.listSessions('active'),
       dataService.listInvoices(),
       dataService.listReservations(),
       dataService.revenueReport().catch(() => null),
       dataService.getActiveShift().catch(() => null),
+      dataService.listCafeTables().catch(() => []),
     ]);
-    return { devices, sessions, invoices, reservations, revReport, activeShift };
+    return { devices, sessions, invoices, reservations, revReport, activeShift, cafeTables: cafeTables || [] };
   }, []);
 
   // Auto-poll every 15 seconds for cross-instance sync (Desktop ↔ Web ↔ Mobile)
   usePolling(refetch, 15000);
 
   const stats = useMemo(() => {
-    if (!data) return { active: 0, available: 0, revenue: 0, deviceRevenue: 0, cafeRevenue: 0, pending: 0 };
-    const active = data.sessions.length;
-    const available = data.devices.filter((d) => d.status === 'available').length;
+    if (!data) return {
+      active: 0,
+      available: 0,
+      occupiedTables: 0,
+      totalTables: 0,
+      availableTables: 0,
+      tableOrdersTotal: 0,
+      revenue: 0,
+      deviceRevenue: 0,
+      cafeRevenue: 0,
+      pending: 0,
+    };
+
+    // Filter gaming devices vs table backing devices
+    const gamingDevices = data.devices.filter((d) => (d as any).type !== 'table');
+    const activeGamingSessions = data.sessions.filter((s) => (s.device as any)?.type !== 'table');
+    const availableGamingDevices = gamingDevices.filter((d) => d.status === 'available').length;
+
+    // Cafe Tables stats
+    const tables = data.cafeTables || [];
+    const totalTables = tables.length;
+    const occupiedTables = tables.filter((t) => t.device?.status === 'in_use' || !!t.active_session).length;
+    const availableTables = Math.max(0, totalTables - occupiedTables);
+    const tableOrdersTotal = tables.reduce((sum, t) => sum + Number(t.active_session?.current_orders_total || 0), 0);
 
     let cafeRevenue = 0;
     let deviceRevenue = 0;
@@ -116,8 +138,12 @@ export default function DashboardPage() {
 
     const pending = (data.reservations || []).filter((r) => r.status === 'pending').length;
     return {
-      active,
-      available,
+      active: activeGamingSessions.length,
+      available: availableGamingDevices,
+      occupiedTables,
+      totalTables,
+      availableTables,
+      tableOrdersTotal,
       revenue: Math.round(revenue * 100) / 100,
       deviceRevenue: Math.round(deviceRevenue * 100) / 100,
       cafeRevenue: Math.round(cafeRevenue * 100) / 100,
@@ -332,16 +358,49 @@ export default function DashboardPage() {
       )}
       {/* Stat cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-        {/* Row 1: Operations (2 Cards) */}
+        {/* Row 1: Operations (Gaming Active, Available PCs, Cafe Tables) */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gridTemplateColumns: stats.totalTables > 0 
+              ? 'repeat(auto-fit, minmax(260px, 1fr))' 
+              : 'repeat(auto-fit, minmax(280px, 1fr))',
             gap: '14px',
           }}
         >
-          <StatCard index={0} icon="history_toggle_off" label={t('active_sessions_title')} value={stats.active} accent="var(--accent-red)" />
-          <StatCard index={1} icon="devices" label={language === 'ar' ? 'الأجهزة المتاحة' : 'Available PCs'} value={stats.available} accent="var(--accent-green)" />
+          <StatCard
+            index={0}
+            icon="history_toggle_off"
+            label={t('active_sessions_title')}
+            value={stats.active}
+            accent="var(--accent-red)"
+            hint={language === 'ar' ? 'أجهزة تعمل الآن' : 'PCs in session'}
+            onClick={() => navigate('/sessions')}
+          />
+          <StatCard
+            index={1}
+            icon="devices"
+            label={language === 'ar' ? 'الأجهزة المتاحة' : 'Available PCs'}
+            value={stats.available}
+            accent="var(--accent-green)"
+            hint={language === 'ar' ? 'جاهزة للبدء' : 'Ready to start'}
+            onClick={() => navigate('/devices')}
+          />
+          {stats.totalTables > 0 && (
+            <StatCard
+              index={2}
+              icon="table_restaurant"
+              label={language === 'ar' ? 'طاولات الكافيه' : 'Café Tables'}
+              value={`${stats.occupiedTables} / ${stats.totalTables}`}
+              accent="var(--accent-cyan)"
+              hint={
+                language === 'ar'
+                  ? `${stats.availableTables} متاحة · ${stats.occupiedTables} مشغولة`
+                  : `${stats.availableTables} free · ${stats.occupiedTables} in use`
+              }
+              onClick={() => navigate('/cafe-tables')}
+            />
+          )}
         </div>
 
         {/* Row 2: Financial Breakdown (3 Cards) */}
@@ -352,9 +411,9 @@ export default function DashboardPage() {
             gap: '14px',
           }}
         >
-          <StatCard index={2} icon="sports_esports" label={language === 'ar' ? 'أرباح الأجهزة اليوم' : 'Device Revenue Today'} value={formatCurrency(stats.deviceRevenue)} accent="#8b5cf6" />
-          <StatCard index={3} icon="local_cafe" label={language === 'ar' ? 'أرباح الكافيه اليوم' : 'Café Revenue Today'} value={formatCurrency(stats.cafeRevenue)} accent="#ffaa00" />
-          <StatCard index={4} icon="payments" label={language === 'ar' ? 'إجمالي أرباح اليوم' : 'Total Revenue Today'} value={formatCurrency(stats.revenue)} accent="var(--accent-cyan)" />
+          <StatCard index={3} icon="sports_esports" label={language === 'ar' ? 'أرباح الأجهزة اليوم' : 'Device Revenue Today'} value={formatCurrency(stats.deviceRevenue)} accent="#8b5cf6" />
+          <StatCard index={4} icon="local_cafe" label={language === 'ar' ? 'أرباح الكافيه اليوم' : 'Café Revenue Today'} value={formatCurrency(stats.cafeRevenue)} accent="#ffaa00" />
+          <StatCard index={5} icon="payments" label={language === 'ar' ? 'إجمالي أرباح اليوم' : 'Total Revenue Today'} value={formatCurrency(stats.revenue)} accent="var(--accent-cyan)" />
         </div>
       </div>
 
@@ -397,10 +456,33 @@ export default function DashboardPage() {
             columns={[
               {
                 key: 'device',
-                header: language === 'ar' ? 'الجهاز' : 'Device',
-                render: (s) => (
-                  <span style={{ fontWeight: 600 }}>{s.device?.name ?? '—'}</span>
-                ),
+                header: language === 'ar' ? 'الجهاز / الطاولة' : 'Device / Table',
+                render: (s) => {
+                  const linkedTable = data?.cafeTables?.find(
+                    (t) => (s.device?.id && t.device_id === s.device?.id) || t.active_session?.id === s.id
+                  );
+                  const isTable = (s.device as any)?.type === 'table' || Boolean(linkedTable);
+                  const rawName = linkedTable?.table_number || s.device?.name || '—';
+                  let displayName = rawName;
+                  if (isTable && rawName !== '—') {
+                    const trimmed = rawName.trim();
+                    const prefix = language === 'ar' ? 'طاولة' : 'Table';
+                    displayName = trimmed.toLowerCase().startsWith('table') || trimmed.startsWith('طاولة')
+                      ? trimmed
+                      : `${prefix} ${trimmed}`;
+                  }
+
+                  return (
+                    <span style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      {isTable ? (
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-cyan)' }}>table_restaurant</span>
+                      ) : (
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--accent-green)' }}>sports_esports</span>
+                      )}
+                      <span>{displayName}</span>
+                    </span>
+                  );
+                },
               },
               {
                 key: 'customer',
@@ -445,9 +527,33 @@ export default function DashboardPage() {
               },
               {
                 key: 'rate',
-                header: language === 'ar' ? 'السعر' : 'Rate',
+                header: language === 'ar' ? 'السعر / التكلفة' : 'Rate / Cost',
                 align: 'right',
                 render: (s) => {
+                  const linkedTable = data?.cafeTables?.find(
+                    (t) => (s.device?.id && t.device_id === s.device?.id) || t.active_session?.id === s.id
+                  );
+                  const isTable = (s.device as any)?.type === 'table' || Boolean(linkedTable);
+
+                  if (isTable) {
+                    const ordersTotal = Number(linkedTable?.active_session?.current_orders_total || 0);
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: isRtl ? 'flex-end' : 'flex-start', gap: '2px' }}>
+                        <span style={{
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          color: ordersTotal > 0 ? 'var(--accent-green)' : 'var(--text-secondary)',
+                        }}>
+                          {formatCurrency(ordersTotal)}
+                        </span>
+                        <span style={{ fontSize: '10px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                          {language === 'ar' ? 'استهلاك الطلبات' : 'Orders total'}
+                        </span>
+                      </div>
+                    );
+                  }
                   const rate = s.hourly_rate_override !== null
                     ? s.hourly_rate_override
                     : (s.play_mode === 'multiplayer' ? s.device?.hourly_rate_multi : s.device?.hourly_rate) ?? 0;

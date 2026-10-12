@@ -332,6 +332,31 @@ export interface CreateRoomPayload {
   hourly_rate_multi?: number;
 }
 
+export interface CafeTable {
+  id: string;
+  table_number: string;
+  name: string;
+  capacity: number;
+  device_id: string | null;
+  created_at?: string;
+  updated_at?: string;
+  device?: Pick<Device, 'id' | 'name' | 'type' | 'status' | 'hourly_rate' | 'hourly_rate_multi'> | null;
+  active_session?: (Session & { orders?: SessionOrder[]; current_orders_total?: number }) | null;
+}
+
+export interface CreateCafeTablePayload {
+  table_number: string;
+  name: string;
+  capacity?: number;
+  device_id?: string | null;
+}
+
+export interface UpdateCafeTablePayload {
+  table_number?: string;
+  name?: string;
+  capacity?: number;
+}
+
 // ----- Shifts & Expenses -----
 export type ShiftStatus = 'active' | 'closed';
 

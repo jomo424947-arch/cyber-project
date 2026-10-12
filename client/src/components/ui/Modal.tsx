@@ -8,10 +8,11 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  width?: number;
+  width?: number | string;
+  bodyStyle?: React.CSSProperties;
 }
 
-export function Modal({ open, title, onClose, children, footer, width = 480 }: ModalProps) {
+export function Modal({ open, title, onClose, children, footer, width = 480, bodyStyle }: ModalProps) {
   const isMobile = useIsMobile();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -48,7 +49,7 @@ export function Modal({ open, title, onClose, children, footer, width = 480 }: M
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: isMobile ? '100%' : `${width}px`,
+          maxWidth: isMobile ? '100%' : typeof width === 'number' ? `${width}px` : width,
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-default)',
           borderTop: '1px solid rgba(0, 194, 255, 0.3)', // Redesign specification inner glow
@@ -95,7 +96,8 @@ export function Modal({ open, title, onClose, children, footer, width = 480 }: M
             padding: '24px', 
             overflowY: 'auto', 
             flex: 1,
-            paddingBottom: footer ? '24px' : 'calc(24px + var(--safe-bottom))'
+            paddingBottom: footer ? '24px' : 'calc(24px + var(--safe-bottom))',
+            ...bodyStyle,
           }}
         >
           {children}
