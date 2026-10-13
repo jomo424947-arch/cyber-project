@@ -12,6 +12,10 @@ module.exports = {
   electronVersion: '31.2.0',
   npmRebuild: false,
   asar: true,
+  asarUnpack: [
+    '**/node_modules/sql.js/**/*',
+    '**/*.wasm',
+  ],
   directories: {
     output: tempOutputDir,
     buildResources: 'build',

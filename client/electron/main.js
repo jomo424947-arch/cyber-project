@@ -2,11 +2,23 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
+const url = require('url');
+
+// Single instance lock to prevent multiple conflicting processes
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+  process.exit(0);
+}
 
 let mainWindow = null;
 const logPath = path.join(app.getPath('userData'), 'ccms-error.log');
 
-// Log errors to a local file so we can read them offline
+const origConsoleLog = console.log;
+const origConsoleErr = console.error;
+let _isLogging = false;
+
+// Log errors to a local file safely without recursive loops
 function logError(message, err) {
   const errMsg = `${new Date().toISOString()} - ${message}: ${err?.stack || err || ''}\n`;
   try {
@@ -14,8 +26,41 @@ function logError(message, err) {
   } catch (e) {
     // ignore
   }
-  console.error(message, err);
+  origConsoleErr.call(console, message, err || '');
 }
+
+// Global exception loggers
+process.on('uncaughtException', (err) => {
+  logError('Uncaught Exception in Main Process', err);
+});
+process.on('unhandledRejection', (reason) => {
+  logError('Unhandled Rejection in Main Process', reason);
+});
+
+// Capture server console messages to logPath safely without recursion
+console.log = function (...args) {
+  origConsoleLog.apply(console, args);
+  if (_isLogging) return;
+  _isLogging = true;
+  try {
+    const text = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
+    fs.appendFileSync(logPath, `${new Date().toISOString()} - [Server Log] ${text}\n`);
+  } catch (e) {} finally {
+    _isLogging = false;
+  }
+};
+
+console.error = function (...args) {
+  origConsoleErr.apply(console, args);
+  if (_isLogging) return;
+  _isLogging = true;
+  try {
+    const text = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
+    fs.appendFileSync(logPath, `${new Date().toISOString()} - [Server Error] ${text}\n`);
+  } catch (e) {} finally {
+    _isLogging = false;
+  }
+};
 
 // Start the embedded Express server in production
 function startServer() {
@@ -33,13 +78,33 @@ function startServer() {
       
       // Load the server
       require(serverPath);
-      logError('✓ Embedded server is up and running on port 5000.', '');
+      logError('✓ Embedded server module loaded.', '');
     } else {
       logError('ℹ Embedded server entry point not found (dev mode or separate server process): ' + serverPath, '');
     }
   } catch (err) {
     logError('❌ Failed to start embedded server', err);
   }
+}
+
+async function waitForServerReady(timeoutMs = 4000) {
+  const httpModule = require('http');
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    const ready = await new Promise((resolve) => {
+      const req = httpModule.get('http://localhost:5000/health', (res) => {
+        resolve(res.statusCode === 200);
+      });
+      req.on('error', () => resolve(false));
+      req.setTimeout(400, () => {
+        req.destroy();
+        resolve(false);
+      });
+    });
+    if (ready) return true;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false;
 }
 
 function createWindow() {
@@ -98,33 +163,103 @@ function createWindow() {
 
   // Show window once content is ready (prevents white flash)
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+    }
   });
 
-  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  const prodPath = path.join(__dirname, '..', 'dist', 'index.html');
+  // Safety fallback: Ensure window is shown after 2.5s even if ready-to-show was delayed or missed
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      logError('Safety timeout triggered: forcing mainWindow.show()', '');
+      mainWindow.show();
+    }
+  }, 2500);
 
-  if (isDev && !fs.existsSync(prodPath)) {
-    logError('Loading dev URL http://localhost:5173', '');
-    mainWindow.loadURL('http://localhost:5173').catch((err) => {
-      logError('Failed to load dev server URL', err);
-    });
-  } else if (fs.existsSync(prodPath)) {
-    logError(`Loading local production bundle: ${prodPath}`, '');
-    mainWindow.loadFile(prodPath).catch((err) => {
-      logError('Failed to load local HTML file', err);
-    });
-  } else {
-    logError('Fallback: Loading http://localhost:5173', '');
-    mainWindow.loadURL('http://localhost:5173').catch((err) => {
-      logError('Failed to load fallback URL', err);
-    });
-  }
+  const loadApp = async () => {
+    const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+    const prodPath = path.join(__dirname, '..', 'dist', 'index.html');
+
+    if (isDev && !fs.existsSync(prodPath)) {
+      logError('Loading dev URL http://localhost:5173', '');
+      try {
+        await mainWindow.loadURL('http://localhost:5173');
+        return;
+      } catch (err) {
+        logError('Failed to load dev server URL', err);
+      }
+    }
+
+    // In production, give embedded server a brief moment to initialize SQLite and start listening
+    if (app.isPackaged) {
+      logError('Checking embedded server readiness...', '');
+      const ready = await waitForServerReady(3500);
+      if (ready) {
+        logError('✓ Embedded server responded OK to /health check.', '');
+      } else {
+        logError('⚠ Embedded server did not answer /health within timeout, proceeding to load UI.', '');
+      }
+    }
+
+    // 1. Try local production file via properly normalized file URL (avoids Windows backslash ERR_FAILED -2)
+    if (fs.existsSync(prodPath)) {
+      try {
+        const fileUrl = url.pathToFileURL(prodPath).href;
+        logError(`Loading local production bundle via URL: ${fileUrl}`, '');
+        await mainWindow.loadURL(fileUrl);
+        logError('✓ Loaded local bundle successfully via file URL.', '');
+        return;
+      } catch (fileUrlErr) {
+        logError('Failed to load via file URL, attempting loadFile...', fileUrlErr);
+      }
+
+      try {
+        logError(`Attempting loadFile: ${prodPath}`, '');
+        await mainWindow.loadFile(prodPath);
+        logError('✓ Loaded local bundle successfully via loadFile.', '');
+        return;
+      } catch (loadFileErr) {
+        logError('Failed to load via loadFile, falling back to embedded server...', loadFileErr);
+      }
+    }
+
+    // 2. Fallback to embedded Express server (which is already running on port 5000!)
+    try {
+      logError('Fallback: Loading from embedded server http://localhost:5000 ...', '');
+      await mainWindow.loadURL('http://localhost:5000');
+      logError('✓ Loaded from embedded server http://localhost:5000 successfully.', '');
+      return;
+    } catch (serverErr) {
+      logError('Failed to load from embedded server http://localhost:5000', serverErr);
+    }
+
+    // 3. Fallback: dev server URL
+    try {
+      logError('Fallback: Loading http://localhost:5173', '');
+      await mainWindow.loadURL('http://localhost:5173');
+    } catch (fallbackErr) {
+      logError('All load attempts failed', fallbackErr);
+      dialog.showErrorBox(
+        'خطأ في تحميل واجهة البرنامج',
+        'تعذر تحميل واجهة التطبيق.\nيرجى إعادة تشغيل البرنامج أو فحص ملف السجل.'
+      );
+    }
+  };
+
+  loadApp();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
 
 app.whenReady().then(() => {
   createWindow();

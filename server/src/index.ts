@@ -122,15 +122,16 @@ app.use('/api/cafe-tables', cafeTableRoutes);
 app.use('/api/shifts', shiftRoutes);
 
 // Serve Static Frontend if compiled client/dist exists
-let clientDistPath = path.resolve(__dirname, '../../client/dist');
-if (!fs.existsSync(clientDistPath)) {
-  clientDistPath = path.resolve(__dirname, '../../../dist');
-}
-if (!fs.existsSync(clientDistPath)) {
-  clientDistPath = path.resolve(__dirname, '../../dist');
-}
+const possibleDistPaths = [
+  path.resolve(__dirname, '../../client/dist'),
+  path.resolve(__dirname, '../../dist'),
+  path.resolve(__dirname, '../dist'),
+  path.resolve(__dirname, '../../../dist'),
+  path.resolve(__dirname, '../../../client/dist'),
+];
+const clientDistPath = possibleDistPaths.find((p) => fs.existsSync(p));
 
-if (fs.existsSync(clientDistPath)) {
+if (clientDistPath) {
   console.log(`[server] Serving static client files from: ${clientDistPath}`);
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
@@ -151,14 +152,24 @@ async function startServer() {
   startAutoSave(5000); // Save to disk every 5 seconds
   startSyncEngine(60000); // Run background Sync Engine every 60 seconds (1 minute)
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`\n  ⬡ CCMS Offline API running → http://localhost:${PORT}`);
     console.log(`  CORS origin → ${origin}\n`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[server] Port ${PORT} already in use. Retaining existing service.`);
+    } else {
+      console.error('[server] HTTP server error:', err);
+    }
   });
 }
 
 startServer().catch((err) => {
   console.error('[server] Failed to start:', err);
-  process.exit(1);
+  if (!process.versions || !process.versions.electron) {
+    process.exit(1);
+  }
 });
 

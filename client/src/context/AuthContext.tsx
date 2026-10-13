@@ -119,8 +119,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initSession() {
       try {
-        // Step 0: Check activation status
-        const statusRes = await dataService.getActivationStatus();
+        // Step 0: Check activation status with graceful auto-retry (gives embedded server time to boot)
+        let statusRes: any = null;
+        let lastErr: any = null;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            statusRes = await dataService.getActivationStatus();
+            break;
+          } catch (probeErr) {
+            lastErr = probeErr;
+            if (isNetworkError(probeErr) && attempt < 4) {
+              await new Promise((r) => setTimeout(r, 700));
+            } else {
+              break;
+            }
+          }
+        }
+
+        if (!statusRes) {
+          throw lastErr;
+        }
+
         if (!cancelled) {
           setServerOffline(false);
           setActivationStatus(statusRes.status);

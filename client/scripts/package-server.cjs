@@ -14,6 +14,16 @@ if (fs.existsSync(destDir)) {
 }
 fs.mkdirSync(destDir, { recursive: true });
 
+// 1b. Compile server TypeScript
+console.log('🔨 Compiling server TypeScript (server/dist)...');
+try {
+  execSync('npm run build', { cwd: serverDir, stdio: 'inherit' });
+  console.log('✓ Server compiled successfully.');
+} catch (buildErr) {
+  console.error('❌ Failed to compile server:', buildErr.message);
+  process.exit(1);
+}
+
 // 2. Copy compiled server files (server/dist)
 const srcDist = path.join(serverDir, 'dist');
 if (!fs.existsSync(srcDist)) {

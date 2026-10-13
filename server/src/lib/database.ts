@@ -401,13 +401,113 @@ CREATE TABLE IF NOT EXISTS sync_state (
 export async function initDatabase(): Promise<SqlJsDatabase> {
   if (_db) return _db;
 
-  const SQL = await initSqlJs();
-  const dbPath = getDbPath();
+  // Load wasmBinary explicitly so WebAssembly works reliably inside Electron app.asar
+  let wasmBinary: Buffer | undefined;
+  try {
+    const wasmPath = require.resolve('sql.js/dist/sql-wasm.wasm');
+    if (fs.existsSync(wasmPath)) {
+      wasmBinary = fs.readFileSync(wasmPath);
+    }
+  } catch {
+    const candidatePaths = [
+      path.join(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm'),
+      path.join(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
+      path.join(__dirname, '../../../node_modules/sql.js/dist/sql-wasm.wasm'),
+      path.join((process as any).resourcesPath || '', 'app.asar.unpacked/electron/server/node_modules/sql.js/dist/sql-wasm.wasm'),
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        wasmBinary = fs.readFileSync(p);
+        break;
+      }
+    }
+  }
 
+  const SQL = await initSqlJs(wasmBinary ? ({ wasmBinary: new Uint8Array(wasmBinary).buffer } as any) : undefined);
+  const dbPath = getDbPath();
+  const backupPath = `${dbPath}.bak`;
+  let loaded = false;
+
+  // 1. Try to load existing ccms.db
   if (fs.existsSync(dbPath)) {
-    const buf = fs.readFileSync(dbPath);
-    _db = new SQL.Database(buf);
-  } else {
+    try {
+      const stats = fs.statSync(dbPath);
+      if (stats.size > 0) {
+        const buf = fs.readFileSync(dbPath);
+        _db = new SQL.Database(buf);
+        _db.exec('PRAGMA user_version;');
+        loaded = true;
+        console.log(`[database] Successfully loaded ccms.db (${stats.size} bytes).`);
+      } else {
+        console.warn('[database] ccms.db is 0 bytes (likely truncated during sudden power cut).');
+      }
+    } catch (dbErr: any) {
+      console.error('[database] ccms.db is corrupted or unreadable:', dbErr?.message || dbErr);
+    }
+  }
+
+  // 2. If ccms.db failed or was 0 bytes, attempt auto-recovery from backup or recent .tmp
+  if (!loaded) {
+    if (fs.existsSync(backupPath)) {
+      try {
+        console.log('[database] Attempting recovery from backup: ccms.db.bak...');
+        const buf = fs.readFileSync(backupPath);
+        if (buf.length > 0) {
+          _db = new SQL.Database(buf);
+          _db.exec('PRAGMA user_version;');
+          fs.copyFileSync(backupPath, dbPath);
+          loaded = true;
+          console.log('✓ Successfully recovered database from ccms.db.bak!');
+        }
+      } catch (bakErr: any) {
+        console.error('[database] Recovery from ccms.db.bak failed:', bakErr?.message || bakErr);
+      }
+    }
+
+    if (!loaded) {
+      try {
+        const dataDir = path.dirname(dbPath);
+        const tmpFiles = fs.readdirSync(dataDir)
+          .filter(f => f.startsWith('ccms.db.tmp'))
+          .map(f => path.join(dataDir, f))
+          .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+        for (const tmpFile of tmpFiles) {
+          try {
+            console.log(`[database] Testing tmp recovery candidate: ${path.basename(tmpFile)}...`);
+            const buf = fs.readFileSync(tmpFile);
+            if (buf.length > 0) {
+              const testDb = new SQL.Database(buf);
+              testDb.exec('PRAGMA user_version;');
+              _db = testDb;
+              fs.copyFileSync(tmpFile, dbPath);
+              loaded = true;
+              console.log(`✓ Successfully recovered database from ${path.basename(tmpFile)}!`);
+              break;
+            }
+          } catch {
+            // continue searching
+          }
+        }
+      } catch (scanErr: any) {
+        console.error('[database] Scan for recovery candidates failed:', scanErr?.message || scanErr);
+      }
+    }
+
+    if (!loaded) {
+      if (fs.existsSync(dbPath)) {
+        const quarantinePath = `${dbPath}.corrupt.${Date.now()}`;
+        try {
+          fs.renameSync(dbPath, quarantinePath);
+          console.warn(`[database] Corrupted database quarantined to: ${quarantinePath}`);
+        } catch {}
+      }
+      console.log('[database] Initializing fresh SQLite database...');
+      _db = new SQL.Database();
+    }
+  }
+
+  if (!_db) {
     _db = new SQL.Database();
   }
 
@@ -1022,4 +1122,4 @@ export function updateActiveTenantStatus(status: string, database?: SqlJsDatabas
     );
   }
   saveDatabase();
-}
+}
