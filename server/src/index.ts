@@ -167,7 +167,8 @@ async function startServer() {
 }
 
 startServer().catch((err) => {
-  console.error('[server] Failed to start:', err);
+  const errorDetails = err?.stack || err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+  console.error('[server] Failed to start:', errorDetails);
   if (!process.versions || !process.versions.electron) {
     process.exit(1);
   }

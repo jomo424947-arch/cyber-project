@@ -396,6 +396,42 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 `;
 
+/**
+ * Safely executes a schema script statement-by-statement.
+ * If an individual UNIQUE index or constraint fails due to existing historical data conflicts
+ * (common in large, long-lived client databases), it logs a warning, falls back to a non-unique
+ * index where applicable, and ensures the server continues booting up successfully.
+ */
+function executeSchemaSafe(db: SqlJsDatabase, schemaSql: string): void {
+  const cleanSql = schemaSql
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/--.*$/gm, '');
+
+  const statements = cleanSql
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  for (const stmt of statements) {
+    try {
+      db.run(stmt);
+    } catch (err: any) {
+      const isUniqueIndex = /CREATE\s+UNIQUE\s+INDEX/i.test(stmt);
+      if (isUniqueIndex) {
+        console.warn(`[database] Unique index skipped due to historical data conflict (${err?.message || err}): ${stmt.slice(0, 80)}`);
+        try {
+          const fallbackStmt = stmt.replace(/CREATE\s+UNIQUE\s+INDEX/i, 'CREATE INDEX');
+          db.run(fallbackStmt);
+        } catch (fbErr: any) {
+          console.warn(`[database] Fallback index also skipped (${fbErr?.message || fbErr}): ${stmt.slice(0, 80)}`);
+        }
+      } else {
+        console.warn(`[database] Schema statement skipped (${err?.message || err}): ${stmt.slice(0, 80)}`);
+      }
+    }
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export async function initDatabase(): Promise<SqlJsDatabase> {
@@ -511,12 +547,12 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     _db = new SQL.Database();
   }
 
-  // WAL mode equivalent for sql.js (no-op but we enable foreign keys)
-  _db.run('PRAGMA foreign_keys = ON;');
+  // Turn foreign keys OFF during schema setup and migrations to prevent constraint failures on historical DBs
+  _db.run('PRAGMA foreign_keys = OFF;');
   _db.run('PRAGMA journal_mode = DELETE;');
 
-  // Create all tables
-  _db.run(SCHEMA);
+  // Create all tables safely statement-by-statement
+  executeSchemaSafe(_db, SCHEMA);
 
   // Auto-migration helper for existing databases
   try {
@@ -568,21 +604,19 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     // Auto-assign any records with NULL tenant_id to the authoritative active tenant_id
     const activeTenantId = getActiveTenantId(_db);
     if (activeTenantId) {
-      _db.run('UPDATE users SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE devices SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE customers SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE sessions SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE invoices SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE reservations SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE products SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE rooms SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE shifts SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE shift_expenses SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE standalone_orders SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE session_transfers SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE session_pauses SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE product_stock_logs SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
-      _db.run('UPDATE cafe_tables SET tenant_id = ? WHERE tenant_id IS NULL;', [activeTenantId]);
+      const tenantTables = [
+        'users', 'devices', 'customers', 'sessions', 'invoices',
+        'reservations', 'products', 'rooms', 'shifts', 'shift_expenses',
+        'standalone_orders', 'session_transfers', 'session_pauses',
+        'product_stock_logs', 'cafe_tables'
+      ];
+      for (const t of tenantTables) {
+        try {
+          _db.run(`UPDATE ${t} SET tenant_id = ? WHERE tenant_id IS NULL;`, [activeTenantId]);
+        } catch (tblErr: any) {
+          console.warn(`[database] Auto-assign tenant_id skipped for ${t}:`, tblErr?.message || tblErr);
+        }
+      }
     }
   } catch (err: any) {
     console.error('[database] Auto-migration check failed:', err.message);
@@ -671,7 +705,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
 
   // Auto-migration helper for rooms table
   try {
-    _db.run(`
+    executeSchemaSafe(_db, `
       CREATE TABLE IF NOT EXISTS rooms (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -692,7 +726,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
 
   // Auto-migration helper for cafe_tables table
   try {
-    _db.run(`
+    executeSchemaSafe(_db, `
       CREATE TABLE IF NOT EXISTS cafe_tables (
         id           TEXT PRIMARY KEY,
         table_number TEXT NOT NULL,
@@ -710,19 +744,21 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_cafe_tables_device ON cafe_tables(device_id) WHERE device_id IS NOT NULL;
     `);
 
-    // Auto-sync table name and backing device name to table_number
-    _db.run(`
-      UPDATE cafe_tables SET name = table_number WHERE table_number IS NOT NULL AND name != table_number;
-      UPDATE devices SET name = (SELECT ct.table_number FROM cafe_tables ct WHERE ct.device_id = devices.id)
-      WHERE type = 'table' AND id IN (SELECT device_id FROM cafe_tables WHERE device_id IS NOT NULL);
-    `);
+    // Auto-sync table name and backing device name to table_number safely
+    try {
+      _db.run(`UPDATE cafe_tables SET name = table_number WHERE table_number IS NOT NULL AND name != table_number;`);
+    } catch {}
+    try {
+      _db.run(`UPDATE devices SET name = (SELECT ct.table_number FROM cafe_tables ct WHERE ct.device_id = devices.id)
+        WHERE type = 'table' AND id IN (SELECT device_id FROM cafe_tables WHERE device_id IS NOT NULL);`);
+    } catch {}
   } catch (tErr: any) {
     console.error('[database] Cafe tables table creation/migration failed:', tErr.message);
   }
 
   // Auto-migration helper for shifts and shift_expenses
   try {
-    _db.run(`
+    executeSchemaSafe(_db, `
       CREATE TABLE IF NOT EXISTS shifts (
         id              TEXT PRIMARY KEY,
         user_id         TEXT NOT NULL REFERENCES users(id),
@@ -799,7 +835,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     }
 
     // Auto-migration for session_transfers table
-    _db.run(`
+    executeSchemaSafe(_db, `
       CREATE TABLE IF NOT EXISTS session_transfers (
         id                TEXT PRIMARY KEY,
         session_id        TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -829,9 +865,12 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       _db.run('ALTER TABLE standalone_orders ADD COLUMN shift_id TEXT;');
       console.log('[database] standalone_orders shift_id migration completed successfully.');
     }
-    _db.run('CREATE INDEX IF NOT EXISTS idx_standalone_orders_shift ON standalone_orders(shift_id);');
+    try {
+      _db.run('CREATE INDEX IF NOT EXISTS idx_standalone_orders_shift ON standalone_orders(shift_id);');
+    } catch {}
+    
     // Auto-migration for sync_state table
-    _db.run(`
+    executeSchemaSafe(_db, `
       CREATE TABLE IF NOT EXISTS sync_state (
         table_name     TEXT NOT NULL,
         tenant_id      TEXT NOT NULL,
@@ -841,6 +880,13 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     `);
   } catch (sErr: any) {
     console.error('[database] Shifts/expenses/transfers migration failed:', sErr.message);
+  }
+
+  // Re-enable foreign keys after all schema updates and migrations have safely completed
+  try {
+    _db.run('PRAGMA foreign_keys = ON;');
+  } catch (fkErr: any) {
+    console.warn('[database] Failed to re-enable foreign keys:', fkErr?.message || fkErr);
   }
 
   // Register process exit listeners for safe shutdown

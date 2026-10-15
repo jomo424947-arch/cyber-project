@@ -37,13 +37,28 @@ process.on('unhandledRejection', (reason) => {
   logError('Unhandled Rejection in Main Process', reason);
 });
 
+function formatLogArg(a) {
+  if (a === null || a === undefined) return String(a);
+  if (a instanceof Error || (typeof a === 'object' && ('message' in a || 'stack' in a))) {
+    return a.stack || a.message || String(a);
+  }
+  if (typeof a === 'object') {
+    try {
+      return JSON.stringify(a);
+    } catch {
+      return String(a);
+    }
+  }
+  return String(a);
+}
+
 // Capture server console messages to logPath safely without recursion
 console.log = function (...args) {
   origConsoleLog.apply(console, args);
   if (_isLogging) return;
   _isLogging = true;
   try {
-    const text = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
+    const text = args.map(formatLogArg).join(' ');
     fs.appendFileSync(logPath, `${new Date().toISOString()} - [Server Log] ${text}\n`);
   } catch (e) {} finally {
     _isLogging = false;
@@ -55,7 +70,7 @@ console.error = function (...args) {
   if (_isLogging) return;
   _isLogging = true;
   try {
-    const text = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
+    const text = args.map(formatLogArg).join(' ');
     fs.appendFileSync(logPath, `${new Date().toISOString()} - [Server Error] ${text}\n`);
   } catch (e) {} finally {
     _isLogging = false;
