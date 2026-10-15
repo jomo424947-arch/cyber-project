@@ -432,6 +432,95 @@ function executeSchemaSafe(db: SqlJsDatabase, schemaSql: string): void {
   }
 }
 
+/**
+ * Verifies if an in-memory SqlJsDatabase instance is structurally sound and uncorrupted.
+ * Catches 'database disk image is malformed' before attempting schema mutations.
+ */
+function isDatabaseHealthy(db: SqlJsDatabase): boolean {
+  try {
+    db.exec('PRAGMA schema_version;');
+    db.exec('SELECT COUNT(*) FROM sqlite_master;');
+    const checkRes = db.exec('PRAGMA quick_check(1);');
+    const result = checkRes[0]?.values[0]?.[0];
+    return result === 'ok';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Emergency data salvager for SQLite databases damaged by sudden power cuts ('database disk image is malformed').
+ * It opens the damaged database buffer, bypasses corrupted b-tree index nodes via sequential table scans,
+ * and recovers intact data from every readable table into a clean, newly initialized SQLite database.
+ */
+function salvageMalformedDatabase(SQL: any, malformedBuf: Buffer): SqlJsDatabase | null {
+  try {
+    console.log('[database] Starting emergency data salvage from malformed database...');
+    const rawDb = new SQL.Database(malformedBuf);
+    const salvagedDb = new SQL.Database();
+
+    // Create fresh, pristine schema in the new database
+    executeSchemaSafe(salvagedDb, SCHEMA);
+
+    const tablesToSalvage = [
+      'tenant_config',
+      'users',
+      'devices',
+      'customers',
+      'rooms',
+      'cafe_tables',
+      'shifts',
+      'shift_expenses',
+      'products',
+      'product_stock_logs',
+      'sessions',
+      'invoices',
+      'session_orders',
+      'standalone_orders',
+      'session_transfers',
+      'session_pauses',
+      'reservations',
+      'sync_state'
+    ];
+
+    let totalRecovered = 0;
+    for (const table of tablesToSalvage) {
+      try {
+        const res = rawDb.exec(`SELECT * FROM ${table};`);
+        if (res && res[0] && res[0].values && res[0].values.length > 0) {
+          const cols = res[0].columns;
+          const rows = res[0].values;
+          const placeholders = cols.map(() => '?').join(', ');
+          const sql = `INSERT OR IGNORE INTO ${table} (${cols.map((c: string) => `"${c}"`).join(', ')}) VALUES (${placeholders});`;
+
+          let tableCount = 0;
+          for (const row of rows) {
+            try {
+              salvagedDb.run(sql, row);
+              tableCount++;
+            } catch {
+              // Ignore single corrupted or constraint-violating row
+            }
+          }
+          totalRecovered += tableCount;
+          console.log(`[database] Salvaged ${tableCount}/${rows.length} records from table '${table}'.`);
+        }
+      } catch (tblErr: any) {
+        console.warn(`[database] Table '${table}' corrupted or skipped (${tblErr?.message || tblErr}).`);
+      }
+    }
+
+    if (totalRecovered > 0) {
+      console.log(`✓ Data salvage successful! Recovered ${totalRecovered} total records from malformed database.`);
+      return salvagedDb;
+    }
+    return null;
+  } catch (salvageErr: any) {
+    console.error('[database] Emergency data salvage failed:', salvageErr?.message || salvageErr);
+    return null;
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export async function initDatabase(): Promise<SqlJsDatabase> {
@@ -463,43 +552,55 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
   const dbPath = getDbPath();
   const backupPath = `${dbPath}.bak`;
   let loaded = false;
+  let corruptedBufCandidate: Buffer | null = null;
 
-  // 1. Try to load existing ccms.db
+  // 1. Try to load existing ccms.db and verify it is healthy
   if (fs.existsSync(dbPath)) {
     try {
       const stats = fs.statSync(dbPath);
       if (stats.size > 0) {
         const buf = fs.readFileSync(dbPath);
-        _db = new SQL.Database(buf);
-        _db.exec('PRAGMA user_version;');
-        loaded = true;
-        console.log(`[database] Successfully loaded ccms.db (${stats.size} bytes).`);
+        const candidateDb = new SQL.Database(buf);
+        if (isDatabaseHealthy(candidateDb)) {
+          _db = candidateDb;
+          loaded = true;
+          console.log(`[database] Successfully loaded and verified healthy ccms.db (${stats.size} bytes).`);
+        } else {
+          console.warn(`[database] ccms.db disk image is malformed (power cut damage). Initiating auto-recovery pipeline...`);
+          corruptedBufCandidate = buf;
+        }
       } else {
-        console.warn('[database] ccms.db is 0 bytes (likely truncated during sudden power cut).');
+        console.warn('[database] ccms.db is 0 bytes (truncated during power cut). Initiating auto-recovery...');
       }
     } catch (dbErr: any) {
-      console.error('[database] ccms.db is corrupted or unreadable:', dbErr?.message || dbErr);
+      console.error('[database] ccms.db is unreadable:', dbErr?.message || dbErr);
     }
   }
 
-  // 2. If ccms.db failed or was 0 bytes, attempt auto-recovery from backup or recent .tmp
+  // 2. If ccms.db was malformed or 0 bytes, execute recovery pipeline:
   if (!loaded) {
+    // 2a. Attempt recovery from backup (ccms.db.bak)
     if (fs.existsSync(backupPath)) {
       try {
-        console.log('[database] Attempting recovery from backup: ccms.db.bak...');
+        console.log('[database] Checking backup: ccms.db.bak...');
         const buf = fs.readFileSync(backupPath);
         if (buf.length > 0) {
-          _db = new SQL.Database(buf);
-          _db.exec('PRAGMA user_version;');
-          fs.copyFileSync(backupPath, dbPath);
-          loaded = true;
-          console.log('✓ Successfully recovered database from ccms.db.bak!');
+          const bakDb = new SQL.Database(buf);
+          if (isDatabaseHealthy(bakDb)) {
+            _db = bakDb;
+            fs.copyFileSync(backupPath, dbPath);
+            loaded = true;
+            console.log('✓ Successfully recovered database from healthy ccms.db.bak!');
+          } else {
+            console.warn('[database] ccms.db.bak is also malformed.');
+          }
         }
       } catch (bakErr: any) {
-        console.error('[database] Recovery from ccms.db.bak failed:', bakErr?.message || bakErr);
+        console.warn('[database] Recovery from ccms.db.bak failed:', bakErr?.message || bakErr);
       }
     }
 
+    // 2b. Attempt recovery from recent temporary snapshots (.tmp)
     if (!loaded) {
       try {
         const dataDir = path.dirname(dbPath);
@@ -510,32 +611,52 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
 
         for (const tmpFile of tmpFiles) {
           try {
-            console.log(`[database] Testing tmp recovery candidate: ${path.basename(tmpFile)}...`);
+            console.log(`[database] Testing tmp candidate: ${path.basename(tmpFile)}...`);
             const buf = fs.readFileSync(tmpFile);
             if (buf.length > 0) {
               const testDb = new SQL.Database(buf);
-              testDb.exec('PRAGMA user_version;');
-              _db = testDb;
-              fs.copyFileSync(tmpFile, dbPath);
-              loaded = true;
-              console.log(`✓ Successfully recovered database from ${path.basename(tmpFile)}!`);
-              break;
+              if (isDatabaseHealthy(testDb)) {
+                _db = testDb;
+                fs.copyFileSync(tmpFile, dbPath);
+                loaded = true;
+                console.log(`✓ Successfully recovered database from healthy candidate ${path.basename(tmpFile)}!`);
+                break;
+              }
             }
           } catch {
-            // continue searching
+            // continue testing next candidate
           }
         }
       } catch (scanErr: any) {
-        console.error('[database] Scan for recovery candidates failed:', scanErr?.message || scanErr);
+        console.warn('[database] Scan for recovery candidates failed:', scanErr?.message || scanErr);
       }
     }
 
+    // 2c. Emergency salvage of intact records from the malformed database buffer
+    if (!loaded && corruptedBufCandidate) {
+      const salvagedDb = salvageMalformedDatabase(SQL, corruptedBufCandidate);
+      if (salvagedDb) {
+        _db = salvagedDb;
+        loaded = true;
+        // Quarantine the malformed original for absolute safety
+        const quarantinePath = `${dbPath}.corrupt.${Date.now()}`;
+        try {
+          fs.copyFileSync(dbPath, quarantinePath);
+          console.log(`[database] Preserved original malformed database at: ${quarantinePath}`);
+        } catch {}
+        // Write the clean salvaged database to disk immediately
+        saveDatabaseSync();
+        console.log('✓ Successfully saved salvaged database to disk!');
+      }
+    }
+
+    // 2d. If all recovery and salvage failed, quarantine and create fresh
     if (!loaded) {
       if (fs.existsSync(dbPath)) {
         const quarantinePath = `${dbPath}.corrupt.${Date.now()}`;
         try {
           fs.renameSync(dbPath, quarantinePath);
-          console.warn(`[database] Corrupted database quarantined to: ${quarantinePath}`);
+          console.warn(`[database] Unrecoverable database quarantined to: ${quarantinePath}`);
         } catch {}
       }
       console.log('[database] Initializing fresh SQLite database...');
@@ -547,9 +668,10 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
     _db = new SQL.Database();
   }
 
-  // Turn foreign keys OFF during schema setup and migrations to prevent constraint failures on historical DBs
-  _db.run('PRAGMA foreign_keys = OFF;');
-  _db.run('PRAGMA journal_mode = DELETE;');
+  // Turn foreign keys OFF during schema setup and migrations
+  try {
+    _db.run('PRAGMA foreign_keys = OFF;');
+  } catch {}
 
   // Create all tables safely statement-by-statement
   executeSchemaSafe(_db, SCHEMA);
