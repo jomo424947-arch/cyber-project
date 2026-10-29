@@ -145,7 +145,29 @@ export async function startSession(req: Request, res: Response) {
   if (dErr) throw dErr;
   if (!device) throw notFound('Device not found');
 
-  if (device.status === 'in_use') throw conflict('Device is already in use', 'DEVICE_BUSY');
+  // 3. Guard against an already-active session for this device with auto-self-healing if stranded
+  const { data: existing } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('device_id', device_id)
+    .eq('status', 'active')
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+
+  if (existing) {
+    throw conflict('Device already has an active session', 'SESSION_ACTIVE');
+  }
+
+  if (device.status === 'in_use') {
+    // Self-healing: device was stranded in 'in_use' without an active session
+    console.warn(`[startSession] Device ${device_id} was marked in_use without active session. Auto-healing to available.`);
+    await supabase
+      .from('devices')
+      .update({ status: 'available' })
+      .eq('id', device_id)
+      .eq('tenant_id', req.user!.tenant_id);
+  }
+
   if (device.status === 'offline') throw conflict('Device is offline', 'DEVICE_OFFLINE');
 
   // Select rate based on play mode
@@ -162,16 +184,6 @@ export async function startSession(req: Request, res: Response) {
       finalOverride = overrideNum;
     }
   }
-
-  // 3. Guard against an already-active session for this device.
-  const { data: existing } = await supabase
-    .from('sessions')
-    .select('id')
-    .eq('device_id', device_id)
-    .eq('status', 'active')
-    .eq('tenant_id', req.user!.tenant_id)
-    .maybeSingle();
-  if (existing) throw conflict('Device already has an active session', 'SESSION_ACTIVE');
 
   // 4. Validate time bounds.
   const now = new Date();
@@ -750,16 +762,24 @@ export async function endSession(req: Request, res: Response) {
   const startedAt = new Date(session.started_at).getTime();
   const sessionEnd = ended_at ? new Date(ended_at) : new Date();
 
-  if (sessionEnd.getTime() < startedAt) {
-    throw badRequest('Session end time cannot be before start time');
+  let sessionEndMs = sessionEnd.getTime();
+  if (sessionEndMs < startedAt) {
+    // If within 65 minutes, clamp to startedAt to tolerate DST fallback or clock skew
+    if (startedAt - sessionEndMs <= 65 * 60000) {
+      sessionEndMs = startedAt;
+    } else {
+      throw badRequest('Session end time cannot be before start time');
+    }
   }
-  if (sessionEnd.getTime() > new Date().getTime() + 10000) {
+  const effectiveSessionEnd = new Date(sessionEndMs);
+
+  if (effectiveSessionEnd.getTime() > new Date().getTime() + 60000) {
     throw badRequest('Session end time cannot be in the future');
   }
 
   // Check backdate bounds BEFORE any DB writes
-  const isEndBackdated = ended_at && (new Date().getTime() - sessionEnd.getTime() > 60000);
-  if (isEndBackdated && (new Date().getTime() - sessionEnd.getTime() > 30 * 86400000)) {
+  const isEndBackdated = ended_at && (new Date().getTime() - effectiveSessionEnd.getTime() > 60000);
+  if (isEndBackdated && (new Date().getTime() - effectiveSessionEnd.getTime() > 30 * 86400000)) {
     throw badRequest('Session end time cannot be backdated by more than 30 days');
   }
 
@@ -796,7 +816,7 @@ export async function endSession(req: Request, res: Response) {
     totalCost: currentSegmentCost,
   } = calculateSessionCost({
     startedAt: session.started_at,
-    endedAt: sessionEnd,
+    endedAt: effectiveSessionEnd,
     deviceHourlyRate,
     hourlyRateOverride: session.hourly_rate_override,
     sessionType: session.session_type,
@@ -865,7 +885,7 @@ export async function endSession(req: Request, res: Response) {
     const { data: endedData, error: endErr } = await supabase
       .from('sessions')
       .update({
-        ended_at: sessionEnd.toISOString(),
+        ended_at: effectiveSessionEnd.toISOString(),
         duration_minutes: totalBilledMinutes,
         total_cost: finalTotalCost,
         status: 'ended',
@@ -884,16 +904,33 @@ export async function endSession(req: Request, res: Response) {
     if (!endedData) throw conflict('Session already ended or not found', 'SESSION_ENDED');
     ended = endedData;
 
+    // Pre-check if invoice already exists for this session to prevent collisions and avoid double-counting
+    const { data: existingInv } = await supabase
+      .from('invoices')
+      .select('id, amount, paid')
+      .eq('session_id', id)
+      .maybeSingle();
+
+    // If session was a fixed session already paid, and staff is closing it long after scheduled_end without custom end,
+    // do not overwrite the paid amount with phantom overtime.
+    let resolvedFinalCost = finalTotalCost;
+    if (existingInv && existingInv.paid && session.session_type === 'fixed' && !ended_at) {
+      resolvedFinalCost = Number(existingInv.amount);
+    }
+
     // 4. Auto-generate an invoice linked to the staff's or branch's active shift if present.
     try {
       const activeShift = await getActiveShiftForUserOrTenant(supabase, req.user!.id, req.user!.tenant_id, 'id, total_revenue');
 
       if (activeShift) {
         activeShiftId = activeShift.id;
-        if (mark_paid && finalTotalCost > 0) {
+        const previouslyPaid = (existingInv && existingInv.paid) ? Number(existingInv.amount || 0) : 0;
+        const deltaRevenue = mark_paid ? Math.max(0, resolvedFinalCost - previouslyPaid) : 0;
+
+        if (deltaRevenue > 0) {
           const { error: revErr } = await supabase.rpc('increment_shift_revenue', {
             p_shift_id: activeShift.id,
-            p_amount: finalTotalCost,
+            p_amount: deltaRevenue,
             p_tenant_id: req.user!.tenant_id,
           });
           if (revErr) {
@@ -908,13 +945,6 @@ export async function endSession(req: Request, res: Response) {
       throw shiftErr;
     }
 
-    // Check if invoice already exists for this session to prevent UNIQUE constraint collisions
-    const { data: existingInv } = await supabase
-      .from('invoices')
-      .select('id')
-      .eq('session_id', id)
-      .maybeSingle();
-
     const invoicePayload = {
       session_id: id,
       amount: finalTotalCost,
@@ -928,7 +958,7 @@ export async function endSession(req: Request, res: Response) {
       notes: notes ?? null,
       paid: !!mark_paid,
       payment_method,
-      paid_at: mark_paid ? sessionEnd.toISOString() : null,
+      paid_at: mark_paid ? effectiveSessionEnd.toISOString() : null,
       shift_id: activeShiftId,
       created_by: req.user!.id,
       tenant_id: req.user!.tenant_id,
@@ -962,7 +992,7 @@ export async function endSession(req: Request, res: Response) {
           edited_by: req.user!.id,
           field_changed: 'ended_at',
           old_value: null,
-          new_value: sessionEnd.toISOString(),
+          new_value: effectiveSessionEnd.toISOString(),
         });
       if (auditErr) {
         console.error('[audit] failed to insert end backdate log:', auditErr.message);

@@ -8,14 +8,11 @@ import { useLanguage } from '../context/LanguageContext';
 import { useSystemSettings } from '../context/SystemSettingsContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, toDateTimeLocalValue, fromDateTimeLocalValue } from '../utils/format';
 import type { Device, Session, Customer, PaymentMethod, SessionAuditLog, SessionOrder } from '../types';
 
 // Helper to format Date objects for datetime-local inputs
-const toLocalISOString = (date: Date) => {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+const toLocalISOString = toDateTimeLocalValue;
 
 export { TransferSessionModal } from './TransferSessionModal';
 export function StartSessionModal({
@@ -42,7 +39,8 @@ export function StartSessionModal({
 
   // Session options
   const [sessionType, setSessionType] = useState<'open' | 'fixed'>('open');
-  const [startedAt, setStartedAt] = useState(toLocalISOString(new Date()));
+  const [startedAt, setStartedAt] = useState(toDateTimeLocalValue(new Date()));
+  const [hasCustomStart, setHasCustomStart] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [gracePeriod, setGracePeriod] = useState('0');
   
@@ -67,11 +65,11 @@ export function StartSessionModal({
 
   const computedScheduledEnd = useMemo(() => {
     if (sessionType !== 'fixed') return '';
-    const startDate = new Date(startedAt);
+    const startDate = hasCustomStart ? fromDateTimeLocalValue(startedAt) : new Date();
     const mins = parseInt(durationMinutes, 10) || 0;
     const endDate = new Date(startDate.getTime() + mins * 60000);
-    return toLocalISOString(endDate);
-  }, [sessionType, startedAt, durationMinutes]);
+    return toDateTimeLocalValue(endDate);
+  }, [sessionType, startedAt, durationMinutes, hasCustomStart]);
 
   const submit = async () => {
     setLoading(true);
@@ -92,14 +90,16 @@ export function StartSessionModal({
       }
 
       const now = new Date();
-      const start = new Date(startedAt);
-      if (start.getTime() > now.getTime() + 10000) {
-        throw new Error(language === 'ar' ? 'وقت البدء لا يمكن أن يكون في المستقبل' : 'Start time cannot be in the future');
+      if (hasCustomStart) {
+        const start = fromDateTimeLocalValue(startedAt);
+        if (start.getTime() > now.getTime() + 10000) {
+          throw new Error(language === 'ar' ? 'وقت البدء لا يمكن أن يكون في المستقبل' : 'Start time cannot be in the future');
+        }
+        payload.started_at = start.toISOString();
       }
-      payload.started_at = start.toISOString();
 
       if (sessionType === 'fixed') {
-        payload.scheduled_end = new Date(computedScheduledEnd).toISOString();
+        payload.scheduled_end = fromDateTimeLocalValue(computedScheduledEnd).toISOString();
       }
 
       await dataService.startSession(payload);
@@ -269,7 +269,7 @@ export function StartSessionModal({
           label={language === 'ar' ? 'وقت البدء (تعديل تاريخي)' : 'Start Time (Backdate)'}
           value={startedAt}
           max={toLocalISOString(new Date())}
-          onChange={(e) => setStartedAt(e.target.value)}
+          onChange={(e) => { setStartedAt(e.target.value); setHasCustomStart(true); }}
         />
 
         {sessionType === 'fixed' && (
@@ -292,7 +292,7 @@ export function StartSessionModal({
             </div>
             {durationMinutes && startedAt && (
               <div style={{ fontSize: '12px', color: 'var(--accent-cyan)' }}>
-                {language === 'ar' ? 'نهاية الجلسة المجدولة:' : 'Scheduled End:'} <strong>{new Date(computedScheduledEnd).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)}</strong>
+                {language === 'ar' ? 'نهاية الجلسة المجدولة:' : 'Scheduled End:'} <strong>{fromDateTimeLocalValue(computedScheduledEnd).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)}</strong>
               </div>
             )}
           </>
@@ -332,7 +332,8 @@ export function EndSessionModal({
 }) {
   const { t, language, isRtl } = useLanguage();
   const { walletQrUrl, walletPhoneNumber, bankDetails } = useSystemSettings();
-  const [endedAt, setEndedAt] = useState(toLocalISOString(new Date()));
+  const [endedAt, setEndedAt] = useState(toDateTimeLocalValue(new Date()));
+  const [hasCustomEnd, setHasCustomEnd] = useState(false);
   const [markPaid, setMarkPaid] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentRef, setPaymentRef] = useState('');
@@ -365,7 +366,7 @@ export function EndSessionModal({
   }, [session.id]);
 
   const startedTime = new Date(session.started_at).getTime();
-  const endingTime = new Date(endedAt).getTime();
+  const endingTime = hasCustomEnd ? fromDateTimeLocalValue(endedAt).getTime() : Date.now();
   
   const pausedMinutes = session.total_paused_minutes || 0;
   const elapsedSec = Math.max(0, Math.floor((endingTime - startedTime) / 1000));
@@ -452,7 +453,7 @@ export function EndSessionModal({
       }
 
       await dataService.endSession(session.id, {
-        ended_at: new Date(endedAt).toISOString(),
+        ended_at: hasCustomEnd ? fromDateTimeLocalValue(endedAt).toISOString() : new Date().toISOString(),
         mark_paid: markPaid,
         payment_method: paymentMethod,
         discount_type: discountType,
@@ -594,7 +595,7 @@ export function EndSessionModal({
                 label={language === 'ar' ? 'وقت الانتهاء (تعديل وقت الحساب إذا لزم)' : 'End Time (Adjust if needed)'}
                 value={endedAt}
                 max={toLocalISOString(new Date())}
-                onChange={(e) => setEndedAt(e.target.value)}
+                onChange={(e) => { setEndedAt(e.target.value); setHasCustomEnd(true); }}
               />
             </div>
 
@@ -1174,7 +1175,7 @@ export function EditSessionModal({
     setLoading(true);
     setErrorMsg('');
     try {
-      const start = new Date(startedAt);
+      const start = fromDateTimeLocalValue(startedAt);
       const origStart = new Date(session.started_at);
       const now = new Date();
       if (start.getTime() > now.getTime() + 10000) {
@@ -1195,7 +1196,7 @@ export function EditSessionModal({
 
       if (session.session_type === 'fixed') {
         if (!scheduledEnd) throw new Error(language === 'ar' ? 'وقت الانتهاء المجدول مطلوب للجلسات المحددة' : 'Scheduled end is required for fixed sessions');
-        const end = new Date(scheduledEnd);
+        const end = fromDateTimeLocalValue(scheduledEnd);
         if (end.getTime() <= start.getTime()) {
           throw new Error(language === 'ar' ? 'وقت الانتهاء المجدول يجب أن يكون بعد وقت البدء' : 'Scheduled end must be after started_at');
         }

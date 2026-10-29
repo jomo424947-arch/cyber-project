@@ -523,6 +523,111 @@ function salvageMalformedDatabase(SQL: any, malformedBuf: Buffer): SqlJsDatabase
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
+// ─── Integrity & DST Self-Healing Migration ──────────────────────────────────
+
+function runIntegrityAndDstSelfHealing(db: SqlJsDatabase): void {
+  try {
+    // 1. Repair ended sessions with NULL total_cost or duration_minutes (e.g. from DST crash or aborted transactions)
+    const brokenSessions = db.exec(`
+      SELECT s.id, s.device_id, s.started_at, s.ended_at, s.session_type, s.scheduled_end, s.tenant_id,
+             d.hourly_rate, d.hourly_rate_multi, s.play_mode,
+             inv.id AS inv_id, inv.amount AS inv_amount
+      FROM sessions s
+      LEFT JOIN devices d ON d.id = s.device_id
+      LEFT JOIN invoices inv ON inv.session_id = s.id
+      WHERE s.status = 'ended' AND (s.duration_minutes IS NULL OR s.total_cost IS NULL)
+    `);
+
+    if (brokenSessions.length > 0 && brokenSessions[0].values.length > 0) {
+      console.log(`[database:heal] Detected ${brokenSessions[0].values.length} ended session(s) with null duration/cost. Healing...`);
+      for (const row of brokenSessions[0].values) {
+        const id = row[0] as string;
+        const startedAt = row[2] as string;
+        const endedAt = (row[3] as string) || new Date().toISOString();
+        const tenantId = row[6] as string;
+        const rate = (row[9] === 'multiplayer' ? Number(row[8]) : Number(row[7])) || 30;
+        const invId = row[10] as string | null;
+        const invAmount = row[11] !== null && row[11] !== undefined ? Number(row[11]) : null;
+
+        const startMs = new Date(startedAt).getTime();
+        const endMs = new Date(endedAt).getTime();
+        const rawMins = Math.max(1, Math.round((endMs - startMs) / 60000));
+        const durationMinutes = Math.min(1440, isNaN(rawMins) ? 60 : rawMins);
+        
+        const totalCost = invAmount !== null ? invAmount : Math.round((durationMinutes / 60) * rate * 100) / 100;
+
+        db.run(`
+          UPDATE sessions
+          SET duration_minutes = ?, total_cost = ?, ended_at = ?, synced = 0
+          WHERE id = ?
+        `, [durationMinutes, totalCost, endedAt, id]);
+
+        if (!invId) {
+          const invNewId = crypto.randomUUID();
+          db.run(`
+            INSERT OR IGNORE INTO invoices (id, session_id, amount, subtotal, paid, payment_method, paid_at, issued_at, tenant_id, synced)
+            VALUES (?, ?, ?, ?, 1, 'cash', ?, ?, ?, 0)
+          `, [invNewId, id, totalCost, totalCost, endedAt, endedAt, tenantId]);
+        }
+      }
+      console.log('[database:heal] Successfully healed broken ended sessions.');
+    }
+
+    // 2. Heal runaway fixed sessions (e.g. left unended for days and accrued absurd overtime)
+    const runawaySessions = db.exec(`
+      SELECT s.id, s.scheduled_end, s.started_at, s.total_cost, s.duration_minutes, inv.amount
+      FROM sessions s
+      LEFT JOIN invoices inv ON inv.session_id = s.id
+      WHERE s.session_type = 'fixed' AND s.duration_minutes > 1440
+    `);
+
+    if (runawaySessions.length > 0 && runawaySessions[0].values.length > 0) {
+      console.log(`[database:heal] Detected ${runawaySessions[0].values.length} runaway fixed session(s). Capping...`);
+      for (const row of runawaySessions[0].values) {
+        const id = row[0] as string;
+        const scheduledEnd = row[1] as string;
+        const startedAt = row[2] as string;
+        const invAmount = row[5] !== null && row[5] !== undefined ? Number(row[5]) : null;
+
+        let scheduledMins = 60;
+        if (scheduledEnd && startedAt) {
+          const diff = Math.round((new Date(scheduledEnd).getTime() - new Date(startedAt).getTime()) / 60000);
+          if (diff > 0 && diff <= 1440) scheduledMins = diff;
+        }
+
+        const cappedCost = invAmount !== null && invAmount < 1000 ? invAmount : 30;
+        db.run(`
+          UPDATE sessions
+          SET duration_minutes = ?, total_cost = ?, synced = 0
+          WHERE id = ?
+        `, [scheduledMins, cappedCost, id]);
+      }
+      console.log('[database:heal] Runaway fixed sessions healed.');
+    }
+
+    // 3. Heal stranded devices (marked in_use but with no active session running)
+    const strandedRes = db.exec(`
+      SELECT id, name FROM devices
+      WHERE status = 'in_use' AND id NOT IN (
+        SELECT device_id FROM sessions WHERE status = 'active' AND device_id IS NOT NULL
+      )
+    `);
+    if (strandedRes.length > 0 && strandedRes[0].values.length > 0) {
+      console.log(`[database:heal] Detected ${strandedRes[0].values.length} stranded in_use device(s). Releasing to available...`);
+      db.run(`
+        UPDATE devices
+        SET status = 'available', synced = 0
+        WHERE status = 'in_use' AND id NOT IN (
+          SELECT device_id FROM sessions WHERE status = 'active' AND device_id IS NOT NULL
+        )
+      `);
+      console.log('[database:heal] Stranded devices released successfully.');
+    }
+  } catch (healErr: any) {
+    console.warn('[database:heal] Self-healing routine encountered error:', healErr?.message || healErr);
+  }
+}
+
 export async function initDatabase(): Promise<SqlJsDatabase> {
   if (_db) return _db;
 
@@ -1013,6 +1118,9 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
 
   // Register process exit listeners for safe shutdown
   registerLifecycleHandlers();
+
+  // Run self-healing routine for DST clock jumps, broken sessions and runaway overtime
+  runIntegrityAndDstSelfHealing(_db);
 
   // Initial synchronous save after schema creation and migrations
   saveDatabaseSync();

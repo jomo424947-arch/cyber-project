@@ -76,3 +76,22 @@ export function toDateTimeLocalValue(date: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+/**
+ * Safely parse a value from <input type="datetime-local"> (YYYY-MM-DDTHH:mm)
+ * into a Date object using the system's current timezone offset.
+ *
+ * This avoids the DST overlap bug (e.g. Egypt transition at midnight where 12 becomes 11),
+ * where naive `new Date("2026-10-29T23:30")` parses with the summer DST offset (UTC+3)
+ * instead of the current active system offset (UTC+2), causing an erroneous 1-hour shift.
+ */
+export function fromDateTimeLocalValue(value: string): Date {
+  if (!value) return new Date();
+  const [datePart, timePart] = value.split('T');
+  if (!datePart || !timePart) return new Date(value);
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hours, minutes] = timePart.split(':').map(Number);
+  const offsetMins = new Date().getTimezoneOffset();
+  const utcMs = Date.UTC(year, month - 1, day, hours, minutes) + (offsetMins * 60000);
+  return new Date(utcMs);
+}

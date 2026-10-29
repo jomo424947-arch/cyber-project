@@ -117,7 +117,9 @@ export function calculateSessionCost(params: BillingParams): BillingResult {
     const graceMinutes = Number(params.gracePeriodMinutes || 0);
 
     // Use effectiveMinutes: paused time doesn't count as overtime
-    overtimeMinutes = Math.max(0, effectiveMinutes - scheduledMinutes - graceMinutes);
+    const rawOvertime = Math.max(0, effectiveMinutes - scheduledMinutes - graceMinutes);
+    // Cap overtime to a maximum of 24 hours (1440 minutes) to protect against forgotten sessions
+    overtimeMinutes = Math.min(rawOvertime, 1440);
     if (overtimeMinutes > 0) {
       isOvertime = true;
       const multiplier = Number(

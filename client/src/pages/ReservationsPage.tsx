@@ -14,7 +14,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { RESERVATION_STATUS_META } from '../utils/constants';
-import { formatDateTime, toDateTimeLocalValue, formatCurrency } from '../utils/format';
+import { formatDateTime, toDateTimeLocalValue, fromDateTimeLocalValue, formatCurrency } from '../utils/format';
 import type { Reservation, Device } from '../types';
 
 type Filter = 'upcoming' | 'all';
@@ -235,8 +235,8 @@ function CreateReservationModal({
         device_id: deviceId,
         customer_id: mode === 'existing' && customerId ? customerId : undefined,
         customer_name: mode === 'new' ? name : undefined,
-        reserved_from: new Date(reservedFrom).toISOString(),
-        reserved_until: new Date(reservedUntil).toISOString(),
+        reserved_from: fromDateTimeLocalValue(reservedFrom).toISOString(),
+        reserved_until: fromDateTimeLocalValue(reservedUntil).toISOString(),
         notes: notes || undefined,
       });
       toast(language === 'ar' ? 'تم إنشاء الحجز بنجاح' : 'Reservation created', 'success');
