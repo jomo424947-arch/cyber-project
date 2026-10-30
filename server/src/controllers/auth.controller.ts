@@ -641,7 +641,16 @@ export async function activateTenant(req: Request, res: Response) {
     if (cloudDevices && cloudDevices.length > 0) {
       for (const dev of cloudDevices) {
         db.run(
-          `INSERT OR REPLACE INTO devices (id, name, type, status, specs, hourly_rate, hourly_rate_multi, archived, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO devices (id, name, type, status, specs, hourly_rate, hourly_rate_multi, archived, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             type = excluded.type,
+             status = excluded.status,
+             specs = excluded.specs,
+             hourly_rate = excluded.hourly_rate,
+             hourly_rate_multi = excluded.hourly_rate_multi,
+             archived = excluded.archived,
+             tenant_id = excluded.tenant_id`,
           [
             dev.id,
             dev.name,
@@ -665,7 +674,11 @@ export async function activateTenant(req: Request, res: Response) {
     if (cloudProducts && cloudProducts.length > 0) {
       for (const prod of cloudProducts) {
         db.run(
-          `INSERT OR REPLACE INTO products (id, name, price, tenant_id) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO products (id, name, price, tenant_id) VALUES (?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             price = excluded.price,
+             tenant_id = excluded.tenant_id`,
           [prod.id, prod.name, prod.price || 0, tenant.id]
         );
       }

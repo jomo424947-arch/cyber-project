@@ -684,6 +684,11 @@ class QueryBuilder {
     }
 
     // Convert JS types for SQLite
+    if (['users', 'devices', 'rooms', 'cafe_tables'].includes(this._table)) {
+      if (!data.updated_at) data.updated_at = new Date().toISOString();
+      if (!data.created_at) data.created_at = new Date().toISOString();
+    }
+
     const prepared = this._prepareForSqlite(data);
 
     const cols = Object.keys(prepared);
@@ -723,6 +728,9 @@ class QueryBuilder {
   private _execUpdate(): QueryResult {
     const db = getDb();
     const data = this._updateData!;
+    if (['users', 'devices', 'rooms', 'cafe_tables'].includes(this._table) && data.updated_at === undefined) {
+      data.updated_at = new Date().toISOString();
+    }
     const prepared = this._prepareForSqlite(data);
 
     const setClauses = Object.keys(prepared).map(c => `"${c}" = ?`);

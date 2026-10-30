@@ -264,8 +264,21 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const d of devices) {
         if (isLocalRecordPendingSync('devices', d.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO devices (id, name, type, status, specs, hourly_rate, hourly_rate_multi, archived, tenant_id, created_at, updated_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO devices (id, name, type, status, specs, hourly_rate, hourly_rate_multi, archived, tenant_id, created_at, updated_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             type = excluded.type,
+             status = excluded.status,
+             specs = excluded.specs,
+             hourly_rate = excluded.hourly_rate,
+             hourly_rate_multi = excluded.hourly_rate_multi,
+             archived = excluded.archived,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             updated_at = excluded.updated_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             d.id,
             d.name,
@@ -292,8 +305,17 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const c of customers) {
         if (isLocalRecordPendingSync('customers', c.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO customers (id, username, name, phone, email, tenant_id, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO customers (id, username, name, phone, email, tenant_id, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             username = excluded.username,
+             name = excluded.name,
+             phone = excluded.phone,
+             email = excluded.email,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [c.id, c.username || null, c.name, c.phone || null, c.email || null, tenantId, c.created_at || new Date().toISOString()]
         );
         if (c.created_at && c.created_at > maxCreated) maxCreated = c.created_at;
@@ -307,8 +329,17 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const p of products) {
         if (isLocalRecordPendingSync('products', p.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO products (id, name, price, cost_price, stock, tenant_id, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO products (id, name, price, cost_price, stock, tenant_id, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             price = excluded.price,
+             cost_price = excluded.cost_price,
+             stock = excluded.stock,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [p.id, p.name, Number(p.price) || 0, Number(p.cost_price) || null, Number(p.stock) || 0, tenantId, p.created_at || new Date().toISOString()]
         );
       }
@@ -322,8 +353,17 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const rm of rooms) {
         if (isLocalRecordPendingSync('rooms', rm.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO rooms (id, name, icon, device_id, tenant_id, created_at, updated_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO rooms (id, name, icon, device_id, tenant_id, created_at, updated_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             icon = excluded.icon,
+             device_id = excluded.device_id,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             updated_at = excluded.updated_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             rm.id,
             rm.name,
@@ -346,8 +386,18 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const ct of cafeTables) {
         if (isLocalRecordPendingSync('cafe_tables', ct.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO cafe_tables (id, table_number, name, capacity, device_id, tenant_id, created_at, updated_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO cafe_tables (id, table_number, name, capacity, device_id, tenant_id, created_at, updated_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             table_number = excluded.table_number,
+             name = excluded.name,
+             capacity = excluded.capacity,
+             device_id = excluded.device_id,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             updated_at = excluded.updated_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             ct.id,
             ct.table_number,
@@ -399,8 +449,22 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
           : (Number(sh.total_expenses) || 0);
 
         db.run(
-          `INSERT OR REPLACE INTO shifts (id, user_id, tenant_id, started_at, ended_at, opening_cash, closing_cash, total_revenue, total_expenses, notes, status, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO shifts (id, user_id, tenant_id, started_at, ended_at, opening_cash, closing_cash, total_revenue, total_expenses, notes, status, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             user_id = excluded.user_id,
+             tenant_id = excluded.tenant_id,
+             started_at = excluded.started_at,
+             ended_at = excluded.ended_at,
+             opening_cash = excluded.opening_cash,
+             closing_cash = excluded.closing_cash,
+             total_revenue = excluded.total_revenue,
+             total_expenses = excluded.total_expenses,
+             notes = excluded.notes,
+             status = excluded.status,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             sh.id,
             sh.user_id,
@@ -448,8 +512,31 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
         }
 
         db.run(
-          `INSERT OR REPLACE INTO sessions (id, device_id, customer_id, started_at, ended_at, duration_minutes, total_cost, status, session_type, play_mode, scheduled_end, hourly_rate_override, grace_period_minutes, is_overtime, overtime_minutes, edited_start_at, is_paused, total_paused_minutes, created_by, tenant_id, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO sessions (id, device_id, customer_id, started_at, ended_at, duration_minutes, total_cost, status, session_type, play_mode, scheduled_end, hourly_rate_override, grace_period_minutes, is_overtime, overtime_minutes, edited_start_at, is_paused, total_paused_minutes, created_by, tenant_id, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             device_id = excluded.device_id,
+             customer_id = excluded.customer_id,
+             started_at = excluded.started_at,
+             ended_at = excluded.ended_at,
+             duration_minutes = excluded.duration_minutes,
+             total_cost = excluded.total_cost,
+             status = excluded.status,
+             session_type = excluded.session_type,
+             play_mode = excluded.play_mode,
+             scheduled_end = excluded.scheduled_end,
+             hourly_rate_override = excluded.hourly_rate_override,
+             grace_period_minutes = excluded.grace_period_minutes,
+             is_overtime = excluded.is_overtime,
+             overtime_minutes = excluded.overtime_minutes,
+             edited_start_at = excluded.edited_start_at,
+             is_paused = excluded.is_paused,
+             total_paused_minutes = excluded.total_paused_minutes,
+             created_by = excluded.created_by,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             s.id,
             s.device_id,
@@ -494,12 +581,32 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const inv of invoices) {
         if (isLocalRecordPendingSync('invoices', inv.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO invoices (
+          `INSERT INTO invoices (
             id, session_id, amount, subtotal, discount_amount, discount_type, discount_value,
             service_fee, service_rate, rounding_delta, notes, paid, payment_method, shift_id,
             created_by, issued_at, paid_at, tenant_id, synced, synced_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+          ON CONFLICT(id) DO UPDATE SET
+            session_id = excluded.session_id,
+            amount = excluded.amount,
+            subtotal = excluded.subtotal,
+            discount_amount = excluded.discount_amount,
+            discount_type = excluded.discount_type,
+            discount_value = excluded.discount_value,
+            service_fee = excluded.service_fee,
+            service_rate = excluded.service_rate,
+            rounding_delta = excluded.rounding_delta,
+            notes = excluded.notes,
+            paid = excluded.paid,
+            payment_method = excluded.payment_method,
+            shift_id = excluded.shift_id,
+            created_by = excluded.created_by,
+            issued_at = excluded.issued_at,
+            paid_at = excluded.paid_at,
+            tenant_id = excluded.tenant_id,
+            synced = 1,
+            synced_at = datetime('now')`,
           [
             inv.id,
             inv.session_id,
@@ -534,8 +641,20 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const r of reservations) {
         if (isLocalRecordPendingSync('reservations', r.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO reservations (id, device_id, customer_id, reserved_from, reserved_until, status, notes, created_by, tenant_id, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO reservations (id, device_id, customer_id, reserved_from, reserved_until, status, notes, created_by, tenant_id, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             device_id = excluded.device_id,
+             customer_id = excluded.customer_id,
+             reserved_from = excluded.reserved_from,
+             reserved_until = excluded.reserved_until,
+             status = excluded.status,
+             notes = excluded.notes,
+             created_by = excluded.created_by,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             r.id,
             r.device_id,
@@ -561,8 +680,18 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const ex of shiftExpenses) {
         if (isLocalRecordPendingSync('shift_expenses', ex.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO shift_expenses (id, shift_id, tenant_id, amount, category, description, created_by, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO shift_expenses (id, shift_id, tenant_id, amount, category, description, created_by, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             shift_id = excluded.shift_id,
+             tenant_id = excluded.tenant_id,
+             amount = excluded.amount,
+             category = excluded.category,
+             description = excluded.description,
+             created_by = excluded.created_by,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             ex.id,
             ex.shift_id,
@@ -586,8 +715,17 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const so of sessionOrders) {
         if (isLocalRecordPendingSync('session_orders', so.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO session_orders (id, session_id, product_id, quantity, unit_price, total_price, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO session_orders (id, session_id, product_id, quantity, unit_price, total_price, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             session_id = excluded.session_id,
+             product_id = excluded.product_id,
+             quantity = excluded.quantity,
+             unit_price = excluded.unit_price,
+             total_price = excluded.total_price,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             so.id,
             so.session_id,
@@ -610,8 +748,21 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const st of standaloneOrders) {
         if (isLocalRecordPendingSync('standalone_orders', st.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO standalone_orders (id, tenant_id, product_id, quantity, unit_price, cost_price, total_price, payment_method, shift_id, created_by, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO standalone_orders (id, tenant_id, product_id, quantity, unit_price, cost_price, total_price, payment_method, shift_id, created_by, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             tenant_id = excluded.tenant_id,
+             product_id = excluded.product_id,
+             quantity = excluded.quantity,
+             unit_price = excluded.unit_price,
+             cost_price = excluded.cost_price,
+             total_price = excluded.total_price,
+             payment_method = excluded.payment_method,
+             shift_id = excluded.shift_id,
+             created_by = excluded.created_by,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             st.id,
             tenantId,
@@ -638,8 +789,23 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const tr of transfers) {
         if (isLocalRecordPendingSync('session_transfers', tr.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO session_transfers (id, session_id, from_device_id, to_device_id, started_at, transferred_at, duration_minutes, hourly_rate, play_mode, cost, transferred_by, tenant_id, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO session_transfers (id, session_id, from_device_id, to_device_id, started_at, transferred_at, duration_minutes, hourly_rate, play_mode, cost, transferred_by, tenant_id, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             session_id = excluded.session_id,
+             from_device_id = excluded.from_device_id,
+             to_device_id = excluded.to_device_id,
+             started_at = excluded.started_at,
+             transferred_at = excluded.transferred_at,
+             duration_minutes = excluded.duration_minutes,
+             hourly_rate = excluded.hourly_rate,
+             play_mode = excluded.play_mode,
+             cost = excluded.cost,
+             transferred_by = excluded.transferred_by,
+             tenant_id = excluded.tenant_id,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             tr.id,
             tr.session_id,
@@ -668,8 +834,18 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const p of pauses) {
         if (isLocalRecordPendingSync('session_pauses', p.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO session_pauses (id, session_id, tenant_id, paused_at, resumed_at, paused_by, resumed_by, reason, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO session_pauses (id, session_id, tenant_id, paused_at, resumed_at, paused_by, resumed_by, reason, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             session_id = excluded.session_id,
+             tenant_id = excluded.tenant_id,
+             paused_at = excluded.paused_at,
+             resumed_at = excluded.resumed_at,
+             paused_by = excluded.paused_by,
+             resumed_by = excluded.resumed_by,
+             reason = excluded.reason,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             p.id,
             p.session_id,
@@ -694,8 +870,19 @@ export async function pullFromCloud(tenantId: string): Promise<void> {
       for (const sl of stockLogs) {
         if (isLocalRecordPendingSync('product_stock_logs', sl.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO product_stock_logs (id, product_id, tenant_id, actor_id, change_type, delta, balance_after, reason, created_at, synced, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
+          `INSERT INTO product_stock_logs (id, product_id, tenant_id, actor_id, change_type, delta, balance_after, reason, created_at, synced, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             product_id = excluded.product_id,
+             tenant_id = excluded.tenant_id,
+             actor_id = excluded.actor_id,
+             change_type = excluded.change_type,
+             delta = excluded.delta,
+             balance_after = excluded.balance_after,
+             reason = excluded.reason,
+             created_at = excluded.created_at,
+             synced = 1,
+             synced_at = datetime('now')`,
           [
             sl.id,
             sl.product_id,

@@ -569,6 +569,12 @@ create policy "admin write rooms"
   using ( public.is_admin() )
   with check ( public.is_admin() );
 
+drop trigger if exists trg_rooms_updated_at on public.rooms;
+create trigger trg_rooms_updated_at
+  before update on public.rooms
+  for each row
+  execute function public.update_updated_at_column();
+
 -- ----------------------------------------------------------------------------
 -- 13. shifts — staff work shifts & cash drawer tracking
 -- Added in migration 013

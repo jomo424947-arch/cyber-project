@@ -90,6 +90,7 @@ export async function createRoom(req: Request, res: Response) {
       icon,
       device_id: targetDeviceId,
       tenant_id: req.user!.tenant_id,
+      updated_at: new Date().toISOString(),
     })
     .select('*, device:devices(id,name,type,status,hourly_rate,hourly_rate_multi)')
     .single();
@@ -119,7 +120,9 @@ export async function updateRoom(req: Request, res: Response) {
   if (fetchErr) throw fetchErr;
   if (!currentRoom) throw notFound('Gaming room not found');
 
-  const patch: Record<string, any> = {};
+  const patch: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
   if (name !== undefined) patch.name = name;
   if (icon !== undefined) patch.icon = icon;
 

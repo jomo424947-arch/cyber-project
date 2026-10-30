@@ -199,7 +199,9 @@ export async function updateCafeTable(req: Request, res: Response) {
 
   const cleanTableNumber = table_number !== undefined ? String(table_number).trim() : undefined;
   const effectiveName = (name && String(name).trim()) || cleanTableNumber || table.table_number;
-  const updates: Record<string, any> = {};
+  const updates: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
   if (cleanTableNumber !== undefined) updates.table_number = cleanTableNumber;
   if (effectiveName !== undefined) updates.name = effectiveName;
   if (capacity !== undefined) updates.capacity = Number(capacity);

@@ -101,7 +101,9 @@ export async function updateDevice(req: Request, res: Response) {
     }
   }
 
-  const patch: Record<string, unknown> = {};
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
   if (name !== undefined) patch.name = name;
   if (type !== undefined) patch.type = type;
   if (status !== undefined) patch.status = status;
