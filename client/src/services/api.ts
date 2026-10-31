@@ -35,6 +35,10 @@ import type {
   StartShiftPayload,
   CloseShiftPayload,
   CreateExpensePayload,
+  MonthlyClosingItem,
+  MonthlyFinancialDetails,
+  MonthlyClosingRecord,
+  CloseMonthPayload,
 } from '../types';
 
 /**
@@ -166,4 +170,10 @@ export interface DataService {
   createShiftExpense(shiftId: string, payload: CreateExpensePayload): Promise<ShiftExpense>;
   createQuickExpense(payload: CreateExpensePayload): Promise<ShiftExpense>;
   deleteShiftExpense(shiftId: string, expenseId: string): Promise<void>;
+
+  // monthly financial closings
+  listFinancialMonths(): Promise<MonthlyClosingItem[]>;
+  getMonthlyFinancialDetails(year: number, month: number): Promise<MonthlyFinancialDetails>;
+  closeFinancialMonth(year: number, month: number, payload?: CloseMonthPayload): Promise<{ message: string; data: MonthlyClosingRecord }>;
+  reopenFinancialMonth(year: number, month: number, reason?: string): Promise<{ message: string; data: MonthlyClosingRecord }>;
 }

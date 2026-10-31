@@ -58,6 +58,9 @@ const FK_MAP: Record<string, Record<string, string>> = {
     session_id: 'sessions',
     edited_by: 'users',
   },
+  monthly_closings: {
+    closed_by: 'users',
+  },
   session_pauses: {
     session_id: 'sessions',
     paused_by: 'users',

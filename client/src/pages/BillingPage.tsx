@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { MonthlyClosingsView } from '../components/MonthlyClosingsView';
 import { Layout } from '../components/Layout';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -21,6 +23,10 @@ type Filter = 'all' | 'paid' | 'unpaid';
 export default function BillingPage() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [mainTab, setMainTab] = useState<'invoices' | 'monthly'>(
+    searchParams.get('tab') === 'invoices' ? 'invoices' : 'monthly'
+  );
   const [filter, setFilter] = useState<Filter>('all');
   const [payingId, setPayingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -102,42 +108,109 @@ export default function BillingPage() {
           : 'Comprehensive real-time tracking of terminal utilization, subscription billing, and net system profitability.'
       }
       actions={
-        <>
-          <button
-            className="ccms-btn ccms-btn-ghost"
-            onClick={() => toast(language === 'ar' ? 'تم تصدير كشف الحساب بنجاح' : 'Excel summary sheet exported.', 'success')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
-              minHeight: '38px',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
-            <span>{language === 'ar' ? 'كشف حساب' : 'Generate Receipt'}</span>
-          </button>
-          <button
-            className="ccms-btn ccms-btn-primary"
-            onClick={() => toast(language === 'ar' ? 'جاري انتظار تأكيد الدفع الإلكتروني...' : 'Gateway scanner listening for payments...', 'info')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
-              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
-              minHeight: '38px',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance_wallet</span>
-            <span>{language === 'ar' ? 'تسجيل دفعة' : 'Process Payment'}</span>
-          </button>
-        </>
+        mainTab === 'invoices' ? (
+          <>
+            <button
+              className="ccms-btn ccms-btn-ghost"
+              onClick={() => toast(language === 'ar' ? 'تم تصدير كشف الحساب بنجاح' : 'Excel summary sheet exported.', 'success')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                minHeight: '38px',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+              <span>{language === 'ar' ? 'كشف حساب' : 'Generate Receipt'}</span>
+            </button>
+            <button
+              className="ccms-btn ccms-btn-primary"
+              onClick={() => toast(language === 'ar' ? 'جاري انتظار تأكيد الدفع الإلكتروني...' : 'Gateway scanner listening for payments...', 'info')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
+                minHeight: '38px',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_balance_wallet</span>
+              <span>{language === 'ar' ? 'تسجيل دفعة' : 'Process Payment'}</span>
+            </button>
+          </>
+        ) : null
       }
     >
+      {/* ─── Main Sub-Tabs Bar: Monthly Accounts vs Invoices ─── */}
+      <div
+        className="no-print"
+        style={{
+          display: 'flex',
+          gap: '8px',
+          borderBottom: '1px solid var(--border-default)',
+          marginBottom: '28px',
+        }}
+      >
+        <button
+          onClick={() => {
+            setMainTab('monthly');
+            setSearchParams({});
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 20px',
+            background: 'none',
+            border: 'none',
+            borderBottom: mainTab === 'monthly' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+            color: mainTab === 'monthly' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+            fontWeight: mainTab === 'monthly' ? 700 : 500,
+            fontSize: '15px',
+            cursor: 'pointer',
+            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>account_balance</span>
+          <span>{language === 'ar' ? 'الحسابات الشهرية' : 'Monthly Accounts'}</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setMainTab('invoices');
+            setSearchParams({ tab: 'invoices' });
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 20px',
+            background: 'none',
+            border: 'none',
+            borderBottom: mainTab === 'invoices' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+            color: mainTab === 'invoices' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+            fontWeight: mainTab === 'invoices' ? 700 : 500,
+            fontSize: '15px',
+            cursor: 'pointer',
+            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>receipt_long</span>
+          <span>{language === 'ar' ? 'فواتير العمليات والتحصيل' : 'Operations & Invoices'}</span>
+        </button>
+      </div>
+
+      {mainTab === 'monthly' ? (
+        <MonthlyClosingsView />
+      ) : (
+        <>
       {/* Summary cards */}
       <div
         style={{
@@ -701,6 +774,8 @@ export default function BillingPage() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </Layout>
   );
 }

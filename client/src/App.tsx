@@ -242,6 +242,7 @@ export default function App() {
         <Route path="/billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
         <Route path="/shifts" element={<ProtectedRoute><ShiftsPage /></ProtectedRoute>} />
         <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
+        <Route path="/monthly-closings" element={<Navigate to="/billing?tab=monthly" replace />} />
         <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
         <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
         <Route path="/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />

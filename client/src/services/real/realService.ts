@@ -27,6 +27,9 @@ import type {
   Shift,
   ShiftExpense,
   ShiftSummary,
+  MonthlyClosingItem,
+  MonthlyFinancialDetails,
+  MonthlyClosingRecord,
 } from '../../types';
 
 // The backend wraps every list response in { data: [...] }.
@@ -448,5 +451,33 @@ export const realService: DataService = {
 
   async deleteShiftExpense(shiftId, expenseId) {
     await http.delete(`/api/shifts/${shiftId}/expenses/${expenseId}`);
+  },
+
+  // ─── Monthly Financial Closings ──────────────────────────────────────────
+
+  async listFinancialMonths() {
+    const { data } = await http.get<ListWrap<MonthlyClosingItem>>('/api/financial-closings');
+    return data.data;
+  },
+
+  async getMonthlyFinancialDetails(year, month) {
+    const { data } = await http.get<OneWrap<MonthlyFinancialDetails>>(`/api/financial-closings/${year}/${month}`);
+    return data.data;
+  },
+
+  async closeFinancialMonth(year, month, payload) {
+    const { data } = await http.post<{ message: string; data: MonthlyClosingRecord }>(
+      `/api/financial-closings/${year}/${month}/close`,
+      payload || {}
+    );
+    return data;
+  },
+
+  async reopenFinancialMonth(year, month, reason) {
+    const { data } = await http.post<{ message: string; data: MonthlyClosingRecord }>(
+      `/api/financial-closings/${year}/${month}/reopen`,
+      { reason }
+    );
+    return data;
   },
 };

@@ -29,6 +29,7 @@ import employeeRoutes from './routes/employees.routes';
 import roomRoutes from './routes/rooms.routes';
 import cafeTableRoutes from './routes/cafe-tables.routes';
 import shiftRoutes from './routes/shifts.routes';
+import monthlyClosingsRoutes from './routes/monthly-closings.routes';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import { supabase } from './lib/supabase';
 import { csrfProtection } from './middleware/csrf';
@@ -120,6 +121,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/cafe-tables', cafeTableRoutes);
 app.use('/api/shifts', shiftRoutes);
+app.use('/api/financial-closings', monthlyClosingsRoutes);
 
 // Serve Static Frontend if compiled client/dist exists
 const possibleDistPaths = [

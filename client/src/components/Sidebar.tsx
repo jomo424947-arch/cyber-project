@@ -25,6 +25,7 @@ export const NAV: NavItem[] = [
   { to: '/billing', label: 'Financials', key: 'billing', icon: 'payments', adminOnly: true },
   { to: '/shifts', label: 'Staff Shifts', key: 'shifts', icon: 'schedule' },
   { to: '/expenses', label: 'Expenses', key: 'expenses', icon: 'receipt_long', adminOnly: true },
+
   { to: '/reports', label: 'Intelligence Reports', key: 'reports', icon: 'query_stats', adminOnly: true },
   { to: '/employees', label: 'Employees', key: 'employees', icon: 'badge', adminOnly: true },
   { to: '/settings', label: 'Security Settings', key: 'settings', icon: 'security', adminOnly: true },

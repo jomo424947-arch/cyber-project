@@ -949,6 +949,7 @@ export async function runSync(): Promise<void> {
       'session_transfers',
       'session_pauses',
       'product_stock_logs',
+      'monthly_closings',
     ]);
 
     // 3. Push local changes from SQLite up to Cloud FIRST
@@ -971,6 +972,7 @@ export async function runSync(): Promise<void> {
       product_stock_logs: 15,
       reservations: 16,
       session_audit_log: 17,
+      monthly_closings: 18,
     };
 
     // Get unsynced queue items

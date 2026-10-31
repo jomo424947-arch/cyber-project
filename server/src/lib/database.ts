@@ -375,6 +375,35 @@ CREATE TABLE IF NOT EXISTS shift_expenses (
 CREATE INDEX IF NOT EXISTS idx_shift_expenses_shift ON shift_expenses(shift_id);
 CREATE INDEX IF NOT EXISTS idx_shift_expenses_tenant ON shift_expenses(tenant_id);
 
+-- monthly_closings
+CREATE TABLE IF NOT EXISTS monthly_closings (
+  id                TEXT PRIMARY KEY,
+  tenant_id         TEXT,
+  year              INTEGER NOT NULL CHECK (year >= 2020 AND year <= 2100),
+  month             INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+  status            TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),
+  total_revenue     REAL NOT NULL DEFAULT 0,
+  device_revenue    REAL NOT NULL DEFAULT 0,
+  cafe_revenue      REAL NOT NULL DEFAULT 0,
+  total_expenses    REAL NOT NULL DEFAULT 0,
+  net_profit        REAL NOT NULL DEFAULT 0,
+  shifts_count      INTEGER NOT NULL DEFAULT 0,
+  cash_discrepancy  REAL NOT NULL DEFAULT 0,
+  opening_balance   REAL NOT NULL DEFAULT 0,
+  closing_balance   REAL NOT NULL DEFAULT 0,
+  closing_notes     TEXT,
+  closed_by         TEXT REFERENCES users(id),
+  closed_at         TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  synced            INTEGER NOT NULL DEFAULT 0,
+  synced_at         TEXT,
+  UNIQUE(tenant_id, year, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_closings_tenant ON monthly_closings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_monthly_closings_status ON monthly_closings(status);
+
 -- sync_queue for tracking what needs to be pushed to Supabase
 CREATE TABLE IF NOT EXISTS sync_queue (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1021,6 +1050,35 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
       );
       CREATE INDEX IF NOT EXISTS idx_shift_expenses_shift ON shift_expenses(shift_id);
       CREATE INDEX IF NOT EXISTS idx_shift_expenses_tenant ON shift_expenses(tenant_id);
+
+-- monthly_closings
+CREATE TABLE IF NOT EXISTS monthly_closings (
+  id                TEXT PRIMARY KEY,
+  tenant_id         TEXT,
+  year              INTEGER NOT NULL CHECK (year >= 2020 AND year <= 2100),
+  month             INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+  status            TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),
+  total_revenue     REAL NOT NULL DEFAULT 0,
+  device_revenue    REAL NOT NULL DEFAULT 0,
+  cafe_revenue      REAL NOT NULL DEFAULT 0,
+  total_expenses    REAL NOT NULL DEFAULT 0,
+  net_profit        REAL NOT NULL DEFAULT 0,
+  shifts_count      INTEGER NOT NULL DEFAULT 0,
+  cash_discrepancy  REAL NOT NULL DEFAULT 0,
+  opening_balance   REAL NOT NULL DEFAULT 0,
+  closing_balance   REAL NOT NULL DEFAULT 0,
+  closing_notes     TEXT,
+  closed_by         TEXT REFERENCES users(id),
+  closed_at         TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  synced            INTEGER NOT NULL DEFAULT 0,
+  synced_at         TEXT,
+  UNIQUE(tenant_id, year, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_closings_tenant ON monthly_closings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_monthly_closings_status ON monthly_closings(status);
     `);
 
     // Add shift_id and created_by to invoices if missing

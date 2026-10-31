@@ -15,7 +15,8 @@
   --bg-input: #0A0A0A; /* Form fields */
 
   --accent-cyan: #00C2FF; /* Primary accent — active states, CTAs */
-  --accent-cyan-dim: rgba(0, 194, 255, 0.1); /* Subtle cyan glow backgrounds */
+  --accent-cyan-dim: rgba(0, 194, 255, 0.1);
+  --accent-orange: #FF7A00; /* Subtle cyan glow backgrounds */
   --accent-green: #22C55E; /* Success, available status */
   --accent-yellow: #F59E0B; /* Warning, reserved status */
   --accent-red: #EF4444; /* Danger, in-use / error states */
@@ -62,7 +63,8 @@
   --bg-input: #F1F5F9; /* Light slate form fields */
 
   --accent-cyan: #0284C7; /* Primary vibrant cyan/blue */
-  --accent-cyan-dim: rgba(2, 132, 199, 0.12); /* Light cyan tint */
+  --accent-cyan-dim: rgba(2, 132, 199, 0.12);
+  --accent-orange: #EA580C; /* Light cyan tint */
   --accent-green: #16A34A; /* Success green */
   --accent-yellow: #D97706; /* Warning yellow */
   --accent-red: #DC2626; /* Danger red */

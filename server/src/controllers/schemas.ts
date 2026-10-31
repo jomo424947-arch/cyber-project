@@ -189,6 +189,15 @@ export const updateCafeTableSchema = z.object({
   capacity: z.number().int().positive().optional(),
 });
 
+export const closeMonthSchema = z.object({
+  closing_notes: z.string().max(1000).optional(),
+  closing_balance: z.number().nonnegative().optional().default(0),
+});
+
+export const reopenMonthSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
 
 
 

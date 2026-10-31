@@ -452,3 +452,89 @@ export interface EndSessionPayload {
 
 
 
+
+
+// ----- Monthly Closings & Financial Periods -----
+export interface MonthlyClosingItem {
+  year: number;
+  month: number;
+  period_key: string;
+  is_current: boolean;
+  status: 'open' | 'closed';
+  total_revenue: number | null;
+  total_expenses: number | null;
+  net_profit: number | null;
+  closed_at: string | null;
+  closer_name: string | null;
+}
+
+export interface MonthlyClosingRecord {
+  id?: string;
+  status: 'open' | 'closed';
+  closed_at: string | null;
+  closed_by: string | null;
+  closing_notes: string | null;
+  closing_balance: number;
+  closer?: Pick<User, 'id' | 'full_name' | 'email'>;
+}
+
+export interface ExpenseByCategory {
+  category: string;
+  total: number;
+  count: number;
+  percentage: number;
+}
+
+export interface DailyLedgerRow {
+  day: number;
+  date: string;
+  device_revenue: number;
+  cafe_revenue: number;
+  total_revenue: number;
+  total_expenses: number;
+  net_profit: number;
+  shifts_count: number;
+}
+
+export interface MonthOverMonthComparison {
+  prev_year: number;
+  prev_month: number;
+  prev_revenue: number;
+  prev_expenses: number;
+  prev_profit: number;
+  revenue_growth_pct: number;
+  profit_growth_pct: number;
+}
+
+export interface MonthlyFinancialDetails {
+  period: {
+    year: number;
+    month: number;
+    days_in_month: number;
+    start_date: string;
+    end_date: string;
+  };
+  closing: MonthlyClosingRecord;
+  totals: {
+    total_revenue: number;
+    device_revenue: number;
+    cafe_revenue: number;
+    total_expenses: number;
+    net_profit: number;
+    profit_margin_pct: number;
+    shifts_count: number;
+    cash_discrepancy: number;
+    invoices_count: number;
+    expenses_count: number;
+  };
+  expenses_by_category: ExpenseByCategory[];
+  expenses_list: ShiftExpense[];
+  shifts_list?: Shift[];
+  comparison_previous_month: MonthOverMonthComparison;
+  daily_ledger: DailyLedgerRow[];
+}
+
+export interface CloseMonthPayload {
+  closing_notes?: string;
+  closing_balance?: number;
+}
