@@ -6,6 +6,7 @@ import { Select } from './ui/Select';
 import { LoadingSpinner } from './ui/LoadingSpinner';
 import { useLanguage } from '../context/LanguageContext';
 import { useSystemSettings } from '../context/SystemSettingsContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatCurrency, toDateTimeLocalValue, fromDateTimeLocalValue } from '../utils/format';
@@ -331,7 +332,14 @@ export function EndSessionModal({
   onDone: () => void;
 }) {
   const { t, language, isRtl } = useLanguage();
+  const isMobile = useIsMobile();
   const { walletQrUrl, walletPhoneNumber, bankDetails } = useSystemSettings();
+  const customerDisplay = (() => {
+    const c = session.customer;
+    if (c?.name && c.name !== 'Walk-in') return c.name;
+    if (c?.username && !c.username.startsWith('walkin_')) return `@${c.username}`;
+    return language === 'ar' ? 'عميل بدون حساب' : 'Walk-in';
+  })();
   const [endedAt, setEndedAt] = useState(toDateTimeLocalValue(new Date()));
   const [hasCustomEnd, setHasCustomEnd] = useState(false);
   const [markPaid, setMarkPaid] = useState(true);
@@ -477,22 +485,25 @@ export function EndSessionModal({
       <Modal
         open
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, rgba(255, 68, 102, 0.2), rgba(255, 170, 0, 0.15))',
-              border: '1px solid rgba(255, 68, 102, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--accent-red)',
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>receipt_long</span>
-            </div>
-            <div>
-              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '12px', minWidth: 0 }}>
+            {!isMobile && (
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, rgba(255, 68, 102, 0.2), rgba(255, 170, 0, 0.15))',
+                border: '1px solid rgba(255, 68, 102, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-red)',
+                flexShrink: 0,
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>receipt_long</span>
+              </div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span>{language === 'ar' ? 'إنهاء الجلسة وإصدار الفاتورة' : 'End Session & Invoice'}</span>
                 <span style={{
                   fontSize: '11px',
@@ -502,37 +513,39 @@ export function EndSessionModal({
                   background: 'rgba(0, 194, 255, 0.15)',
                   color: 'var(--accent-cyan)',
                   border: '1px solid rgba(0, 194, 255, 0.3)',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}>
                   {session.device?.name ?? 'الجهاز'}
                 </span>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', overflowWrap: 'anywhere' }}>
                 {language === 'ar'
-                  ? `العميل: ${session.customer ? `@${session.customer.username} (${session.customer.name})` : 'مستغل خارجي'} · تسوية الحساب والوردية`
-                  : `Customer: ${session.customer ? session.customer.name : 'Walk-in'} · Checkout & Settlement`}
+                  ? `العميل: ${customerDisplay} · تسوية الحساب والوردية`
+                  : `Customer: ${customerDisplay} · Checkout & Settlement`}
               </div>
             </div>
           </div>
         }
         onClose={onClose}
         width="min(1180px, 96vw)"
-        bodyStyle={{ padding: '16px 20px', overflow: 'hidden' }}
+        bodyStyle={isMobile ? { padding: '12px 14px', overflowY: 'auto' } : { padding: '16px 20px', overflow: 'hidden' }}
         footer={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: isMobile ? '10px' : '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: isMobile ? '12px' : '13px', color: 'var(--text-secondary)' }}>
                 {language === 'ar' ? 'المبلغ النهائي المطلوب:' : 'Final Amount Due:'}
               </span>
               <span style={{
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '18px',
+                fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 800,
                 color: 'var(--accent-cyan)',
               }}>
                 {formatCurrency(finalTotalCost)}
               </span>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
               <Button variant="ghost" onClick={onClose} style={{ fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit' }}>
                 {t('cancel')}
               </Button>
@@ -545,10 +558,12 @@ export function EndSessionModal({
                   fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
                   display: 'inline-flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '8px',
-                  padding: '10px 24px',
+                  padding: isMobile ? '10px 14px' : '10px 24px',
                   fontWeight: 700,
-                  fontSize: '14px',
+                  fontSize: isMobile ? '13px' : '14px',
+                  flex: isMobile ? 1 : undefined,
                   boxShadow: '0 0 16px rgba(255, 68, 102, 0.25)',
                 }}
               >
@@ -559,15 +574,15 @@ export function EndSessionModal({
           </div>
         }
       >
-        {/* 2-Column POS Checkout Layout */}
+        {/* 2-Column POS Checkout Layout (1-column single-scroll on mobile) */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)',
-            gap: '20px',
-            height: 'calc(78vh - 75px)',
-            minHeight: '480px',
-            maxHeight: '660px',
+            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1.15fr) minmax(0, 1fr)',
+            gap: isMobile ? '12px' : '20px',
+            height: isMobile ? 'auto' : 'calc(78vh - 75px)',
+            minHeight: isMobile ? 'unset' : '480px',
+            maxHeight: isMobile ? 'none' : '660px',
             textAlign: isRtl ? 'right' : 'left',
           }}
         >
@@ -578,9 +593,9 @@ export function EndSessionModal({
               flexDirection: 'column',
               gap: '12px',
               minHeight: 0,
-              overflowY: 'auto',
-              paddingRight: isRtl ? 0 : '6px',
-              paddingLeft: isRtl ? '6px' : 0,
+              overflowY: isMobile ? 'visible' : 'auto',
+              paddingRight: isMobile || isRtl ? 0 : '6px',
+              paddingLeft: !isMobile && isRtl ? '6px' : 0,
             }}
           >
             {/* End Time Picker Row */}
@@ -616,7 +631,7 @@ export function EndSessionModal({
                 {language === 'ar' ? 'بيانات واستهلاك وقت الجلسة' : 'Session Duration & Device Usage'}
               </div>
 
-              <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={session.customer ? `@${session.customer.username} (${session.customer.name})` : (language === 'ar' ? 'مستغل خارجي' : 'Walk-in')} />
+              <Row label={language === 'ar' ? 'العميل' : 'Customer'} value={customerDisplay} />
               <Row label={language === 'ar' ? 'الجهاز الحالي' : 'Current Device'} value={`${session.device?.name} (${formatCurrency(rate)}/س)`} />
               <Row label={language === 'ar' ? 'تاريخ البدء' : 'Started At'} value={new Date(session.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : undefined)} />
               <Row 
@@ -728,9 +743,9 @@ export function EndSessionModal({
               flexDirection: 'column',
               gap: '12px',
               minHeight: 0,
-              overflowY: 'auto',
-              paddingRight: isRtl ? 0 : '6px',
-              paddingLeft: isRtl ? '6px' : 0,
+              overflowY: isMobile ? 'visible' : 'auto',
+              paddingRight: isMobile || isRtl ? 0 : '6px',
+              paddingLeft: !isMobile && isRtl ? '6px' : 0,
             }}
           >
             {/* ─── SECTION 1: DISCOUNT / التخفيض ─── */}
@@ -748,7 +763,7 @@ export function EndSessionModal({
               </div>
 
               {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
                 {/* Field 1: Discount Percentage */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 600, color: discountType === 'percentage' ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>
@@ -773,7 +788,7 @@ export function EndSessionModal({
                       }}
                       style={{
                         width: '100%',
-                        padding: '8px 24px 8px 10px',
+                        paddingTop: '8px', paddingBottom: '8px', paddingLeft: isRtl ? '30px' : '10px', paddingRight: isRtl ? '10px' : '30px',
                         background: discountType === 'percentage' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
                         border: discountType === 'percentage' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
                         borderRadius: '6px',
@@ -813,7 +828,7 @@ export function EndSessionModal({
                       }}
                       style={{
                         width: '100%',
-                        padding: '8px 28px 8px 10px',
+                        paddingTop: '8px', paddingBottom: '8px', paddingLeft: isRtl ? '34px' : '10px', paddingRight: isRtl ? '10px' : '34px',
                         background: discountType === 'fixed' ? 'rgba(0, 194, 255, 0.08)' : 'var(--bg-input)',
                         border: discountType === 'fixed' ? '1.5px solid var(--accent-cyan)' : '1px solid var(--border-default)',
                         borderRadius: '6px',
@@ -847,7 +862,7 @@ export function EndSessionModal({
               </div>
 
               {/* Side-by-Side: Percentage Box and Fixed Amount Box */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
                 {/* Field 1: Service Percentage */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 600, color: serviceType === 'percentage' ? 'var(--accent-yellow)' : 'var(--text-secondary)' }}>
@@ -872,7 +887,7 @@ export function EndSessionModal({
                       }}
                       style={{
                         width: '100%',
-                        padding: '8px 24px 8px 10px',
+                        paddingTop: '8px', paddingBottom: '8px', paddingLeft: isRtl ? '30px' : '10px', paddingRight: isRtl ? '10px' : '30px',
                         background: serviceType === 'percentage' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
                         border: serviceType === 'percentage' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
                         borderRadius: '6px',
@@ -912,7 +927,7 @@ export function EndSessionModal({
                       }}
                       style={{
                         width: '100%',
-                        padding: '8px 28px 8px 10px',
+                        paddingTop: '8px', paddingBottom: '8px', paddingLeft: isRtl ? '34px' : '10px', paddingRight: isRtl ? '10px' : '34px',
                         background: serviceType === 'fixed' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-input)',
                         border: serviceType === 'fixed' ? '1.5px solid var(--accent-yellow)' : '1px solid var(--border-default)',
                         borderRadius: '6px',
@@ -1348,9 +1363,9 @@ function Row({
   isBold?: boolean 
 }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap', fontSize: '13px' }}>
       <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-      <span style={{ color: valueColor, fontWeight: isBold ? 700 : 500 }}>{value}</span>
+      <span style={{ color: valueColor, fontWeight: isBold ? 700 : 500, overflowWrap: 'anywhere' }}>{value}</span>
     </div>
   );
 }

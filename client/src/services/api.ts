@@ -22,6 +22,7 @@ import type {
   EndSessionPayload,
   PricingTier,
   SessionPause,
+  SessionSummary,
   StockLog,
   StandaloneOrder,
   GamingRoom,
@@ -108,6 +109,7 @@ export interface DataService {
   resumeSession(id: string): Promise<Session>;
   listSessionPauses(id: string): Promise<SessionPause[]>;
   getSessionAuditLogs(id: string): Promise<SessionAuditLog[]>;
+  getSessionSummary(id: string): Promise<SessionSummary>;
 
   // billing
   listInvoices(filter?: 'paid' | 'unpaid'): Promise<Invoice[]>;

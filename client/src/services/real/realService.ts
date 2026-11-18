@@ -20,6 +20,7 @@ import type {
   SessionOrder,
   PricingTier,
   SessionPause,
+  SessionSummary,
   StockLog,
   StandaloneOrder,
   GamingRoom,
@@ -225,6 +226,10 @@ export const realService: DataService = {
   },
   async listSessionPauses(id) {
     const { data } = await http.get<ListWrap<SessionPause>>(`/api/sessions/${id}/pauses`);
+    return data.data;
+  },
+  async getSessionSummary(id) {
+    const { data } = await http.get<OneWrap<SessionSummary>>(`/api/sessions/${id}/summary`);
     return data.data;
   },
   async getSessionAuditLogs(id) {

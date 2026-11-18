@@ -1411,6 +1411,188 @@ export async function listSessionOrders(req: Request, res: Response) {
   res.json({ data: orders ?? [] });
 }
 
+/**
+ * GET /api/sessions/:id/summary — per-session bill: time cost (incl. transfer
+ * segments), café orders grouped by product, invoice adjustments and total.
+ * For active sessions the time cost is computed live up to "now".
+ */
+export async function getSessionSummary(req: Request, res: Response) {
+  const { id } = req.params;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  const { data: session, error: sErr } = await supabase
+    .from('sessions')
+    .select('*, device:devices(id,name,type,hourly_rate,hourly_rate_multi), customer:customers(id,name,phone,username)')
+    .eq('id', id)
+    .eq('tenant_id', req.user!.tenant_id)
+    .maybeSingle();
+  if (sErr) throw sErr;
+  if (!session) throw notFound('Session not found');
+
+  // Café orders (grouped by product)
+  let orders: any[] = [];
+  {
+    const { data, error } = await supabase
+      .from('session_orders')
+      .select('*, product:products(id,name,price)')
+      .eq('session_id', id)
+      .order('created_at', { ascending: true });
+    if (error && error.code !== 'PGRST205') throw error;
+    orders = data ?? [];
+  }
+  const grouped = new Map<string, { product_id: string; name: string; quantity: number; unit_price: number; total: number }>();
+  let cafeCents = 0;
+  for (const o of orders) {
+    const unit = Number(o.unit_price || 0);
+    const key = `${o.product_id}|${unit}`;
+    const lineCents = Math.round(Number(o.total_price || 0) * 100);
+    cafeCents += lineCents;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.quantity += Number(o.quantity || 0);
+      existing.total = round2(existing.total + lineCents / 100);
+    } else {
+      grouped.set(key, {
+        product_id: o.product_id,
+        name: o.product?.name ?? '—',
+        quantity: Number(o.quantity || 0),
+        unit_price: unit,
+        total: lineCents / 100,
+      });
+    }
+  }
+  const cafeCost = cafeCents / 100;
+
+  // Transfer segments (previous devices)
+  let transfers: any[] = [];
+  {
+    const { data, error } = await supabase
+      .from('session_transfers')
+      .select('*, from_device:devices!from_device_id(id,name,type), to_device:devices!to_device_id(id,name,type)')
+      .eq('session_id', id)
+      .order('created_at', { ascending: true });
+    if (!error) transfers = data ?? [];
+  }
+  const transfersCost = transfers.reduce((sum, t) => sum + Number(t.cost || 0), 0);
+  const transfersMinutes = transfers.reduce((sum, t) => sum + Number(t.duration_minutes || 0), 0);
+
+  const deviceHourlyRate = session.play_mode === 'multiplayer'
+    ? Number(session.device?.hourly_rate_multi ?? 0)
+    : Number(session.device?.hourly_rate ?? 0);
+  const hourlyRate = session.hourly_rate_override !== null && session.hourly_rate_override !== undefined
+    ? Number(session.hourly_rate_override)
+    : deviceHourlyRate;
+
+  // Invoice (ended sessions, or prepaid fixed sessions)
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('session_id', id)
+    .maybeSingle();
+
+  let timeCost: number;
+  let currentSegmentMinutes: number;
+  let currentSegmentCost: number;
+  let pausedMinutes = Number(session.total_paused_minutes || 0);
+  let totalMinutes: number;
+
+  if (session.status === 'active') {
+    // Include the currently-open pause (if any) so a paused session isn't billed for it
+    if (session.is_paused) {
+      const { data: openPause } = await supabase
+        .from('session_pauses')
+        .select('paused_at')
+        .eq('session_id', id)
+        .is('resumed_at', null)
+        .order('paused_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (openPause?.paused_at) {
+        pausedMinutes += Math.max(0, Math.round((Date.now() - new Date(openPause.paused_at).getTime()) / 60000));
+      }
+    }
+    const nowDate = new Date();
+    const startedMs = new Date(session.started_at).getTime();
+    const live = calculateSessionCost({
+      startedAt: session.started_at,
+      endedAt: nowDate.getTime() < startedMs ? new Date(startedMs) : nowDate,
+      deviceHourlyRate,
+      hourlyRateOverride: session.hourly_rate_override,
+      sessionType: session.session_type,
+      scheduledEnd: session.scheduled_end,
+      gracePeriodMinutes: session.grace_period_minutes,
+      overtimeRateMultiplier: Number(process.env.OVERTIME_RATE_MULTIPLIER || 1.0),
+      pausedMinutes,
+      minBillingMinutes: MIN_BILLING_MINUTES,
+    });
+    currentSegmentMinutes = live.billedMinutes;
+    currentSegmentCost = live.totalCost;
+    timeCost = round2(currentSegmentCost + transfersCost);
+    totalMinutes = currentSegmentMinutes + transfersMinutes;
+  } else {
+    // Ended: invoice.subtotal = device time cost + café cost (before discount/service/rounding)
+    const subtotal = invoice?.subtotal !== null && invoice?.subtotal !== undefined
+      ? Number(invoice.subtotal)
+      : Number(session.total_cost || 0);
+    timeCost = round2(Math.max(0, subtotal - cafeCost));
+    totalMinutes = Number(session.duration_minutes || 0);
+    currentSegmentMinutes = Math.max(0, totalMinutes - transfersMinutes);
+    currentSegmentCost = round2(Math.max(0, timeCost - transfersCost));
+  }
+
+  const subtotal = round2(timeCost + cafeCost);
+  const discountAmount = Number(invoice?.discount_amount || 0);
+  const serviceFee = Number(invoice?.service_fee || 0);
+  const roundingDelta = Number(invoice?.rounding_delta || 0);
+  const total = session.status === 'active'
+    ? subtotal
+    : (invoice ? Number(invoice.amount) : Number(session.total_cost || 0));
+
+  res.json({
+    data: {
+      session,
+      time: {
+        total_minutes: totalMinutes,
+        paused_minutes: pausedMinutes,
+        hourly_rate: hourlyRate,
+        cost: timeCost,
+        segments: [
+          ...transfers.map((t) => ({
+            device_name: t.from_device?.name ?? '—',
+            minutes: Number(t.duration_minutes || 0),
+            hourly_rate: Number(t.hourly_rate || 0),
+            cost: Number(t.cost || 0),
+          })),
+          {
+            device_name: session.device?.name ?? '—',
+            minutes: currentSegmentMinutes,
+            hourly_rate: hourlyRate,
+            cost: currentSegmentCost,
+          },
+        ],
+      },
+      cafe: {
+        cost: cafeCost,
+        items: Array.from(grouped.values()),
+      },
+      invoice: invoice
+        ? {
+            id: invoice.id,
+            paid: !!invoice.paid,
+            payment_method: invoice.payment_method,
+            notes: invoice.notes ?? null,
+          }
+        : null,
+      subtotal,
+      discount_amount: discountAmount,
+      service_fee: serviceFee,
+      rounding_delta: roundingDelta,
+      total,
+      is_live: session.status === 'active',
+    },
+  });
+}
+
 /** GET /api/sessions/:id/audit-logs — list audit trails for a session. */
 export async function getSessionAuditLogs(req: Request, res: Response) {
   const { id } = req.params;

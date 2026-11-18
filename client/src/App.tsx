@@ -4,6 +4,7 @@ import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { UpdateNotification } from './components/UpdateNotification';
 
 import AuthPage from './pages/AuthPage';
+import LandingPage from './pages/LandingPage';
 import DownloadPage from './pages/DownloadPage';
 import DashboardPage from './pages/DashboardPage';
 import RoomsPage from './pages/RoomsPage';
@@ -254,8 +255,22 @@ export default function App() {
         <Route path="/super-admin" element={<SuperAdminPage />} />
         <Route path="/customers/:id" element={<ProtectedRoute><CustomerProfilePage /></ProtectedRoute>} />
 
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/"
+          element={
+            isElectron
+              ? <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
+              : isAuthenticated
+                ? <Navigate to="/dashboard" replace />
+                : <LandingPage />
+          }
+        />
+        <Route path="/welcome" element={<LandingPage />} />
+        <Route path="/features" element={<LandingPage initialSection="features" />} />
+        <Route path="/demo-video" element={<LandingPage initialSection="demo-video" />} />
+        <Route path="/trial" element={<LandingPage initialSection="trial" />} />
+        <Route path="/contact" element={<LandingPage initialSection="contact" />} />
+        <Route path="*" element={<Navigate to={isElectron ? '/login' : '/'} replace />} />
       </Routes>
     </>
   );

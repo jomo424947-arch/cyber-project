@@ -71,7 +71,8 @@ export function Modal({ open, title, onClose, children, footer, width = 480, bod
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '20px 24px',
+            gap: '8px',
+            padding: isMobile ? '14px 16px' : '20px 24px',
             borderBottom: '1px solid var(--border-default)',
             flexShrink: 0,
           }}
@@ -79,14 +80,16 @@ export function Modal({ open, title, onClose, children, footer, width = 480, bod
           <h2
             style={{
               fontFamily: 'Space Grotesk, sans-serif',
-              fontSize: '18px',
+              fontSize: isMobile ? '16px' : '18px',
               fontWeight: 600,
               color: 'var(--text-primary)',
+              minWidth: 0,
+              flex: 1,
             }}
           >
             {title}
           </h2>
-          <Button variant="ghost" onClick={onClose} aria-label="Close" style={{ padding: '6px 10px', minHeight: '36px', display: 'inline-flex', alignItems: 'center' }}>
+          <Button variant="ghost" onClick={onClose} aria-label="Close" style={{ padding: '6px 10px', minHeight: '36px', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
           </Button>
         </div>

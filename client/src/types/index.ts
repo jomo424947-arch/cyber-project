@@ -74,6 +74,29 @@ export interface SessionPause {
 
 export type PaymentMethod = 'cash' | 'card' | 'transfer' | 'wallet';
 
+/** Per-session bill: time cost + café orders + total (GET /api/sessions/:id/summary). */
+export interface SessionSummary {
+  session: Session;
+  time: {
+    total_minutes: number;
+    paused_minutes: number;
+    hourly_rate: number;
+    cost: number;
+    segments: { device_name: string; minutes: number; hourly_rate: number; cost: number }[];
+  };
+  cafe: {
+    cost: number;
+    items: { product_id: string; name: string; quantity: number; unit_price: number; total: number }[];
+  };
+  invoice: { id: string; paid: boolean; payment_method: PaymentMethod; notes: string | null } | null;
+  subtotal: number;
+  discount_amount: number;
+  service_fee: number;
+  rounding_delta: number;
+  total: number;
+  is_live: boolean;
+}
+
 export interface Invoice {
   id: string;
   session_id: string;

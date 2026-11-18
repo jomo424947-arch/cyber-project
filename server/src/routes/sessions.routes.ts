@@ -15,6 +15,7 @@ import {
   listSessionPauses,
   transferSession,
   listSessionTransfers,
+  getSessionSummary,
 } from '../controllers/sessions.controller';
 import { 
   startSessionSchema, 
@@ -44,6 +45,7 @@ router.get('/:id/pauses', asyncHandler(listSessionPauses));
 router.post('/:id/extend', validate(extendSessionSchema), asyncHandler(extendSession));
 router.post('/:id/end', validate(endSessionSchema), asyncHandler(endSession));
 router.get('/:id/audit-logs', asyncHandler(getSessionAuditLogs));
+router.get('/:id/summary', asyncHandler(getSessionSummary));
 
 // Café orders endpoints
 router.post('/:id/orders', validate(addSessionOrderSchema), asyncHandler(addSessionOrder));

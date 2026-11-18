@@ -575,7 +575,7 @@ export default function DashboardPage() {
                 header: language === 'ar' ? 'التحكم' : 'Actions',
                 align: 'right',
                 render: (s) => (
-                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', width: isMobile ? '100%' : 'auto' }}>
                     {/* Pause / Resume Button */}
                     {!s.is_paused ? (
                       <button
@@ -591,6 +591,7 @@ export default function DashboardPage() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
+                          whiteSpace: 'nowrap',
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -615,6 +616,7 @@ export default function DashboardPage() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
+                          whiteSpace: 'nowrap',
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -641,6 +643,7 @@ export default function DashboardPage() {
                         borderColor: 'rgba(168, 85, 247, 0.4)',
                         color: 'var(--accent-purple)',
                         fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                        whiteSpace: 'nowrap',
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -666,6 +669,7 @@ export default function DashboardPage() {
                         borderColor: 'var(--accent-cyan)',
                         color: 'var(--accent-cyan)',
                         fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                        whiteSpace: 'nowrap',
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -675,6 +679,37 @@ export default function DashboardPage() {
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
                       {language === 'ar' ? 'مشروب +' : '+ Café'}
+                    </button>
+
+                    {/* End Session Button */}
+                    <button
+                      type="button"
+                      disabled={s.is_paused}
+                      className="ccms-btn ccms-btn-ghost"
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11px',
+                        minHeight: '28px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        borderColor: 'rgba(239, 68, 68, 0.45)',
+                        background: 'rgba(239, 68, 68, 0.14)',
+                        color: 'var(--accent-red)',
+                        fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        opacity: s.is_paused ? 0.5 : 1,
+                        cursor: s.is_paused ? 'not-allowed' : 'pointer',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!s.is_paused) setEndTarget(s);
+                      }}
+                      title={s.is_paused ? (language === 'ar' ? 'استأنف الجلسة أولاً قبل الإنهاء' : 'Resume session before ending') : (language === 'ar' ? 'إنهاء الجلسة' : 'End Session')}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>stop_circle</span>
+                      {language === 'ar' ? 'إنهاء' : 'End'}
                     </button>
                   </div>
                 ),

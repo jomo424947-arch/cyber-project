@@ -11,6 +11,7 @@ import { usePolling } from '../hooks/usePolling';
 import { useNow } from '../hooks/useNow';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { dataService } from '../services';
 import { apiErrorMessage } from '../services/http';
 import { formatElapsed, formatDuration, formatCurrency, formatDateTime } from '../utils/format';
@@ -21,6 +22,7 @@ import {
   TransferSessionModal,
 } from '../components/SessionModals';
 import { AddCafeModal } from '../components/AddCafeModal';
+import { SessionReceiptModal } from '../components/SessionReceiptModal';
 import type { Session } from '../types';
 
 type Tab = 'active' | 'history';
@@ -30,12 +32,14 @@ export default function SessionsPage() {
   const now = useNow(1000);
   const { toast } = useToast();
   const { t, language, isRtl } = useLanguage();
+  const isMobile = useIsMobile();
 
   const [endTarget, setEndTarget] = useState<Session | null>(null);
   const [editTarget, setEditTarget] = useState<Session | null>(null);
   const [transferTarget, setTransferTarget] = useState<Session | null>(null);
   const [auditTarget, setAuditTarget] = useState<Session | null>(null);
   const [cafeTarget, setCafeTarget] = useState<Session | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<Session | null>(null);
 
   const { data, loading, refetch } = useAsync(
     () => dataService.listSessions(),
@@ -125,7 +129,7 @@ export default function SessionsPage() {
           />
         </div>
       ) : (
-        <div className="ccms-card" style={{ overflow: 'hidden' }}>
+        <div className={isMobile ? undefined : 'ccms-card'} style={isMobile ? undefined : { overflow: 'hidden' }}>
           <Table
             columns={
               tab === 'active'
@@ -249,7 +253,7 @@ export default function SessionsPage() {
                     header: language === 'ar' ? 'التحكم' : 'Actions',
                     align: 'right' as const,
                     render: (s: Session) => (
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
                         {s.edited_start_at && (
                           <button
                             type="button"
@@ -259,6 +263,7 @@ export default function SessionsPage() {
                               padding: '6px 12px',
                               fontSize: '11px',
                               minHeight: '32px',
+                              whiteSpace: 'nowrap',
                             }}
                             onClick={() => setAuditTarget(s)}
                           >
@@ -272,6 +277,7 @@ export default function SessionsPage() {
                             padding: '6px 12px',
                             fontSize: '11px',
                             minHeight: '32px',
+                            whiteSpace: 'nowrap',
                           }}
                           onClick={() => setEditTarget(s)}
                         >
@@ -290,6 +296,7 @@ export default function SessionsPage() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
+                            whiteSpace: 'nowrap',
                           }}
                           onClick={() => setTransferTarget(s)}
                         >
@@ -304,6 +311,7 @@ export default function SessionsPage() {
                               padding: '6px 12px',
                               fontSize: '11px',
                               minHeight: '32px',
+                              whiteSpace: 'nowrap',
                             }}
                             onClick={() => handleExtend(s)}
                           >
@@ -323,11 +331,32 @@ export default function SessionsPage() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
+                            whiteSpace: 'nowrap',
                           }}
                           onClick={() => setCafeTarget(s)}
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_cafe</span>
                           {language === 'ar' ? 'مشروب +' : '+ Café'}
+                        </button>
+                        <button
+                          type="button"
+                          className="ccms-btn ccms-btn-ghost"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '11px',
+                            minHeight: '32px',
+                            color: 'var(--accent-green)',
+                            borderColor: 'rgba(34, 197, 94, 0.4)',
+                            fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            whiteSpace: 'nowrap',
+                          }}
+                          onClick={() => setReceiptTarget(s)}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+                          {language === 'ar' ? 'عرض الحساب' : 'View bill'}
                         </button>
                         {!s.is_paused ? (
                           <button
@@ -339,6 +368,7 @@ export default function SessionsPage() {
                               minHeight: '32px',
                               color: 'var(--accent-yellow)',
                               borderColor: 'rgba(245, 158, 11, 0.4)',
+                              whiteSpace: 'nowrap',
                             }}
                             onClick={() => handlePause(s)}
                           >
@@ -354,6 +384,7 @@ export default function SessionsPage() {
                               minHeight: '32px',
                               color: 'var(--accent-green)',
                               borderColor: 'rgba(34, 197, 94, 0.4)',
+                              whiteSpace: 'nowrap',
                             }}
                             onClick={() => handleResume(s)}
                           >
@@ -370,6 +401,7 @@ export default function SessionsPage() {
                             fontSize: '11px',
                             minHeight: '32px',
                             opacity: s.is_paused ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           {language === 'ar' ? 'إنهاء' : 'End'}
@@ -439,12 +471,47 @@ export default function SessionsPage() {
                     align: 'right' as const,
                     render: () => <Badge label={language === 'ar' ? 'منتهية' : 'Ended'} color="var(--text-secondary)" bg="rgba(255, 255, 255, 0.05)" />,
                   },
+                  {
+                    key: 'details',
+                    header: language === 'ar' ? 'التفاصيل' : 'Details',
+                    align: 'right' as const,
+                    render: (s: Session) => (
+                      <button
+                        type="button"
+                        className="ccms-btn ccms-btn-ghost"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          minHeight: '32px',
+                          color: 'var(--accent-cyan)',
+                          borderColor: 'rgba(0, 194, 255, 0.4)',
+                          fontFamily: isRtl ? 'Cairo, sans-serif' : 'inherit',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReceiptTarget(s);
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+                        {language === 'ar' ? 'عرض الحساب' : 'View bill'}
+                      </button>
+                    ),
+                  },
                 ]
             }
             data={visible}
             rowKey={(s) => s.id}
+            onRowClick={tab === 'history' ? (s) => setReceiptTarget(s) : undefined}
           />
         </div>
+      )}
+
+      {/* Session bill (time + café + total) */}
+      {receiptTarget && (
+        <SessionReceiptModal session={receiptTarget} onClose={() => setReceiptTarget(null)} />
       )}
 
       {/* End session modal */}
